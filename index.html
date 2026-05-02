@@ -20,8 +20,12 @@ input,textarea{font-family:inherit;outline:none}
 svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .phone{position:relative;width:100%;max-width:400px;aspect-ratio:9/19.5;min-height:720px;background:var(--c-bg);border-radius:44px;border:10px solid var(--c-ink);overflow:hidden;box-shadow:0 50px 100px -20px rgba(15,24,48,0.4),0 0 0 1px rgba(15,24,48,0.08)}
 @media (max-width:600px){
-  body{padding:0}
-  .phone{border-radius:0;border:0;max-width:100%;aspect-ratio:auto;min-height:100vh;height:100vh;height:100dvh}
+  /* App-Shell: body komplett unscrollbar machen, damit nur .scroll im Inneren scrollt.
+     Verhindert dass iOS Safari beim Scrollen die ganze Seite verschiebt + Adressleisten-Toggle. */
+  html,body{height:100%;height:100dvh;overflow:hidden;position:fixed;width:100%;top:0;left:0;overscroll-behavior:none}
+  body{padding:0;display:block}
+  .phone{border-radius:0;border:0;max-width:100%;aspect-ratio:auto;min-height:0;height:100%;height:100dvh;width:100%;box-shadow:none}
+  .phone__inner{height:100%}
   /* Safe-Area-Insets f\u00fcr Notch / Home-Indicator (iPhone X+) */
   .header{padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right))}
   .scroll{padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right))}
@@ -332,7 +336,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.2';
+const APP_VERSION = 'v1.3.3';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
