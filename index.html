@@ -345,7 +345,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.6';
+const APP_VERSION = 'v1.4';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -711,6 +711,7 @@ const state = {
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
+  catAdding: false, catAddDraft: '', catManageMode: false,
   editForm: null,
   specsRegenerating: false,
   // Multi-company support
@@ -729,6 +730,10 @@ Object.defineProperty(state, 'halls', {
 Object.defineProperty(state, 'shelves', {
   get() { return state.company?.shelves || []; },
   set(v) { if (state.company) state.company.shelves = v; },
+});
+Object.defineProperty(state, 'categories', {
+  get() { return state.company?.categories || []; },
+  set(v) { if (state.company) state.company.categories = v; },
 });
 
 /* ============================================================
@@ -750,8 +755,9 @@ const sampleInventoryFLP = [
 const COMPANY_COLORS = ['#2456E5', '#7C3AED', '#0891B2', '#DC2626', '#16A34A', '#D97706', '#DB2777', '#0284C7'];
 const DEFAULT_HALLS = ['Hauptlager', 'Werkstatt', 'Außenlager'];
 const DEFAULT_SHELVES = ['1', '2', '3', '4', '5', '6', 'Boden'];
+const DEFAULT_CATEGORIES = ['Antrieb', 'Sicherheit', 'Türen', 'Notruf', 'Mechanik', 'Steuerung', 'Beleuchtung'];
 
-function makeCompany({ id, name, color, inventory = [], halls, shelves }) {
+function makeCompany({ id, name, color, inventory = [], halls, shelves, categories }) {
   return {
     id: id || ('co-' + Math.random().toString(36).slice(2, 8)),
     name,
@@ -759,6 +765,7 @@ function makeCompany({ id, name, color, inventory = [], halls, shelves }) {
     inventory,
     halls: halls ? [...halls] : [...DEFAULT_HALLS],
     shelves: shelves ? [...shelves] : [...DEFAULT_SHELVES],
+    categories: categories ? [...categories] : [...DEFAULT_CATEGORIES],
   };
 }
 
@@ -767,6 +774,7 @@ function makeCompany({ id, name, color, inventory = [], halls, shelves }) {
 const SEED_FLP_INVENTORY = sampleInventoryFLP;
 const SEED_FLP_HALLS = ['Hauptlager', 'Werkstatt', 'Antriebslager', 'Au\u00dfenlager', 'Reservelager'];
 const SEED_FLP_SHELVES = ['1', '2', '3', '4', '5', '6', 'Boden'];
+const SEED_FLP_CATEGORIES = ['Antrieb', 'Sicherheit', 'T\u00fcren', 'Notruf', 'Mechanik', 'Steuerung', 'Beleuchtung'];
 
 // Backward-compatible accessor: many screen renderers iterate over `inventory` as a free variable.
 // Defining it as a non-writable getter on `globalThis` lets every existing reference (e.g. `inventory.filter(...)`)
@@ -785,6 +793,7 @@ const COMPANY_FIELDS = [
   { name: 'color', type: 'singleLineText' },
   { name: 'halls', type: 'multilineText' },
   { name: 'shelves', type: 'multilineText' },
+  { name: 'categories', type: 'multilineText' },
   { name: 'created', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -808,6 +817,32 @@ const ITEM_FIELDS = [
 async function ensureAllTables() {
   await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureTable(TBL_ITEMS, ITEM_FIELDS);
+  // Nachträglich fehlende Felder ergänzen (Migration alter Tabellen)
+  await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
+  await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
+}
+
+async function ensureFieldsExist(tableName, expectedFields) {
+  if (!APP_KEYS.airtableWriteKey) return;
+  try {
+    const metaUrl = 'https://api.airtable.com/v0/meta/bases/' + AIR_BASE() + '/tables';
+    const r = await fetch(metaUrl, { headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey } });
+    if (!r.ok) return;
+    const meta = await r.json();
+    const tbl = (meta.tables || []).find(t => t.name === tableName);
+    if (!tbl) return;
+    const existingNames = new Set((tbl.fields || []).map(f => f.name));
+    const missing = expectedFields.filter(f => !existingNames.has(f.name));
+    for (const f of missing) {
+      try {
+        await fetch(metaUrl + '/' + tbl.id + '/fields', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: f.name, type: f.type }),
+        });
+      } catch (e) { /* feld bereits da oder permission fehlt – egal */ }
+    }
+  } catch (e) { /* offline / metadata-API nicht verfügbar */ }
 }
 
 function nowIso() { return new Date().toISOString(); }
@@ -825,14 +860,16 @@ function recordToCompany(rec) {
   const f = rec.fields || {};
   let halls = SEED_FLP_HALLS.slice();
   let shelves = SEED_FLP_SHELVES.slice();
+  let categories = SEED_FLP_CATEGORIES.slice();
   try { if (f.halls) halls = JSON.parse(f.halls); } catch(e) {}
   try { if (f.shelves) shelves = JSON.parse(f.shelves); } catch(e) {}
+  try { if (f.categories) categories = JSON.parse(f.categories); } catch(e) {}
   return {
     id: f.company_id,
     _recordId: rec.id,
     name: f.name || '',
     color: f.color || COMPANY_COLORS[0],
-    halls, shelves,
+    halls, shelves, categories,
     inventory: [],
   };
 }
@@ -885,6 +922,7 @@ function companyToFields(c, apiKey) {
     color: c.color,
     halls: JSON.stringify(c.halls || []),
     shelves: JSON.stringify(c.shelves || []),
+    categories: JSON.stringify(c.categories || []),
     created: c._created || nowIso(),
     api_key: apiKey,
   };
@@ -911,6 +949,7 @@ async function loadAllData() {
       color: '#2456E5',
       halls: SEED_FLP_HALLS.slice(),
       shelves: SEED_FLP_SHELVES.slice(),
+      categories: SEED_FLP_CATEGORIES.slice(),
       inventory: [],
       _created: nowIso(),
     };
@@ -945,6 +984,13 @@ async function loadAllData() {
     companies.forEach(c => {
       c.inventory = byCompany[c.id] || [];
     });
+    // Migration: falls categories-Feld in Airtable noch leer war, im Hintergrund nachziehen
+    for (const c of companies) {
+      const recCategories = companyRecs.find(r => r.id === c._recordId)?.fields?.categories;
+      if (!recCategories && c.categories?.length) {
+        airUpdate(TBL_COMPANIES, c._recordId, { categories: JSON.stringify(c.categories) }).catch(() => {});
+      }
+    }
   }
 
   state.companies = companies;
@@ -977,6 +1023,7 @@ async function persistCompanyHallsShelves(c) {
     await airUpdate(TBL_COMPANIES, c._recordId, {
       halls: JSON.stringify(c.halls || []),
       shelves: JSON.stringify(c.shelves || []),
+      categories: JSON.stringify(c.categories || []),
     });
   } catch (e) { showToast('Sync fehlgeschlagen: ' + e.message, 'error', 3500); }
 }
@@ -1055,7 +1102,8 @@ async function runPhotoSearch() {
     const mediaType = state.photoSearchFile.type || 'image/jpeg';
 
     // Schritt 1: Claude Vision \u2014 OCR + Bauteil-Identifikation
-    const visionPrompt = 'Du analysierst ein Foto eines Aufzugs-Ersatzteils. Antworte AUSSCHLIESSLICH als JSON:\n{"text_on_label":"...","probable_maker":"...","probable_model":"...","category":"Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung","keywords":["w1","w2",...]}';
+    const cats = (state.categories || []).join('|') || 'Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung';
+    const visionPrompt = `Du analysierst ein Foto eines Aufzugs-Ersatzteils. Antworte AUSSCHLIESSLICH als JSON:\n{"text_on_label":"...","probable_maker":"...","probable_model":"...","category":"${cats}","keywords":["w1","w2",...]}\nW\u00e4hle die fachlich passendste Kategorie aus der Liste. Wenn keine passt, lasse "category" leer.`;
     const visionRes = await askAI(visionPrompt, { imageBase64: base64, imageMediaType: mediaType, maxTokens: 400 });
     let info; try { info = parseAIJson(visionRes); } catch(e) { info = { keywords: [] }; }
     state.aiStep = 2; render();
@@ -1154,9 +1202,41 @@ async function saveNewItemFromVoice() {
 async function parseVoiceTranscript(transcript) {
   if (!transcript) return;
   try {
-    const sys = 'Du extrahierst Felder f\u00fcr ein Lager-System f\u00fcr Aufzugsersatzteile aus deutschsprachiger Sprache. Antworte AUSSCHLIESSLICH als JSON:\n{"name":"","maker":"","cat":"Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung|","loc":{"hall":"","shelf":"","pos":"","box":""},"cond":"neu|refurb|used|","func":"ok|untested|unknown|defective|scrap|","stock":""}\nLasse Felder leer wenn nicht erw\u00e4hnt.';
-    const txt = await askAI('Diktat: ' + transcript, { system: sys, maxTokens: 400 });
+    const cats = state.categories || [];
+    const catList = cats.length ? cats.join(' | ') : 'beliebig';
+    const sys = `Du extrahierst Felder f\u00fcr ein Lager-System f\u00fcr Aufzugsersatzteile aus deutschsprachiger Sprache.
+
+Verf\u00fcgbare Kategorien (w\u00e4hle die fachlich passendste!): ${catList}
+
+Antworte AUSSCHLIESSLICH als JSON in diesem Schema:
+{
+  "name": "kurzer Artikelname",
+  "maker": "Hersteller",
+  "cat": "<eine der verf\u00fcgbaren Kategorien ODER neue Bezeichnung wenn keine passt>",
+  "cat_is_new": false,
+  "loc": {"hall":"","shelf":"","pos":"","box":""},
+  "cond": "neu|refurb|used|",
+  "func": "ok|untested|unknown|defective|scrap|",
+  "stock": ""
+}
+
+Regeln zur Kategorie:
+- Ordne den Artikel logisch in die fachlich passendste Kategorie aus der Liste ein.
+- Beispiele: Frequenzumrichter, Getriebe, Motor \u2192 "Antrieb"; Lichtgitter, Fangvorrichtung \u2192 "Sicherheit"; T\u00fcrantriebe, T\u00fcrschlitten \u2192 "T\u00fcren"; Notrufger\u00e4te \u2192 "Notruf"; Treibscheiben, Seilrollen \u2192 "Mechanik"; Steuerungen, Platinen \u2192 "Steuerung"; Lampen, LEDs \u2192 "Beleuchtung".
+- Wenn KEINE der verf\u00fcgbaren Kategorien passt, schlage einen NEUEN, kurzen, sinnvollen deutschen Kategorienamen vor (1 Wort, max 2) und setze "cat_is_new": true.
+- Lasse "cat" NIEMALS leer wenn ein Artikel beschrieben wird.
+
+Lasse andere Felder leer wenn nicht erw\u00e4hnt.`;
+    const txt = await askAI('Diktat: ' + transcript, { system: sys, maxTokens: 500 });
     const data = parseAIJson(txt);
+
+    // Falls AI eine neue Kategorie vorgeschlagen hat \u2192 automatisch hinzuf\u00fcgen
+    if (data.cat && data.cat_is_new && !cats.includes(data.cat) && state.company) {
+      state.categories = [...cats, data.cat];
+      persistCompanyHallsShelves(state.company);
+      showToast('Neue Kategorie erg\u00e4nzt: ' + data.cat, 'info', 2400);
+    }
+
     state.voiceFields = {
       name: data.name || state.voiceFields.name || '',
       maker: data.maker || state.voiceFields.maker || '',
@@ -1285,7 +1365,9 @@ const FUNCTION_STATUS = {
 };
 const CONDITION_KEYS = ['neu', 'refurb', 'used'];
 const FUNCTION_KEYS  = ['ok', 'untested', 'unknown', 'defective', 'scrap'];
-const CATEGORIES = ['Antrieb', 'Sicherheit', 'Türen', 'Notruf', 'Mechanik', 'Steuerung', 'Beleuchtung'];
+// CATEGORIES wird nicht mehr global definiert — stattdessen kommt es pro Firma aus state.categories.
+// Diese Konstante bleibt nur als Fallback bestehen.
+const CATEGORIES_FALLBACK = ['Antrieb', 'Sicherheit', 'Türen', 'Notruf', 'Mechanik', 'Steuerung', 'Beleuchtung'];
 
 /* ============================================================
    HELPERS
@@ -1391,6 +1473,48 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
     </div>
   `;
 }
+
+// Inline "Neu"-Button / Input für Kategorien
+function renderCatAddRow() {
+  return state.catAdding ? `
+    <div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 10px;background:var(--c-surface);border:1.5px solid var(--c-blue);border-radius:var(--r-pill);box-shadow:var(--elev-1);flex-shrink:0">
+      <input data-action="cat-add-input" value="${(state.catAddDraft || '').replace(/"/g, '&quot;')}" placeholder="Neue Kategorie" style="background:transparent;border:0;padding:0;width:140px;font-size:12px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit" autofocus>
+      <button data-action="cat-add-save" style="width:22px;height:22px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center">${svg('check', 11, 3)}</button>
+      <button data-action="cat-add-cancel" style="width:22px;height:22px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('x', 11, 2.5)}</button>
+    </div>
+  ` : `
+    <button class="chip" data-action="cat-add-start" style="border:1.5px dashed var(--c-blue-light);color:var(--c-blue);background:transparent;box-shadow:none">${svg('plus', 11, 2.5)} Neu</button>
+  `;
+}
+
+// Wiederverwendbarer Kategorie-Picker mit Verwalten-Modus
+// scope = 'edit' | 'voice', selectAction = action für Auswahl
+function renderCatPicker(scope, selectedValue, selectAction) {
+  const cats = state.categories || [];
+  const isManaging = state.catManageMode;
+  return `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px;gap:10px">
+        <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Kategorie</span>
+        <button data-action="cat-manage-toggle" style="font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
+          ${isManaging ? svg('check', 10, 3) : svg('pencil', 10, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
+        </button>
+      </div>
+      <div class="chip-row">
+        ${!isManaging ? renderCatAddRow() : ''}
+        ${cats.map(c => {
+          const active = !isManaging && selectedValue === c;
+          const ev = String(c).replace(/"/g, '&quot;');
+          if (isManaging) {
+            return `<button class="chip" data-action="cat-remove" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${c} ${svg('x', 11, 2.8)}</button>`;
+          }
+          return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${selectAction}" data-cat="${ev}">${c}</button>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
 const wave = (n = 28) => Array.from({ length: n }, (_, i) => {
   const h = 20 + Math.abs(Math.sin(i * 0.7)) * 80;
   const dur = 0.7 + (i % 5) * 0.18;
@@ -2020,11 +2144,7 @@ function renderEdit() {
     <!-- Kategorie -->
     <div>
       <div class="section-head"><h2 class="section-head__title">Kategorie</h2></div>
-      <div class="chip-row">
-        ${CATEGORIES.map(c => `
-          <button class="chip ${f.cat === c ? 'chip--active' : ''}" data-action="edit-cat" data-cat="${c}">${c}</button>
-        `).join('')}
-      </div>
+      ${renderCatPicker('edit', f.cat, 'edit-cat')}
     </div>
 
     <!-- Lagerort -->
@@ -2483,12 +2603,16 @@ function renderVoiceForm() {
     <div>
       <div class="section-head"><h2 class="section-head__title">${state.voicePhase === 'done' ? 'Erkannte Felder' : 'Felder'}</h2></div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${[{ k: 'name', l: 'Bezeichnung' }, { k: 'maker', l: 'Hersteller' }, { k: 'cat', l: 'Kategorie' }, { k: 'stock', l: 'Bestand · Stk' }].map((f, i) => `
+        ${[{ k: 'name', l: 'Bezeichnung' }, { k: 'maker', l: 'Hersteller' }, { k: 'stock', l: 'Bestand · Stk' }].map((f, i) => `
           <div class="field">
             <label class="field__label">${String(i + 1).padStart(2, '0')} · ${f.l}</label>
             <input class="field__input" data-action="voice-field" data-key="${f.k}" placeholder="—" value="${(state.voiceFields[f.k] || '').replace(/"/g, '&quot;')}">
           </div>`).join('')}
       </div>
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Kategorie</h2></div>
+      ${renderCatPicker('voice', state.voiceFields.cat || '', 'voice-cat')}
     </div>
     <div>
       <div class="section-head">
@@ -3000,6 +3124,48 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'edit-cat': if (state.editForm) { state.editForm.cat = btn.dataset.cat; render(); } break;
+    case 'voice-cat': state.voiceFields.cat = btn.dataset.cat; render(); break;
+    case 'cat-manage-toggle':
+      state.catManageMode = !state.catManageMode;
+      state.catAdding = false;
+      state.catAddDraft = '';
+      render();
+      break;
+    case 'cat-add-start':
+      state.catAdding = true;
+      state.catAddDraft = '';
+      render();
+      break;
+    case 'cat-add-cancel':
+      state.catAdding = false;
+      state.catAddDraft = '';
+      render();
+      break;
+    case 'cat-add-save': {
+      const v = (state.catAddDraft || '').trim();
+      if (v && state.company && !(state.categories || []).includes(v)) {
+        state.categories = [...(state.categories || []), v];
+        // bei Edit/Voice-Form direkt als gewählte Kategorie setzen
+        if (state.view === 'edit' && state.editForm) state.editForm.cat = v;
+        if (state.view === 'voice') state.voiceFields.cat = v;
+        persistCompanyHallsShelves(state.company);
+      }
+      state.catAdding = false;
+      state.catAddDraft = '';
+      render();
+      break;
+    }
+    case 'cat-remove': {
+      const v = btn.dataset.val;
+      if (state.company) {
+        state.categories = (state.categories || []).filter(c => c !== v);
+        if (state.view === 'edit' && state.editForm && state.editForm.cat === v) state.editForm.cat = '';
+        if (state.view === 'voice' && state.voiceFields.cat === v) state.voiceFields.cat = '';
+        persistCompanyHallsShelves(state.company);
+      }
+      render();
+      break;
+    }
     case 'edit-cond': if (state.editForm) { state.editForm.cond = btn.dataset.id; render(); } break;
     case 'edit-func': if (state.editForm) { state.editForm.func = btn.dataset.id; render(); } break;
     case 'edit-loc-hall': if (state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.hall = btn.dataset.val; render(); } break;
@@ -3246,6 +3412,7 @@ document.addEventListener('input', (e) => {
   else if (a === 'voice-loc-box') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.box = t.value; }
   else if (a === 'bestand-query') { state.bestandQuery = t.value; render(); }
   else if (a === 'loc-add-input') state.locAddDraft = t.value;
+  else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
@@ -3258,6 +3425,9 @@ document.addEventListener('keydown', (e) => {
   if (e.target.dataset?.action === 'manual-search-input' && e.key === 'Enter' && state.query) go('results');
   else if (e.target.dataset?.action === 'loc-add-input' && e.key === 'Enter') {
     document.querySelector('[data-action="loc-add-save"]')?.click();
+  }
+  else if (e.target.dataset?.action === 'cat-add-input' && e.key === 'Enter') {
+    document.querySelector('[data-action="cat-add-save"]')?.click();
   }
 });
 
