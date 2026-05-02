@@ -383,7 +383,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5.6';
+const APP_VERSION = 'v1.5.7';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2938,7 +2938,9 @@ function renderCamera() {
   const count = previews.length;
   const canAddMore = count < PHOTO_MAX_PER_ITEM;
   const liveSupported = Camera.isSupported();
-  const showLive = liveSupported && !cur && canAddMore && !state.cameraDenied;
+  const liveAvailable = liveSupported && !state.cameraDenied;       // Live-Kamera grundsätzlich nutzbar
+  const showLive = liveAvailable && !cur && canAddMore;              // Live-Kamera JETZT sichtbar
+  const addAction = liveAvailable && canAddMore ? 'cam-back-to-live' : 'open-camera';
 
   return `
 <div class="screen cam-screen">
@@ -2973,7 +2975,7 @@ function renderCamera() {
         </button>
       `).join('')}
       ${canAddMore && !cur && showLive ? '' : (canAddMore ? `
-        <button class="cam-strip__add" data-action="${showLive ? 'cam-back-to-live' : 'open-camera'}">
+        <button class="cam-strip__add" data-action="${addAction}">
           ${svg('plus', 22, 2.2)}
         </button>
       ` : '')}
@@ -2987,7 +2989,7 @@ function renderCamera() {
     <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px;${canAddMore ? '' : 'opacity:.3;pointer-events:none'}" data-action="open-gallery">${svg('image', 18, 2.2)}</button>
     ${cur
       ? canAddMore
-        ? `<button class="cam-shutter" data-action="cam-back-to-live">${svg('camera', 26, 2.2)}</button>`
+        ? `<button class="cam-shutter" data-action="${addAction}">${svg('camera', 26, 2.2)}</button>`
         : `<button class="cam-shutter" data-action="continue-to-voice" style="background:var(--c-blue);color:#fff">${svg('arrow-right', 26, 2.5)}</button>`
       : showLive
         ? `<button class="cam-shutter" data-action="cam-live-capture">${svg('camera', 26, 2.2)}</button>`
