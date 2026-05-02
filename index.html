@@ -161,7 +161,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .qcard__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .qcard__text{font-size:16px;line-height:1.3;font-weight:600;letter-spacing:-.01em;margin:0}
 .qcard__edit{background:rgba(255,255,255,0.15);color:#fff;padding:4px 10px;font-size:11px;font-weight:600;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px}
-.hero-image{position:relative;aspect-ratio:5/4;background:linear-gradient(135deg,var(--c-blue-soft) 0%,#fff 100%);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.hero-image{position:relative;aspect-ratio:5/4;background:linear-gradient(135deg,var(--c-blue-soft) 0%,#fff 100%);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:pan-y}
 .hero-image__circle{width:112px;height:112px;border-radius:50%;background:#fff;box-shadow:var(--elev-2);display:flex;align-items:center;justify-content:center;color:var(--c-blue)}
 .hero-image__tag{position:absolute;padding:2px 8px;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);border-radius:var(--r-pill);box-shadow:var(--elev-1);font-size:10.5px;font-weight:600;color:var(--c-ink-soft)}
 .title-block h1{font-size:26px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:0}
@@ -390,7 +390,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.6';
+const APP_VERSION = 'v1.7';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1951,7 +1951,7 @@ function renderHome() {
     </div>
     <div class="action-grid">
       ${[
-        { icon: 'plus', title: 'Neuer Artikel', sub: 'Foto + Stimme', action: 'go-camera' },
+        { icon: 'plus', title: 'Neuer Artikel', sub: 'Foto, Stimme oder manuell', action: 'go-camera' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
       ].map(a => `
         <button class="action-tile ${a.warn ? 'action-tile--warn' : ''}" data-action="${a.action}">
@@ -3266,17 +3266,56 @@ async function cropperConfirm() {
   }
 }
 
+// Swipe-Gesten auf der Foto-Galerie im Detail-Screen (links/rechts wischen blättert).
+function setupGallerySwipe() {
+  const it = state.item;
+  const photos = it?.photo || [];
+  if (photos.length < 2) return;
+  const el = document.querySelector('.hero-image--photo');
+  if (!el) return;
+  let sx = 0, sy = 0, st = 0, active = false;
+
+  const onDown = (e) => {
+    // Nur erster Pointer; nicht wenn auf einem Button gestartet
+    if (e.target.closest('button')) return;
+    sx = e.clientX; sy = e.clientY; st = Date.now(); active = true;
+  };
+  const onUp = (e) => {
+    if (!active) return;
+    active = false;
+    const dx = e.clientX - sx;
+    const dy = e.clientY - sy;
+    const dt = Date.now() - st;
+    // Horizontaler Swipe: mind. 40px, dominanter als vertikal, nicht zu langsam
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.3 || dt > 700) return;
+    const cur = state.item?.photo || [];
+    const cnt = cur.length;
+    if (cnt < 2) return;
+    let i = Math.min(state.galleryIndex || 0, cnt - 1);
+    if (dx < 0 && i < cnt - 1) i++;
+    else if (dx > 0 && i > 0) i--;
+    else return;
+    state.galleryIndex = i;
+    render();
+  };
+  el.addEventListener('pointerdown', onDown);
+  el.addEventListener('pointerup', onUp);
+  el.addEventListener('pointercancel', () => { active = false; });
+}
+
 function renderVoiceForm() {
   const previews = state.voicePhotoPreviews || [];
   const idx = Math.min(state.galleryIndex || 0, Math.max(0, previews.length - 1));
   const cur = previews[idx];
   const count = previews.length;
   const canAddMore = count < PHOTO_MAX_PER_ITEM;
+  // Speichern erlaubt, sobald die Bezeichnung gesetzt ist — egal ob via Diktat oder manuell ausgefüllt
+  const canSave = (state.voiceFields?.name || '').trim().length > 0;
   return `
 <div class="screen">
   ${headerBar(backBtn('go-home'),
     `<div class="pill pill--ink">Schritt 02 / 03</div>`,
-    state.voicePhase === 'done' ? `<button class="pill pill--blue" data-action="save-new-item">Sichern</button>` : `<button class="pill pill--neutral" disabled>Sichern</button>`)}
+    canSave ? `<button class="pill pill--blue" data-action="save-new-item">Sichern</button>` : `<button class="pill pill--neutral" disabled>Sichern</button>`)}
   <div class="scroll" style="padding-bottom:24px">
     <!-- Foto-Galerie: zeigt im Camera-Screen aufgenommene Fotos, mit Add/Delete -->
     <div class="hero-image ${cur ? 'hero-image--photo' : ''}">
@@ -3322,7 +3361,7 @@ function renderVoiceForm() {
           <div class="ptt-hint">
             ${state.voicePhase === 'recording'
               ? '<strong style="color:var(--c-red)">Aufnahme l\u00e4uft</strong> \u2014 zum Beenden loslassen'
-              : '<strong>Halten und sprechen</strong><br>Name \u00b7 Hersteller \u00b7 Kategorie \u00b7 Lager \u00b7 Menge'}
+              : '<strong>Halten und sprechen</strong> \u2014 optional<br>oder Felder unten direkt manuell ausf\u00fcllen'}
           </div>
         </div>
         ${state.voicePhase === 'recording' ? `
@@ -3432,8 +3471,8 @@ function renderVoiceForm() {
         }).join('')}
       </div>
     </div>
-    <button style="width:100%;padding:14px;background:${state.voicePhase === 'done' ? 'var(--c-blue)' : 'var(--c-surface-alt)'};color:${state.voicePhase === 'done' ? '#fff' : 'var(--c-ink-subtle)'};border-radius:14px;font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:8px;${state.voicePhase === 'done' ? 'box-shadow:var(--elev-blue)' : ''}" data-action="save-new-item" ${state.voicePhase === 'done' ? '' : 'disabled'}>
-      Im Lager ablegen ${svg('arrow-right', 16, 2.5)}
+    <button style="width:100%;padding:14px;background:${canSave ? 'var(--c-blue)' : 'var(--c-surface-alt)'};color:${canSave ? '#fff' : 'var(--c-ink-subtle)'};border-radius:14px;font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:8px;${canSave ? 'box-shadow:var(--elev-blue)' : ''}" data-action="save-new-item" ${canSave ? '' : 'disabled'}>
+      ${canSave ? 'Im Lager ablegen' : 'Bezeichnung eingeben'} ${svg('arrow-right', 16, 2.5)}
     </button>
   </div>
 </div>`;
@@ -3691,6 +3730,11 @@ function triggerEffects() {
   // Cropper nach Render initialisieren
   if (state.view === 'cropper') {
     setTimeout(setupCropper, 30);
+  }
+
+  // Swipe-Gesten in Detail-Galerie aktivieren
+  if (state.view === 'detail') {
+    setTimeout(setupGallerySwipe, 30);
   }
 
   // aiAnalyze wird jetzt von runPhotoSearch() gesteuert (echte AI), keine Mock-Animation mehr
@@ -4202,7 +4246,13 @@ document.addEventListener('click', (e) => {
     case 'voice-loc-hall': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.hall = btn.dataset.val; render(); break; }
     case 'voice-loc-shelf': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.shelf = btn.dataset.val; render(); break; }
     case 'voice-loc-clear': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft[btn.dataset.target] = ''; render(); break; }
-    case 'save-new-item': if (state.voicePhase === 'done') saveNewItemFromVoice(); break;
+    case 'save-new-item': {
+      // Speichern erlaubt sobald Bezeichnung gesetzt ist (manuell ODER nach Diktat-Analyse)
+      const nm = (state.voiceFields?.name || '').trim();
+      if (nm) saveNewItemFromVoice();
+      else showToast('Bezeichnung fehlt', 'error');
+      break;
+    }
   }
 });
 
