@@ -2353,13 +2353,20 @@ function renderCamera() {
   </div>
   <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="photo-input" data-action="camera-file-picked">
   <input type="file" id="cameraGalleryInput" accept="image/*" class="photo-input" data-action="camera-file-picked">
-  <div style="padding:0 20px 20px;display:flex;align-items:center;justify-content:space-between">
+  <div style="padding:0 20px 8px;display:flex;align-items:center;justify-content:space-between">
     <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" data-action="open-gallery">${svg('image', 18, 2.2)}</button>
     ${preview
       ? `<button class="cam-shutter" data-action="continue-to-voice" style="background:var(--c-blue);color:#fff">${svg('arrow-right', 26, 2.5)}</button>`
       : `<button class="cam-shutter" data-action="open-camera">${svg('camera', 26, 2.2)}</button>`}
-    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" data-action="reset-camera-photo" ${preview ? '' : 'style="opacity:.4"'}>${svg('rotate-ccw', 18, 2.2)}</button>
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px;${preview ? '' : 'opacity:.4'}" data-action="reset-camera-photo">${svg('rotate-ccw', 18, 2.2)}</button>
   </div>
+  ${preview ? '' : `
+    <div style="padding:0 20px 16px;text-align:center">
+      <button data-action="continue-to-voice" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;background:rgba(255,255,255,0.1);color:#fff;border-radius:var(--r-pill);font-size:13px;font-weight:600">
+        Ohne Foto fortfahren ${svg('arrow-right', 13, 2.5)}
+      </button>
+    </div>
+  `}
 </div>`;
 }
 
