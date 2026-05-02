@@ -370,7 +370,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5';
+const APP_VERSION = 'v1.5.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -476,21 +476,31 @@ const PHOTO_MAX_PER_ITEM = 6;
 // kodiert als JPEG. Liefert ein neues File-Objekt mit ~80–90% kleinerer Größe.
 async function processImage(inputFile) {
   if (!inputFile.type.startsWith('image/')) return inputFile; // PDF etc. unverändert
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(inputFile);
-  });
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
-    i.src = dataUrl;
-  });
+  let dataUrl;
+  try {
+    dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('FileReader-Fehler'));
+      r.readAsDataURL(inputFile);
+    });
+  } catch (e) {
+    throw new Error('Datei konnte nicht gelesen werden (' + (inputFile.type || 'unbekannter Typ') + ')');
+  }
+  let img;
+  try {
+    img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Bild-Decoder-Fehler'));
+      i.src = dataUrl;
+    });
+  } catch (e) {
+    throw new Error('Bildformat nicht unterstützt (' + (inputFile.type || 'unbekannt') + '). HEIC bitte vorher konvertieren.');
+  }
 
   const srcW = img.naturalWidth, srcH = img.naturalHeight;
-  if (!srcW || !srcH) return inputFile;
+  if (!srcW || !srcH) throw new Error('Bild hat keine gültige Größe');
 
   // Zentrierter Crop auf Zielratio (5:4 = 1.25)
   const srcRatio = srcW / srcH;
@@ -3668,8 +3678,16 @@ document.addEventListener('change', (e) => {
   if (!a) return;
   const file = t.files && t.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Datei zu gro\u00df (max. 5 MB)', 'error');
+  // Sehr gro\u00dfes File-Limit nur als Notbremse \u2014 Bilder werden vor Upload auf <500 KB optimiert.
+  if (file.size > 50 * 1024 * 1024) {
+    showToast('Datei zu gro\u00df (max. 50 MB)', 'error');
+    t.value = '';
+    return;
+  }
+  // HEIC/HEIF (iPhone-Default) kann <canvas> meist nicht laden \u2192 Hinweis statt stiller Fehler
+  const isHeic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type || '');
+  if (isHeic) {
+    showToast('HEIC nicht unterst\u00fctzt \u2014 bitte iPhone-Einstellungen \u2192 Kamera \u2192 Formate \u2192 "Maximale Kompatibilit\u00e4t"', 'error', 5000);
     t.value = '';
     return;
   }
