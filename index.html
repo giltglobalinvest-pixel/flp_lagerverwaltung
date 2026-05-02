@@ -329,6 +329,31 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .hero-image__img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .photo-input{display:none}
 
+/* Galerie-Navigation im Detail-Hero */
+.gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(15,24,48,0.55);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;z-index:2;transition:opacity .15s}
+.gallery-nav:disabled{opacity:.25;pointer-events:none}
+.gallery-nav--prev{left:10px;transform:translateY(-50%) rotate(180deg)}
+.gallery-nav--next{right:10px}
+.gallery-counter{position:absolute;top:10px;right:10px;padding:3px 9px;background:rgba(15,24,48,0.55);backdrop-filter:blur(8px);color:#fff;font-family:var(--f-mono);font-size:10.5px;font-weight:600;border-radius:var(--r-pill);z-index:2}
+.gallery-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:2}
+.gallery-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.4);transition:all .15s}
+.gallery-dot--active{background:#fff;width:18px;border-radius:4px}
+
+/* Foto-Strip im Edit-Screen */
+.photo-strip{display:flex;gap:8px;padding:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.photo-strip::-webkit-scrollbar{display:none}
+.photo-strip__item{position:relative;flex-shrink:0;width:84px;height:67px;border-radius:12px;overflow:hidden;border:2px solid transparent;transition:border-color .15s}
+.photo-strip__item--active{border-color:var(--c-blue)}
+.photo-strip__thumb{width:100%;height:100%;background-size:cover;background-position:center;background-color:#0F1830;border:0;padding:0;cursor:pointer;position:relative;display:block}
+.photo-strip__primary{position:absolute;top:4px;left:4px;padding:1px 5px 1px 4px;background:var(--c-blue);color:#fff;font-size:8.5px;font-weight:700;border-radius:6px;display:inline-flex;align-items:center;gap:2px;letter-spacing:.02em}
+.photo-strip__actions{position:absolute;top:0;right:0;display:flex;gap:2px;padding:3px}
+.photo-strip__act{width:22px;height:22px;border-radius:7px;background:rgba(15,24,48,0.65);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:0;padding:0}
+.photo-strip__act--del{background:rgba(229,72,77,0.85)}
+.photo-strip__add{flex-shrink:0;width:84px;height:67px;border-radius:12px;background:var(--c-surface);border:1.5px dashed var(--c-blue-light);color:var(--c-blue);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:10.5px;font-weight:600;padding:4px 6px;line-height:1.1;text-align:center}
+.photo-strip__add--gallery{width:50px}
+.photo-strip__add span{display:block}
+.photo-strip__hint{flex-shrink:0;align-self:center;padding:4px 12px;background:var(--c-surface-alt);color:var(--c-ink-mute);font-size:10.5px;font-weight:600;border-radius:var(--r-pill)}
+
 /* Version badge */
 .version-badge{display:none}
 @media (max-width:600px){.version-badge{bottom:4px;right:6px}}
@@ -345,7 +370,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.4';
+const APP_VERSION = 'v1.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -439,19 +464,92 @@ async function ensureTable(tableName, fields) {
   return await createRes.json();
 }
 
+/* ============================================================
+   IMAGE PROCESSING (Crop + Resize + JPEG)
+   ============================================================ */
+const PHOTO_TARGET_RATIO = 5 / 4;     // Hero-Format
+const PHOTO_MAX_EDGE = 1600;           // px Längskante
+const PHOTO_JPEG_QUALITY = 0.82;
+const PHOTO_MAX_PER_ITEM = 6;
+
+// Liest ein Bild-File, beschneidet zentriert auf 5:4, skaliert auf max. 1600px,
+// kodiert als JPEG. Liefert ein neues File-Objekt mit ~80–90% kleinerer Größe.
+async function processImage(inputFile) {
+  if (!inputFile.type.startsWith('image/')) return inputFile; // PDF etc. unverändert
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(inputFile);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+
+  const srcW = img.naturalWidth, srcH = img.naturalHeight;
+  if (!srcW || !srcH) return inputFile;
+
+  // Zentrierter Crop auf Zielratio (5:4 = 1.25)
+  const srcRatio = srcW / srcH;
+  let cropW, cropH, cropX, cropY;
+  if (srcRatio > PHOTO_TARGET_RATIO) {
+    // Quelle zu breit → links/rechts beschneiden
+    cropH = srcH;
+    cropW = Math.round(srcH * PHOTO_TARGET_RATIO);
+    cropX = Math.round((srcW - cropW) / 2);
+    cropY = 0;
+  } else {
+    // Quelle zu hoch → oben/unten beschneiden
+    cropW = srcW;
+    cropH = Math.round(srcW / PHOTO_TARGET_RATIO);
+    cropX = 0;
+    cropY = Math.round((srcH - cropH) / 2);
+  }
+
+  // Resize: längste Seite auf max PHOTO_MAX_EDGE
+  let outW = cropW, outH = cropH;
+  const longest = Math.max(cropW, cropH);
+  if (longest > PHOTO_MAX_EDGE) {
+    const scale = PHOTO_MAX_EDGE / longest;
+    outW = Math.round(cropW * scale);
+    outH = Math.round(cropH * scale);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', PHOTO_JPEG_QUALITY));
+  if (!blob) return inputFile;
+
+  // Original-Dateiname behalten, aber als .jpg
+  const baseName = (inputFile.name || 'photo').replace(/\.[^./]+$/, '');
+  const newName = baseName + '.jpg';
+  return new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() });
+}
+
 async function uploadFileToRecord(table, recordId, attachmentField, file) {
   if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  // Bild vor Upload optimieren (Crop + Resize + JPEG)
+  const processed = await processImage(file);
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(processed);
   });
   const url = 'https://content.airtable.com/v0/' + AIR_BASE() + '/' + recordId + '/' + attachmentField + '/uploadAttachment';
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contentType: file.type, file: base64, filename: file.name }),
+    body: JSON.stringify({ contentType: processed.type, file: base64, filename: processed.name }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -713,6 +811,8 @@ const state = {
   locAddingFor: null, locAddDraft: '', locManageMode: null,
   catAdding: false, catAddDraft: '', catManageMode: false,
   editForm: null,
+  galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
+  editPhotoFiles: [],        // ausgewählte Foto-Files im Edit-Screen (vor Upload)
   specsRegenerating: false,
   // Multi-company support
   companies: [],
@@ -1068,13 +1168,19 @@ async function regenerateSpecs() {
   }
 }
 
-async function handleItemPhotoReplace(file) {
+// H\u00e4ngt ein neues Foto an das Item an (Multi-Photo).
+// Wenn bereits PHOTO_MAX_PER_ITEM erreicht, abbrechen mit Hinweis.
+async function handleItemPhotoAdd(file) {
   const it = state.item;
   if (!it) return;
-  setLoading(true, 'Foto wird hochgeladen \u2026');
+  const current = it.photo || [];
+  if (current.length >= PHOTO_MAX_PER_ITEM) {
+    showToast('Max ' + PHOTO_MAX_PER_ITEM + ' Fotos pro Artikel', 'error');
+    return;
+  }
+  setLoading(true, 'Foto wird optimiert & hochgeladen \u2026');
   try {
     const res = await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', file);
-    // Antwort enth\u00e4lt updated record \u2014 fields lesen
     const fields = res.fields || {};
     if (fields.photo) {
       it.photo = fields.photo;
@@ -1082,9 +1188,56 @@ async function handleItemPhotoReplace(file) {
     }
     it.updated = nowIso();
     it.upd = 'gerade eben';
-    showToast('Foto aktualisiert', 'success');
+    state.galleryIndex = (it.photo || []).length - 1; // springe auf neues Foto
+    showToast('Foto hinzugef\u00fcgt', 'success');
   } catch (e) {
     showToast('Upload fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Entfernt ein Foto am Index aus dem Item.
+async function handleItemPhotoDelete(idx) {
+  const it = state.item;
+  if (!it || !it.photo || idx < 0 || idx >= it.photo.length) return;
+  const remaining = it.photo.filter((_, i) => i !== idx).map(p => ({ id: p.id }));
+  setLoading(true, 'Foto wird entfernt \u2026');
+  try {
+    const res = await airUpdate(TBL_ITEMS, it._recordId, { photo: remaining });
+    const fields = res.fields || {};
+    it.photo = Array.isArray(fields.photo) ? fields.photo : [];
+    it.photoUrl = it.photo[0]?.url || null;
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    state.galleryIndex = Math.min(state.galleryIndex || 0, Math.max(0, it.photo.length - 1));
+    showToast('Foto entfernt', 'success');
+  } catch (e) {
+    showToast('L\u00f6schen fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Setzt ein Foto als Hauptbild (auf Index 0 verschieben).
+async function handleItemPhotoSetPrimary(idx) {
+  const it = state.item;
+  if (!it || !it.photo || idx <= 0 || idx >= it.photo.length) return;
+  const reordered = [it.photo[idx], ...it.photo.filter((_, i) => i !== idx)].map(p => ({ id: p.id }));
+  setLoading(true, 'Hauptbild wird gesetzt \u2026');
+  try {
+    const res = await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
+    const fields = res.fields || {};
+    it.photo = Array.isArray(fields.photo) ? fields.photo : [];
+    it.photoUrl = it.photo[0]?.url || null;
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    state.galleryIndex = 0;
+    showToast('Hauptbild gesetzt', 'success');
+  } catch (e) {
+    showToast('Setzen fehlgeschlagen: ' + e.message, 'error', 3500);
   } finally {
     setLoading(false);
     render();
@@ -1914,11 +2067,27 @@ function renderDetail() {
     `<span class="pill pill--ink" style="font-family:var(--f-mono)">#${it.id}</span>`,
     `<div class="header__slot"></div>`)}
   <div class="scroll" style="padding-bottom:124px">
-    <div class="hero-image ${it.photoUrl ? 'hero-image--photo' : ''}">
-      ${it.photoUrl
-        ? `<img src="${it.photoUrl}" alt="" class="hero-image__img">`
-        : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
-    </div>
+    ${(() => {
+      const photos = it.photo || [];
+      const idx = Math.min(state.galleryIndex || 0, Math.max(0, photos.length - 1));
+      if (photos.length === 0) {
+        return `<div class="hero-image"><div class="hero-image__circle">${svg('package', 48, 1.8)}</div></div>`;
+      }
+      const cur = photos[idx];
+      return `
+        <div class="hero-image hero-image--photo">
+          <img src="${cur.url}" alt="" class="hero-image__img">
+          ${photos.length > 1 ? `
+            <button class="gallery-nav gallery-nav--prev" data-action="gallery-prev" ${idx === 0 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
+            <button class="gallery-nav gallery-nav--next" data-action="gallery-next" ${idx === photos.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
+            <div class="gallery-counter">${idx + 1} / ${photos.length}</div>
+            <div class="gallery-dots">
+              ${photos.map((_, i) => `<button class="gallery-dot ${i === idx ? 'gallery-dot--active' : ''}" data-action="gallery-goto" data-idx="${i}"></button>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    })()}
     <div class="title-block">
       <div class="title-block__pills"><span class="pill pill--blue-soft">${it.cat}</span></div>
       <h1>${it.title}</h1>
@@ -2111,16 +2280,48 @@ function renderEdit() {
 
   <div class="scroll" style="padding-bottom:100px">
 
-    <!-- Photo with edit controls -->
-    <div class="hero-image ${it.photoUrl ? 'hero-image--photo' : ''}" style="aspect-ratio:5/3">
-      ${it.photoUrl
-        ? `<img src="${it.photoUrl}" alt="" class="hero-image__img">`
-        : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
-      <input type="file" id="editPhotoInput" accept="image/*" capture="environment" class="photo-input" data-action="edit-photo-picked">
-      <div style="position:absolute;bottom:12px;left:12px;right:12px;display:flex;gap:8px">
-        <button onclick="document.getElementById('editPhotoInput').click()" style="background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);box-shadow:var(--elev-1);padding:8px 12px;font-size:11.5px;font-weight:600;color:var(--c-ink);border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px">${svg('camera', 12, 2.5)} ${it.photoUrl ? 'Ersetzen' : 'Foto hinzuf\u00fcgen'}</button>
-      </div>
-    </div>
+    <!-- Photos: Hero + Thumbnail-Strip mit Add / Delete / SetPrimary -->
+    ${(() => {
+      const photos = it.photo || [];
+      const idx = Math.min(state.galleryIndex || 0, Math.max(0, photos.length - 1));
+      const cur = photos[idx];
+      const canAddMore = photos.length < PHOTO_MAX_PER_ITEM;
+      return `
+        <div class="hero-image ${cur ? 'hero-image--photo' : ''}">
+          ${cur
+            ? `<img src="${cur.url}" alt="" class="hero-image__img">`
+            : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
+          <input type="file" id="editPhotoInput" accept="image/*" capture="environment" class="photo-input" data-action="edit-photo-picked">
+          <input type="file" id="editPhotoGallery" accept="image/*" class="photo-input" data-action="edit-photo-picked">
+          ${cur && photos.length > 1 ? `<div class="gallery-counter">${idx + 1} / ${photos.length}</div>` : ''}
+        </div>
+
+        <div class="photo-strip">
+          ${photos.map((p, i) => `
+            <div class="photo-strip__item ${i === idx ? 'photo-strip__item--active' : ''}">
+              <button class="photo-strip__thumb" data-action="gallery-goto" data-idx="${i}" style="background-image:url('${p.url}')">
+                ${i === 0 ? `<span class="photo-strip__primary">${svg('check', 9, 3)} Haupt</span>` : ''}
+              </button>
+              <div class="photo-strip__actions">
+                ${i !== 0 ? `<button class="photo-strip__act" data-action="photo-set-primary" data-idx="${i}" title="Als Hauptbild">${svg('arrow-up-right', 11, 2.5)}</button>` : ''}
+                <button class="photo-strip__act photo-strip__act--del" data-action="photo-delete" data-idx="${i}" title="Foto l\u00f6schen">${svg('trash-2', 11, 2.5)}</button>
+              </div>
+            </div>
+          `).join('')}
+          ${canAddMore ? `
+            <button class="photo-strip__add" onclick="document.getElementById('editPhotoInput').click()">
+              ${svg('camera', 18, 2.2)}
+              <span>${photos.length === 0 ? 'Foto aufnehmen' : 'Foto hinzuf\u00fcgen'}</span>
+            </button>
+            <button class="photo-strip__add photo-strip__add--gallery" onclick="document.getElementById('editPhotoGallery').click()" title="Aus Galerie">
+              ${svg('image', 18, 2.2)}
+            </button>
+          ` : `
+            <div class="photo-strip__hint">${PHOTO_MAX_PER_ITEM} / ${PHOTO_MAX_PER_ITEM} Fotos</div>
+          `}
+        </div>
+      `;
+    })()}
 
     <!-- Allgemein -->
     <div>
@@ -2933,7 +3134,7 @@ function go(view) {
   if (view !== 'detail') state.detailTab = 'overview';
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
-  if (view === 'home') { state.item = null; state.testResult = null; }
+  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; }
   if (view !== 'voice' && view !== 'saved') { state.voicePhase = 'idle'; state.voiceTranscript = ''; state.voiceFields = { name: '', maker: '', cat: '', stock: '' }; state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' }; }
   render();
 }
@@ -3289,7 +3490,7 @@ document.addEventListener('click', (e) => {
     case 'bestand-clear': state.bestandQuery = ''; render(); break;
     case 'select-item': {
       const it = inventory.find(i => i.id === btn.dataset.id);
-      if (it) { state.item = it; go('detail'); }
+      if (it) { state.item = it; state.galleryIndex = 0; go('detail'); }
       break;
     }
     case 'set-filter': state.filterIdx = +btn.dataset.idx; render(); break;
@@ -3317,6 +3518,36 @@ document.addEventListener('click', (e) => {
       go('voice');
       break;
     case 'open-photo-search-camera': document.getElementById('photoSearchInput')?.click(); break;
+
+    /* Foto-Galerie: Navigation */
+    case 'gallery-prev': {
+      const photos = state.item?.photo || [];
+      state.galleryIndex = Math.max(0, (state.galleryIndex || 0) - 1);
+      render();
+      break;
+    }
+    case 'gallery-next': {
+      const photos = state.item?.photo || [];
+      state.galleryIndex = Math.min(photos.length - 1, (state.galleryIndex || 0) + 1);
+      render();
+      break;
+    }
+    case 'gallery-goto': {
+      state.galleryIndex = +btn.dataset.idx || 0;
+      render();
+      break;
+    }
+    case 'photo-delete': {
+      const idx = +btn.dataset.idx;
+      if (!confirm('Dieses Foto wirklich löschen?')) break;
+      handleItemPhotoDelete(idx);
+      break;
+    }
+    case 'photo-set-primary': {
+      const idx = +btn.dataset.idx;
+      handleItemPhotoSetPrimary(idx);
+      break;
+    }
     case 'voice-start': /* legacy \u2014 ersetzt durch Push-to-Talk (pttBtn) */ break;
     case 'voice-stop': Speech.stop(); break;
     case 'voice-redo':
@@ -3455,7 +3686,7 @@ document.addEventListener('change', (e) => {
     t.value = '';
     runPhotoSearch();
   } else if (a === 'edit-photo-picked' && state.item) {
-    handleItemPhotoReplace(file);
+    handleItemPhotoAdd(file);
     t.value = '';
   }
 });
