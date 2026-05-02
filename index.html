@@ -336,7 +336,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.4';
+const APP_VERSION = 'v1.3.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2442,7 +2442,7 @@ function renderVoiceForm() {
     ${state.voicePhase === 'listen' ? `
       <div class="tile" style="background:var(--c-bg-soft);padding:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-blue)"></span><span style="font-size:11px;font-weight:600;color:var(--c-blue-deep)">Aufnahme l\u00e4uft</span></div>
-        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink);min-height:1.4em">${(state.voiceTranscript || '').replace(/</g, '&lt;')}<span class="cursor" style="background:var(--c-blue)"></span></p>
+        <p id="voiceTranscriptText" style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink);min-height:1.4em">${(state.voiceTranscript || '').replace(/</g, '&lt;')}<span class="cursor" style="background:var(--c-blue)"></span></p>
       </div>
       <button data-action="voice-stop" style="width:100%;padding:14px;background:var(--c-red);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(229,72,77,0.3)">
         <span style="width:14px;height:14px;background:#fff;border-radius:3px;display:inline-block"></span>
@@ -3130,10 +3130,11 @@ document.addEventListener('click', (e) => {
       render();
       const ok = Speech.start(
         (txt) => {
+          // Wichtig: NICHT render() w\u00e4hrend Aufnahme \u2014 zerst\u00f6rt die Speech-Session.
+          // Stattdessen direkt den Text-Knoten updaten (wie im Listen-Screen).
           state.voiceTranscript = txt;
-          const el = document.querySelector('[data-action="voice-start"] ~ * .transcript-card__text, .tile p');
-          // einfacher Re-Render
-          render();
+          const el = document.getElementById('voiceTranscriptText');
+          if (el) el.innerHTML = (txt || '').replace(/</g, '&lt;') + '<span class="cursor" style="background:var(--c-blue)"></span>';
         },
         (finalText) => {
           state.voiceTranscript = finalText || state.voiceTranscript;
