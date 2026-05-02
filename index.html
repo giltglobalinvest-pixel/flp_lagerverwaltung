@@ -191,6 +191,12 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .spec-row__key{font-size:12px;font-weight:500;color:var(--c-ink-mute)}
 .spec-row__val{font-size:13px;font-weight:600;text-align:right}
 .spec-row__val--mono{font-family:var(--f-mono);font-size:11px;font-weight:500}
+.spec-edit-list{display:flex;flex-direction:column;gap:6px}
+.spec-edit-row{display:flex;gap:6px;align-items:stretch}
+.spec-edit-row__key{flex:1;min-width:0;font-size:12.5px;padding:9px 10px}
+.spec-edit-row__val{flex:1.15;min-width:0;font-size:12.5px;padding:9px 10px}
+.spec-edit-row__del{flex:none;width:38px;display:flex;align-items:center;justify-content:center;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,0.18);border-radius:var(--r-sm);transition:background .12s}
+.spec-edit-row__del:active{background:rgba(229,72,77,0.18)}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -390,7 +396,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.7';
+const APP_VERSION = 'v1.7.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2649,22 +2655,30 @@ function renderEdit() {
       </div>
     </div>
 
-    <!-- Technische Daten -->
+    <!-- Technische Daten — editierbar -->
     <div>
       <div class="section-head">
         <h2 class="section-head__title">Technische Daten</h2>
-        <span class="pill pill--blue-soft">${svg('sparkles', 10, 2.5)} AI · ${(f.specs || []).length}</span>
+        <span class="pill pill--neutral" style="font-family:var(--f-mono)">${(f.specs || []).length}</span>
       </div>
-      <div style="padding:8px 12px;background:var(--c-blue-soft);border-radius:12px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        <span style="color:var(--c-blue-deep);display:flex">${svg('sparkles', 13, 2.5)}</span>
-        <span style="font-size:11px;font-weight:500;color:var(--c-blue-deep);line-height:1.35">Aus Foto und Etikett ermittelt — nicht manuell editierbar</span>
+      <div style="padding:8px 12px;background:var(--c-bg-soft);border-radius:12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+        <span style="color:var(--c-ink-mute);display:flex">${svg('edit-3', 12, 2.5)}</span>
+        <span style="font-size:11px;font-weight:500;color:var(--c-ink-soft);line-height:1.35">Eigenschaften manuell ergänzen, ändern oder entfernen</span>
       </div>
-      <div class="spec-list" style="opacity:0.75">
-        ${(f.specs || []).slice(0, 4).map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val spec-row__val--mono">${v}</span></div>`).join('')}
-        ${(f.specs || []).length > 4 ? `<div class="spec-row" style="justify-content:center;color:var(--c-ink-mute);font-size:11.5px;font-weight:500">+ ${f.specs.length - 4} weitere</div>` : ''}
+      <div class="spec-edit-list">
+        ${(f.specs || []).map(([k, v], i) => `
+          <div class="spec-edit-row">
+            <input class="field__input spec-edit-row__key" data-action="edit-spec-cell" data-key="${i}" data-target="key" value="${(k || '').replace(/"/g, '&quot;')}" placeholder="Eigenschaft" autocomplete="off">
+            <input class="field__input spec-edit-row__val" data-action="edit-spec-cell" data-key="${i}" data-target="val" value="${(v || '').replace(/"/g, '&quot;')}" placeholder="Wert" autocomplete="off" style="font-family:var(--f-mono)">
+            <button data-action="edit-spec-delete" data-idx="${i}" class="spec-edit-row__del" title="Entfernen">${svg('trash-2', 13, 2.5)}</button>
+          </div>
+        `).join('')}
+        <button data-action="edit-spec-add" style="width:100%;padding:11px;background:transparent;border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12.5px;font-weight:600;color:var(--c-ink-soft);display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px">
+          ${svg('plus', 12, 2.5)} Eigenschaft hinzufügen
+        </button>
       </div>
-      <button data-action="regenerate-specs" style="width:100%;margin-top:10px;padding:11px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12.5px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px">
-        ${svg('rotate-ccw', 13, 2.5)} Specs neu generieren
+      <button data-action="regenerate-specs" style="width:100%;margin-top:10px;padding:10px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px">
+        ${svg('sparkles', 12, 2.5)} Per AI neu generieren ${(f.specs || []).length ? '(überschreibt alle)' : ''}
       </button>
     </div>
 
@@ -3927,6 +3941,8 @@ document.addEventListener('click', (e) => {
         locDraft: parseLoc(it.loc || ''),
         cond: it.cond || 'used',
         func: it.func || 'unknown',
+        // Tiefe Kopie der Specs damit Cancel ohne Nebenwirkungen geht
+        specs: Array.isArray(it.specs) ? it.specs.map(p => [String(p[0] ?? ''), String(p[1] ?? '')]) : [],
       };
       go('edit');
       break;
@@ -3939,6 +3955,12 @@ document.addEventListener('click', (e) => {
       if (!state.item || !state.editForm) break;
       const f = state.editForm;
       if (f.locDraft) f.loc = buildLoc(f.locDraft);
+      // Leere Spec-Zeilen herausfiltern (User hat "+" gedrückt aber nichts ausgefüllt)
+      if (Array.isArray(f.specs)) {
+        f.specs = f.specs
+          .map(p => [String(p[0] ?? '').trim(), String(p[1] ?? '').trim()])
+          .filter(p => p[0] || p[1]);
+      }
       const { locDraft, ...saveData } = f;
       const it = state.item;
       Object.assign(it, saveData);
@@ -3954,6 +3976,30 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'edit-cat': if (state.editForm) { state.editForm.cat = btn.dataset.cat; render(); } break;
+
+    /* Specs editieren — Add / Delete (Cell-Edits via input-Listener) */
+    case 'edit-spec-add': {
+      if (!state.editForm) break;
+      if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
+      state.editForm.specs.push(['', '']);
+      render();
+      // Fokus auf das frische Label-Feld setzen
+      setTimeout(() => {
+        const idx = state.editForm.specs.length - 1;
+        const el = document.querySelector(`[data-action="edit-spec-cell"][data-key="${idx}"][data-target="key"]`);
+        if (el) el.focus();
+      }, 30);
+      break;
+    }
+    case 'edit-spec-delete': {
+      if (!state.editForm || !Array.isArray(state.editForm.specs)) break;
+      const i = +btn.dataset.idx;
+      if (i >= 0 && i < state.editForm.specs.length) {
+        state.editForm.specs.splice(i, 1);
+        render();
+      }
+      break;
+    }
     case 'voice-cat': state.voiceFields.cat = btn.dataset.cat; render(); break;
     case 'cat-manage-toggle':
       state.catManageMode = !state.catManageMode;
@@ -4330,6 +4376,16 @@ document.addEventListener('input', (e) => {
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
+  else if (a === 'edit-spec-cell' && state.editForm) {
+    if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
+    const i = +t.dataset.key;
+    const tgt = t.dataset.target; // 'key' | 'val'
+    if (i >= 0 && i < state.editForm.specs.length) {
+      const row = state.editForm.specs[i];
+      if (tgt === 'key') row[0] = t.value;
+      else if (tgt === 'val') row[1] = t.value;
+    }
+  }
   else if (a === 'edit-loc-pos' && state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.pos = t.value; }
   else if (a === 'edit-loc-box' && state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.box = t.value; }
   else if (a === 'company-name-input' && state.editingCompany) { state.editingCompany.name = t.value; render(); }
