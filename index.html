@@ -354,6 +354,14 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .photo-strip__add span{display:block}
 .photo-strip__hint{flex-shrink:0;align-self:center;padding:4px 12px;background:var(--c-surface-alt);color:var(--c-ink-mute);font-size:10.5px;font-weight:600;border-radius:var(--r-pill)}
 
+/* Foto-Strip im Camera-Screen (dunkles Theme) */
+.cam-strip{display:flex;gap:8px;padding:10px 20px 6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.cam-strip::-webkit-scrollbar{display:none}
+.cam-strip__thumb{position:relative;flex-shrink:0;width:64px;height:51px;border-radius:10px;overflow:hidden;background-size:cover;background-position:center;background-color:#0F1830;border:2px solid transparent;cursor:pointer;padding:0;transition:border-color .15s}
+.cam-strip__thumb--active{border-color:#fff}
+.cam-strip__primary{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center}
+.cam-strip__add{flex-shrink:0;width:64px;height:51px;border-radius:10px;background:rgba(255,255,255,0.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(255,255,255,0.3);cursor:pointer}
+
 /* Version badge */
 .version-badge{display:none}
 @media (max-width:600px){.version-badge{bottom:4px;right:6px}}
@@ -370,7 +378,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.5.3';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -820,7 +828,7 @@ const state = {
   voiceCond: 'neu', voiceFunc: 'untested',
   voiceFields: { name: '', maker: '', cat: '', stock: '' },
   voiceLocDraft: { hall: '', shelf: '', pos: '', box: '' },
-  voicePhotoFile: null, voicePhotoPreview: null,
+  voicePhotoFiles: [], voicePhotoPreviews: [],
   listenTranscript: '', listenPhase: 'listening',
   aiStep: 0,
   photoSearchPhase: 'idle', photoSearchFile: null, photoSearchPreview: null,
@@ -1379,16 +1387,23 @@ async function saveNewItemFromVoice() {
     const rec = await airWrite(TBL_ITEMS, itemToFields(newItem, APP_KEYS.user.api_key));
     newItem._recordId = rec.id;
 
-    if (state.voicePhotoFile) {
-      setLoading(true, 'Foto wird hochgeladen \u2026');
-      try {
-        const up = await uploadFileToRecord(TBL_ITEMS, rec.id, 'photo', state.voicePhotoFile);
-        const fld = up.fields || {};
-        if (fld.photo) {
-          newItem.photo = fld.photo;
-          newItem.photoUrl = fld.photo[0]?.url || null;
+    const files = state.voicePhotoFiles || [];
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        setLoading(true, `Foto ${i + 1} / ${files.length} wird hochgeladen \u2026`);
+        try {
+          await uploadFileToRecord(TBL_ITEMS, rec.id, 'photo', files[i]);
+        } catch (e) {
+          showToast(`Foto ${i + 1} fehlgeschlagen: ` + e.message, 'error', 3500);
         }
-      } catch (e) { showToast('Foto-Upload fehlgeschlagen: ' + e.message, 'error', 3500); }
+      }
+      // Frisch nachladen \u2014 alle URLs auf einmal holen mit Retry
+      setLoading(true, 'Fotos werden verarbeitet \u2026');
+      try {
+        const photos = await fetchPhotosWithRetry(rec.id, files.length);
+        newItem.photo = photos;
+        newItem.photoUrl = photos[0]?.url || null;
+      } catch (e) { /* fallback: leer */ }
     }
 
     company.inventory.unshift(newItem);
@@ -1399,8 +1414,10 @@ async function saveNewItemFromVoice() {
       regenerateSpecs(); // l\u00e4uft asynchron, aktualisiert state.item
     }
 
-    state.voicePhotoFile = null;
-    state.voicePhotoPreview = null;
+    // Object-URLs aufr\u00e4umen
+    (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+    state.voicePhotoFiles = [];
+    state.voicePhotoPreviews = [];
     showToast('Artikel angelegt', 'success');
     go('saved');
   } catch (e) {
@@ -2770,35 +2787,67 @@ function renderPhotoResults() {
 }
 
 function renderCamera() {
-  const preview = state.voicePhotoPreview;
+  const previews = state.voicePhotoPreviews || [];
+  const idx = Math.min(state.galleryIndex || 0, Math.max(0, previews.length - 1));
+  const cur = previews[idx];
+  const count = previews.length;
+  const canAddMore = count < PHOTO_MAX_PER_ITEM;
   return `
 <div class="screen cam-screen">
   ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="go-home">${svg('x', 18, 2.5)}</button>`,
-    `<div class="pill">Foto vom Artikel</div>`,
+    `<div class="pill">${count === 0 ? 'Foto vom Artikel' : count + ' / ' + PHOTO_MAX_PER_ITEM + ' Fotos'}</div>`,
     `<div class="header__slot"></div>`)}
-  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center">
-    ${preview
-      ? `<img src="${preview}" alt="" style="width:100%;height:100%;object-fit:contain;background:#0F1830">`
+
+  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px">
+    ${cur
+      ? `<img src="${cur}" alt="" style="width:100%;height:100%;object-fit:contain;background:#0F1830">`
       : `<div style="text-align:center;color:#fff">
           <div style="width:96px;height:96px;border-radius:24px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">${svg('camera', 40, 1.8)}</div>
           <div style="font-size:14px;font-weight:500;opacity:.85">Tippen zum Aufnehmen oder Ausw\u00e4hlen</div>
-          <div style="font-size:11px;font-weight:500;opacity:.5;margin-top:4px">JPG/PNG \u00b7 max. 5 MB</div>
+          <div style="font-size:11px;font-weight:500;opacity:.5;margin-top:4px">Bis zu ${PHOTO_MAX_PER_ITEM} Fotos \u00b7 werden automatisch optimiert</div>
          </div>`}
     <div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>
+    ${cur ? `<button data-action="cam-photo-delete" data-idx="${idx}" style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(229,72,77,0.85);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;border:0;z-index:2">${svg('trash-2', 16, 2.4)}</button>` : ''}
   </div>
+
+  ${count > 0 ? `
+    <div class="cam-strip">
+      ${previews.map((p, i) => `
+        <button class="cam-strip__thumb ${i === idx ? 'cam-strip__thumb--active' : ''}" data-action="cam-photo-show" data-idx="${i}" style="background-image:url('${p}')">
+          ${i === 0 ? `<span class="cam-strip__primary">${svg('check', 9, 3)}</span>` : ''}
+        </button>
+      `).join('')}
+      ${canAddMore ? `
+        <button class="cam-strip__add" data-action="open-camera">
+          ${svg('plus', 22, 2.2)}
+        </button>
+      ` : ''}
+    </div>
+  ` : ''}
+
   <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="photo-input" data-action="camera-file-picked">
   <input type="file" id="cameraGalleryInput" accept="image/*" class="photo-input" data-action="camera-file-picked">
+
   <div style="padding:0 20px 8px;display:flex;align-items:center;justify-content:space-between">
-    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" data-action="open-gallery">${svg('image', 18, 2.2)}</button>
-    ${preview
-      ? `<button class="cam-shutter" data-action="continue-to-voice" style="background:var(--c-blue);color:#fff">${svg('arrow-right', 26, 2.5)}</button>`
-      : `<button class="cam-shutter" data-action="open-camera">${svg('camera', 26, 2.2)}</button>`}
-    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px;${preview ? '' : 'opacity:.4'}" data-action="reset-camera-photo">${svg('rotate-ccw', 18, 2.2)}</button>
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px;${canAddMore ? '' : 'opacity:.3;pointer-events:none'}" data-action="open-gallery">${svg('image', 18, 2.2)}</button>
+    ${count === 0
+      ? `<button class="cam-shutter" data-action="open-camera">${svg('camera', 26, 2.2)}</button>`
+      : canAddMore
+        ? `<button class="cam-shutter" data-action="open-camera">${svg('camera', 26, 2.2)}</button>`
+        : `<button class="cam-shutter" data-action="continue-to-voice" style="background:var(--c-blue);color:#fff">${svg('arrow-right', 26, 2.5)}</button>`}
+    <div class="header__slot"></div>
   </div>
-  ${preview ? '' : `
+
+  ${count === 0 ? `
     <div style="padding:0 20px 16px;text-align:center">
       <button data-action="continue-to-voice" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;background:rgba(255,255,255,0.1);color:#fff;border-radius:var(--r-pill);font-size:13px;font-weight:600">
         Ohne Foto fortfahren ${svg('arrow-right', 13, 2.5)}
+      </button>
+    </div>
+  ` : `
+    <div style="padding:0 20px 16px">
+      <button data-action="continue-to-voice" style="width:100%;padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
+        Weiter mit ${count} Foto${count === 1 ? '' : 's'} ${svg('arrow-right', 16, 2.5)}
       </button>
     </div>
   `}
@@ -3193,7 +3242,16 @@ function go(view) {
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
   if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; }
-  if (view !== 'voice' && view !== 'saved') { state.voicePhase = 'idle'; state.voiceTranscript = ''; state.voiceFields = { name: '', maker: '', cat: '', stock: '' }; state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' }; }
+  if (view !== 'voice' && view !== 'saved' && view !== 'camera') {
+    // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
+    state.voicePhase = 'idle';
+    state.voiceTranscript = '';
+    state.voiceFields = { name: '', maker: '', cat: '', stock: '' };
+    state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
+    (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+    state.voicePhotoFiles = [];
+    state.voicePhotoPreviews = [];
+  }
   render();
 }
 
@@ -3574,10 +3632,29 @@ document.addEventListener('click', (e) => {
     case 'open-camera': document.getElementById('cameraFileInput')?.click(); break;
     case 'open-gallery': document.getElementById('cameraGalleryInput')?.click(); break;
     case 'reset-camera-photo':
-      state.voicePhotoFile = null;
-      state.voicePhotoPreview = null;
+      // Object-URLs aufräumen
+      (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+      state.voicePhotoFiles = [];
+      state.voicePhotoPreviews = [];
+      state.galleryIndex = 0;
       render();
       break;
+    case 'cam-photo-show':
+      state.galleryIndex = +btn.dataset.idx || 0;
+      render();
+      break;
+    case 'cam-photo-delete': {
+      const i = +btn.dataset.idx;
+      const previews = state.voicePhotoPreviews || [];
+      if (i >= 0 && i < previews.length) {
+        try { URL.revokeObjectURL(previews[i]); } catch(_) {}
+        state.voicePhotoFiles = (state.voicePhotoFiles || []).filter((_, j) => j !== i);
+        state.voicePhotoPreviews = previews.filter((_, j) => j !== i);
+        state.galleryIndex = Math.min(state.galleryIndex || 0, Math.max(0, state.voicePhotoPreviews.length - 1));
+      }
+      render();
+      break;
+    }
     case 'continue-to-voice':
       go('voice');
       break;
@@ -3746,9 +3823,16 @@ document.addEventListener('change', (e) => {
     return;
   }
   if (a === 'camera-file-picked') {
+    const files = state.voicePhotoFiles || [];
+    if (files.length >= PHOTO_MAX_PER_ITEM) {
+      showToast('Max ' + PHOTO_MAX_PER_ITEM + ' Fotos pro Artikel', 'error');
+      t.value = '';
+      return;
+    }
     const url = URL.createObjectURL(file);
-    state.voicePhotoFile = file;
-    state.voicePhotoPreview = url;
+    state.voicePhotoFiles = [...files, file];
+    state.voicePhotoPreviews = [...(state.voicePhotoPreviews || []), url];
+    state.galleryIndex = state.voicePhotoFiles.length - 1; // springe auf neues Foto
     t.value = '';
     render();
   } else if (a === 'photo-search-picked') {
