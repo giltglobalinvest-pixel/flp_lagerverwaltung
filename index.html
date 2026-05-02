@@ -336,7 +336,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.3';
+const APP_VERSION = 'v1.3.4';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1176,42 +1176,89 @@ async function parseVoiceTranscript(transcript) {
 /* ============================================================
    WEB SPEECH API
    ============================================================ */
+// iOS Safari beendet die Erkennung nach jeder kurzen Sprechpause automatisch.
+// Wir restarten dann transparent solange der User nicht selbst gestoppt hat.
 const Speech = {
   rec: null,
   active: false,
+  userStopped: false,        // true = User hat manuell gestoppt
+  accumulated: '',           // gesammeltes finales Transkript \u00fcber Restarts hinweg
+  onUpdateFn: null,
+  onFinalFn: null,
   start(onUpdate, onFinal) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { showToast('Sprache nicht unterst\u00fctzt (bitte Chrome/Safari)', 'error', 3500); return false; }
-    this.stop();
-    this.rec = new SR();
-    this.rec.lang = 'de-DE';
-    this.rec.interimResults = true;
-    this.rec.continuous = true;
-    let finalText = '';
-    this.rec.onresult = (e) => {
+    this.stop(true); // sicherheitshalber, ohne Final-Callback
+    this.userStopped = false;
+    this.accumulated = '';
+    this.onUpdateFn = onUpdate;
+    this.onFinalFn = onFinal;
+    return this._spawn();
+  },
+  _spawn() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = 'de-DE';
+    rec.interimResults = true;
+    rec.continuous = true;
+    let sessionFinal = '';
+    rec.onresult = (e) => {
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      sessionFinal = '';
+      for (let i = 0; i < e.results.length; i++) {
         const tr = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += tr; else interim += tr;
+        if (e.results[i].isFinal) sessionFinal += tr; else interim += tr;
       }
-      onUpdate?.((finalText + ' ' + interim).trim());
+      const combined = (this.accumulated + ' ' + sessionFinal + ' ' + interim).trim();
+      this.onUpdateFn?.(combined);
     };
-    this.rec.onerror = (e) => {
-      if (e.error === 'no-speech') return;
+    rec.onerror = (e) => {
+      // 'no-speech' und 'aborted' sind harmlos \u2014 onend k\u00fcmmert sich um Restart
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        this.userStopped = true;
+        showToast('Mikrofon-Zugriff verweigert. Bitte in den Browser-Einstellungen erlauben.', 'error', 4000);
+        return;
+      }
       showToast('Mikrofon-Fehler: ' + e.error, 'error', 3500);
     };
-    this.rec.onend = () => {
+    rec.onend = () => {
+      // sessionFinal in den Gesamtspeicher \u00fcbernehmen
+      if (sessionFinal) {
+        this.accumulated = (this.accumulated + ' ' + sessionFinal).trim();
+      }
+      // Wenn User noch nicht gestoppt hat \u2192 transparent neu starten
+      if (this.active && !this.userStopped) {
+        try {
+          this._spawn();
+          return;
+        } catch (e) { /* fallthrough */ }
+      }
+      // Echtes Ende
       this.active = false;
-      onFinal?.(finalText.trim());
+      const finalText = this.accumulated.trim();
+      this.accumulated = '';
+      this.onFinalFn?.(finalText);
     };
-    try { this.rec.start(); this.active = true; return true; }
-    catch (e) { showToast('Konnte Mikrofon nicht starten', 'error'); return false; }
+    try {
+      rec.start();
+      this.rec = rec;
+      this.active = true;
+      return true;
+    } catch (e) {
+      showToast('Konnte Mikrofon nicht starten: ' + (e.message || ''), 'error');
+      return false;
+    }
   },
-  stop() {
+  stop(silent) {
+    this.userStopped = true;
+    if (silent) {
+      // ohne Final-Callback (bei programmatischem Reset)
+      this.onFinalFn = null;
+    }
     if (this.rec && this.active) {
       try { this.rec.stop(); } catch(e) {}
     }
-    this.active = false;
   },
 };
 
@@ -2394,13 +2441,17 @@ function renderVoiceForm() {
       </button>` : ''}
     ${state.voicePhase === 'listen' ? `
       <div class="tile" style="background:var(--c-bg-soft);padding:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-blue)"></span><span style="font-size:11px;font-weight:600;color:var(--c-blue-deep)">Aufnahme läuft</span></div>
-        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink)">${state.voiceTranscript}<span class="cursor" style="background:var(--c-blue)"></span></p>
-      </div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-blue)"></span><span style="font-size:11px;font-weight:600;color:var(--c-blue-deep)">Aufnahme l\u00e4uft</span></div>
+        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink);min-height:1.4em">${(state.voiceTranscript || '').replace(/</g, '&lt;')}<span class="cursor" style="background:var(--c-blue)"></span></p>
+      </div>
+      <button data-action="voice-stop" style="width:100%;padding:14px;background:var(--c-red);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(229,72,77,0.3)">
+        <span style="width:14px;height:14px;background:#fff;border-radius:3px;display:inline-block"></span>
+        Aufnahme beenden
+      </button>` : ''}
     ${state.voicePhase === 'done' ? `
       <div class="tile" style="padding:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--c-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 12, 3)}</div><span style="font-size:11px;font-weight:600">Verarbeitet</span></div>
-        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0">"Türantrieb Wittur Augusta evolution, Türen, C-3-15, drei Stück"</p>
+        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0">${state.voiceTranscript ? '\u201e' + state.voiceTranscript.replace(/</g, '&lt;') + '\u201c' : '\u2014'}</p>
       </div>` : ''}
     <div>
       <div class="section-head"><h2 class="section-head__title">${state.voicePhase === 'done' ? 'Erkannte Felder' : 'Felder'}</h2></div>
