@@ -378,7 +378,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5.4';
+const APP_VERSION = 'v1.5.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2798,16 +2798,19 @@ function renderCamera() {
     `<div class="pill">${count === 0 ? 'Foto vom Artikel' : count + ' / ' + PHOTO_MAX_PER_ITEM + ' Fotos'}</div>`,
     `<div class="header__slot"></div>`)}
 
-  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px">
+  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px;padding:16px">
     ${cur
-      ? `<img src="${cur}" alt="" style="width:100%;height:100%;object-fit:contain;background:#0F1830">`
+      ? `<div style="width:100%;max-width:520px;aspect-ratio:5/4;background:#0F1830;border-radius:16px;overflow:hidden;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+           <img src="${cur}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+         </div>`
       : `<div style="text-align:center;color:#fff">
           <div style="width:96px;height:96px;border-radius:24px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">${svg('camera', 40, 1.8)}</div>
           <div style="font-size:14px;font-weight:500;opacity:.85">Tippen zum Aufnehmen oder Ausw\u00e4hlen</div>
-          <div style="font-size:11px;font-weight:500;opacity:.5;margin-top:4px">Bis zu ${PHOTO_MAX_PER_ITEM} Fotos \u00b7 werden automatisch optimiert</div>
+          <div style="font-size:11.5px;font-weight:500;opacity:.6;margin-top:6px;font-family:var(--f-mono)">Format 5:4 \u00b7 zentrierter Auto-Crop</div>
+          <div style="font-size:11px;font-weight:500;opacity:.45;margin-top:4px">Bis zu ${PHOTO_MAX_PER_ITEM} Fotos \u00b7 automatisch optimiert</div>
          </div>`}
-    <div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>
-    ${cur ? `<button data-action="cam-photo-delete" data-idx="${idx}" style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(229,72,77,0.85);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;border:0;z-index:2">${svg('trash-2', 16, 2.4)}</button>` : ''}
+    ${!cur ? `<div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>` : ''}
+    ${cur ? `<button data-action="cam-photo-delete" data-idx="${idx}" style="position:absolute;top:24px;right:24px;width:36px;height:36px;border-radius:50%;background:rgba(229,72,77,0.85);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;border:0;z-index:2">${svg('trash-2', 16, 2.4)}</button>` : ''}
   </div>
 
   ${count > 0 ? `
@@ -3866,12 +3869,23 @@ document.addEventListener('change', (e) => {
       t.value = '';
       return;
     }
-    const url = URL.createObjectURL(file);
-    state.voicePhotoFiles = [...files, file];
-    state.voicePhotoPreviews = [...(state.voicePhotoPreviews || []), url];
-    state.galleryIndex = state.voicePhotoFiles.length - 1; // springe auf neues Foto
     t.value = '';
-    render();
+    // Sofort prozessieren (Crop 5:4 + Resize) damit die Vorschau dem Endresultat entspricht
+    setLoading(true, 'Foto wird zugeschnitten …');
+    processImage(file)
+      .then(processed => {
+        const url = URL.createObjectURL(processed);
+        state.voicePhotoFiles = [...(state.voicePhotoFiles || []), processed];
+        state.voicePhotoPreviews = [...(state.voicePhotoPreviews || []), url];
+        state.galleryIndex = state.voicePhotoFiles.length - 1;
+      })
+      .catch(err => {
+        showToast('Foto konnte nicht verarbeitet werden: ' + err.message, 'error', 3500);
+      })
+      .finally(() => {
+        setLoading(false);
+        render();
+      });
   } else if (a === 'photo-search-picked') {
     const url = URL.createObjectURL(file);
     state.photoSearchFile = file;
