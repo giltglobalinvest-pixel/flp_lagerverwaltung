@@ -283,6 +283,15 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 @keyframes sheetFade{from{opacity:0}to{opacity:1}}
 @keyframes sheetSlide{from{transform:translateY(100%)}to{transform:translateY(0)}}
 
+/* Push-to-Talk Mic */
+.ptt-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px 16px}
+.ptt-btn{width:108px;height:108px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--elev-blue);transition:transform .12s,background .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.ptt-btn:active,.ptt-btn--rec{transform:scale(.94);background:var(--c-red);box-shadow:0 0 0 8px rgba(229,72,77,0.18),0 8px 24px rgba(229,72,77,0.4)}
+.ptt-btn--rec{animation:pttPulse 1.4s ease-in-out infinite}
+@keyframes pttPulse{0%,100%{box-shadow:0 0 0 8px rgba(229,72,77,0.18),0 8px 24px rgba(229,72,77,0.4)}50%{box-shadow:0 0 0 18px rgba(229,72,77,0.06),0 8px 24px rgba(229,72,77,0.4)}}
+.ptt-hint{font-size:12.5px;font-weight:500;color:var(--c-ink-mute);text-align:center;line-height:1.4}
+.ptt-hint strong{color:var(--c-ink);font-weight:600}
+
 /* Login screen */
 .login-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;background:linear-gradient(160deg,#C5D4F2 0%,#DDE7F0 50%,#B8C9E2 100%);z-index:200}
 .login-card{width:100%;max-width:340px;padding:28px 24px;background:var(--c-surface);border-radius:24px;box-shadow:0 20px 60px rgba(15,24,48,0.18);text-align:center}
@@ -336,7 +345,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.5';
+const APP_VERSION = 'v1.3.6';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2427,31 +2436,49 @@ function renderVoiceForm() {
     <div class="hero-image">
       <div style="width:96px;height:96px;border-radius:50%;background:var(--c-blue);box-shadow:var(--elev-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 36, 2.5)}</div>
     </div>
-    ${state.voicePhase === 'idle' ? `
-      <button class="hero" data-action="voice-start">
-        <div class="hero__head" style="margin-bottom:0;align-items:center">
-          <div style="display:flex;align-items:center;gap:16px">
-            <div class="hero__icon-circle" style="width:48px;height:48px">${svg('mic', 20, 2.4)}</div>
-            <div>
-              <div style="font-size:17px;font-weight:600;line-height:1.2">Beschreibung diktieren</div>
-              <div style="color:rgba(255,255,255,0.75);font-size:11px;font-weight:500;margin-top:4px">Name · Hersteller · Kategorie · Lager · Menge</div>
-            </div>
+    ${(state.voicePhase === 'idle' || state.voicePhase === 'recording') ? `
+      <div class="tile" style="padding:0;overflow:hidden">
+        <div class="ptt-wrap">
+          <button id="pttBtn" class="ptt-btn ${state.voicePhase === 'recording' ? 'ptt-btn--rec' : ''}" data-ptt="1">
+            ${svg('mic', 44, 2)}
+          </button>
+          <div class="ptt-hint">
+            ${state.voicePhase === 'recording'
+              ? '<strong style="color:var(--c-red)">Aufnahme l\u00e4uft</strong> \u2014 zum Beenden loslassen'
+              : '<strong>Halten und sprechen</strong><br>Name \u00b7 Hersteller \u00b7 Kategorie \u00b7 Lager \u00b7 Menge'}
           </div>
         </div>
-      </button>` : ''}
-    ${state.voicePhase === 'listen' ? `
-      <div class="tile" style="background:var(--c-bg-soft);padding:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-blue)"></span><span style="font-size:11px;font-weight:600;color:var(--c-blue-deep)">Aufnahme l\u00e4uft</span></div>
-        <p id="voiceTranscriptText" style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink);min-height:1.4em">${(state.voiceTranscript || '').replace(/</g, '&lt;')}<span class="cursor" style="background:var(--c-blue)"></span></p>
-      </div>
-      <button data-action="voice-stop" style="width:100%;padding:14px;background:var(--c-red);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(229,72,77,0.3)">
-        <span style="width:14px;height:14px;background:#fff;border-radius:3px;display:inline-block"></span>
-        Aufnahme beenden
-      </button>` : ''}
+        ${state.voicePhase === 'recording' ? `
+          <div style="padding:14px 16px;border-top:1px solid var(--c-divider);background:var(--c-bg-soft)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-red)"></span><span style="font-size:10.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.04em">Live-Transkript</span></div>
+            <p id="voiceTranscriptText" style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink);min-height:1.4em">${(state.voiceTranscript || '').replace(/</g, '&lt;')}<span class="cursor" style="background:var(--c-red)"></span></p>
+          </div>` : ''}
+      </div>` : ''}
+    ${state.voicePhase === 'review' ? `
+      <div>
+        <div class="section-head">
+          <h2 class="section-head__title">Aufgenommener Text</h2>
+          <button data-action="voice-redo" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:4px 8px">${svg('rotate-ccw', 11, 2.5)} Neu aufnehmen</button>
+        </div>
+        <div class="tile" style="padding:14px 16px">
+          <textarea data-action="voice-transcript-edit" rows="4" style="width:100%;background:transparent;border:0;font-family:var(--f-display);font-size:14px;font-weight:500;line-height:1.5;color:var(--c-ink);resize:vertical;outline:none;padding:0;min-height:80px" placeholder="Text bearbeiten \u2026">${(state.voiceTranscript || '').replace(/</g, '&lt;')}</textarea>
+        </div>
+        <button data-action="voice-analyze" ${(state.voiceTranscript || '').trim() ? '' : 'disabled'} style="width:100%;margin-top:10px;padding:14px;background:${(state.voiceTranscript || '').trim() ? 'var(--c-blue)' : 'var(--c-surface-alt)'};color:${(state.voiceTranscript || '').trim() ? '#fff' : 'var(--c-ink-subtle)'};border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;${(state.voiceTranscript || '').trim() ? 'box-shadow:var(--elev-blue)' : ''}">
+          ${svg('sparkles', 14, 2.5)} ${state.voicePhase === 'analyzing' ? 'Analysiere \u2026' : 'Felder mit AI erkennen'}
+        </button>
+      </div>` : ''}
+    ${state.voicePhase === 'analyzing' ? `
+      <div class="tile" style="padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div class="spinner"></div>
+        <div style="font-size:13px;font-weight:600;color:var(--c-ink-soft)">AI analysiert den Text \u2026</div>
+      </div>` : ''}
     ${state.voicePhase === 'done' ? `
       <div class="tile" style="padding:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--c-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 12, 3)}</div><span style="font-size:11px;font-weight:600">Verarbeitet</span></div>
-        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0">${state.voiceTranscript ? '\u201e' + state.voiceTranscript.replace(/</g, '&lt;') + '\u201c' : '\u2014'}</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--c-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 12, 3)}</div><span style="font-size:11px;font-weight:600">Verarbeitet</span></div>
+          <button data-action="voice-redo" style="font-size:11px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:4px">${svg('rotate-ccw', 10, 2.5)} Neu</button>
+        </div>
+        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink-soft)">${state.voiceTranscript ? '\u201e' + state.voiceTranscript.replace(/</g, '&lt;') + '\u201c' : '\u2014'}</p>
       </div>` : ''}
     <div>
       <div class="section-head"><h2 class="section-head__title">${state.voicePhase === 'done' ? 'Erkannte Felder' : 'Felder'}</h2></div>
@@ -3124,35 +3151,20 @@ document.addEventListener('click', (e) => {
       go('voice');
       break;
     case 'open-photo-search-camera': document.getElementById('photoSearchInput')?.click(); break;
-    case 'voice-start': {
-      state.voicePhase = 'listen';
+    case 'voice-start': /* legacy \u2014 ersetzt durch Push-to-Talk (pttBtn) */ break;
+    case 'voice-stop': Speech.stop(); break;
+    case 'voice-redo':
+      Speech.stop(true);
       state.voiceTranscript = '';
+      state.voicePhase = 'idle';
       render();
-      const ok = Speech.start(
-        (txt) => {
-          // Wichtig: NICHT render() w\u00e4hrend Aufnahme \u2014 zerst\u00f6rt die Speech-Session.
-          // Stattdessen direkt den Text-Knoten updaten (wie im Listen-Screen).
-          state.voiceTranscript = txt;
-          const el = document.getElementById('voiceTranscriptText');
-          if (el) el.innerHTML = (txt || '').replace(/</g, '&lt;') + '<span class="cursor" style="background:var(--c-blue)"></span>';
-        },
-        (finalText) => {
-          state.voiceTranscript = finalText || state.voiceTranscript;
-          if (state.voiceTranscript) {
-            showToast('Wird ausgewertet \u2026', 'info', 1500);
-            parseVoiceTranscript(state.voiceTranscript);
-          } else {
-            state.voicePhase = 'idle';
-            render();
-          }
-        },
-      );
-      if (!ok) { state.voicePhase = 'idle'; render(); }
       break;
-    }
-    case 'voice-stop': {
-      Speech.stop();
-      // onend handler \u00fcbernimmt den Rest
+    case 'voice-analyze': {
+      const txt = (state.voiceTranscript || '').trim();
+      if (!txt) break;
+      state.voicePhase = 'analyzing';
+      render();
+      parseVoiceTranscript(txt);
       break;
     }
     case 'set-cond': state.voiceCond = btn.dataset.id; render(); break;
@@ -3164,9 +3176,62 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* ============================================================
+   PUSH-TO-TALK (Voice-Form Mic)
+   ============================================================ */
+function startPTT() {
+  if (state.voicePhase === 'recording') return;
+  state.voicePhase = 'recording';
+  state.voiceTranscript = '';
+  render();
+  const ok = Speech.start(
+    (txt) => {
+      // Direkt nur Text-Knoten updaten (kein render() w\u00e4hrend Aufnahme)
+      state.voiceTranscript = txt;
+      const el = document.getElementById('voiceTranscriptText');
+      if (el) el.innerHTML = (txt || '').replace(/</g, '&lt;') + '<span class="cursor" style="background:var(--c-red)"></span>';
+    },
+    (finalText) => {
+      state.voiceTranscript = finalText || state.voiceTranscript;
+      // KEIN automatisches Parsing! In Review-Phase wechseln
+      if ((state.voiceTranscript || '').trim()) {
+        state.voicePhase = 'review';
+      } else {
+        state.voicePhase = 'idle';
+      }
+      render();
+    },
+  );
+  if (!ok) { state.voicePhase = 'idle'; render(); }
+}
+function stopPTT() {
+  if (state.voicePhase === 'recording') Speech.stop();
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('[data-ptt]');
+  if (!btn) return;
+  e.preventDefault();
+  try { btn.setPointerCapture(e.pointerId); } catch(_){}
+  startPTT();
+});
+document.addEventListener('pointerup', (e) => {
+  if (state.voicePhase !== 'recording') return;
+  const btn = document.getElementById('pttBtn');
+  if (btn) { try { btn.releasePointerCapture(e.pointerId); } catch(_){} }
+  stopPTT();
+});
+document.addEventListener('pointercancel', (e) => {
+  if (state.voicePhase === 'recording') stopPTT();
+});
+
 document.addEventListener('input', (e) => {
   const t = e.target;
   const a = t.dataset?.action;
+  if (a === 'voice-transcript-edit') {
+    state.voiceTranscript = t.value;
+    return;
+  }
   if (a === 'login-input') {
     state.loginInput = t.value;
     // Button-Disabled-Zustand aktualisieren ohne Re-Render (Fokus halten)
