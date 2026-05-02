@@ -24,9 +24,9 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
   .phone{border-radius:0;border:0;max-width:100%;aspect-ratio:auto;min-height:100vh;height:100vh;height:100dvh}
   /* Safe-Area-Insets f\u00fcr Notch / Home-Indicator (iPhone X+) */
   .header{padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right))}
-  .scroll{padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right))}
-  .bottom-bar{bottom:calc(12px + env(safe-area-inset-bottom));left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right))}
-  .action-bar{bottom:calc(12px + env(safe-area-inset-bottom));left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right))}
+  .scroll{padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right))}
+  .bottom-bar{margin:8px calc(12px + env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-right))}
+  .action-bar{margin:8px calc(12px + env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-right))}
   .action-sheet{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   .toast-stack{top:calc(14px + env(safe-area-inset-top));left:calc(14px + env(safe-area-inset-left));right:calc(14px + env(safe-area-inset-right))}
   .login-screen{padding:calc(32px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-right))}
@@ -94,13 +94,13 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .search-input{position:relative}
 .search-input input{width:100%;padding:14px 16px 14px 44px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:16px;box-shadow:var(--elev-1);font-size:14px;font-weight:500;color:var(--c-ink)}
 .search-input__icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center}
-.bottom-bar{position:absolute;bottom:12px;left:12px;right:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-2);display:flex;gap:6px;padding:6px;z-index:50}
+.bottom-bar{flex-shrink:0;margin:8px 12px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-2);display:flex;gap:6px;padding:6px;z-index:50}
 .bottom-bar__btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:12.5px;font-weight:600;color:var(--c-ink-mute);border-radius:var(--r-md)}
 .bottom-bar__btn--active{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
-.action-bar{position:absolute;bottom:12px;left:12px;right:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-2);padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;z-index:50}
+.action-bar{flex-shrink:0;margin:8px 12px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-2);padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;z-index:50}
 .action-bar__btn{padding:10px;font-size:11.5px;font-weight:600;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--c-surface-alt);color:var(--c-ink)}
 .action-bar__btn--primary{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 18px calc(110px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 18px 18px;-webkit-overflow-scrolling:touch;min-height:0}
 .scroll>*+*{margin-top:12px}
 .brand{display:flex;align-items:center;gap:12px}
 .brand__logo{width:40px;height:40px;background:var(--c-ink);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--elev-1)}
@@ -332,7 +332,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.3.1';
+const APP_VERSION = 'v1.3.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
