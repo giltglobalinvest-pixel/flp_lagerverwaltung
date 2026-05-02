@@ -378,7 +378,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5.3';
+const APP_VERSION = 'v1.5.4';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2855,15 +2855,52 @@ function renderCamera() {
 }
 
 function renderVoiceForm() {
+  const previews = state.voicePhotoPreviews || [];
+  const idx = Math.min(state.galleryIndex || 0, Math.max(0, previews.length - 1));
+  const cur = previews[idx];
+  const count = previews.length;
+  const canAddMore = count < PHOTO_MAX_PER_ITEM;
   return `
 <div class="screen">
   ${headerBar(backBtn('go-home'),
     `<div class="pill pill--ink">Schritt 02 / 03</div>`,
     state.voicePhase === 'done' ? `<button class="pill pill--blue" data-action="save-new-item">Sichern</button>` : `<button class="pill pill--neutral" disabled>Sichern</button>`)}
   <div class="scroll" style="padding-bottom:24px">
-    <div class="hero-image">
-      <div style="width:96px;height:96px;border-radius:50%;background:var(--c-blue);box-shadow:var(--elev-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 36, 2.5)}</div>
+    <!-- Foto-Galerie: zeigt im Camera-Screen aufgenommene Fotos, mit Add/Delete -->
+    <div class="hero-image ${cur ? 'hero-image--photo' : ''}">
+      ${cur
+        ? `<img src="${cur}" alt="" class="hero-image__img">`
+        : `<div style="text-align:center">
+             <div style="width:96px;height:96px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 10px">${svg('camera', 36, 2)}</div>
+             <div style="font-size:12px;font-weight:500;color:var(--c-ink-mute)">Noch kein Foto</div>
+           </div>`}
+      ${count > 1 ? `<div class="gallery-counter">${idx + 1} / ${count}</div>` : ''}
     </div>
+    <div class="photo-strip">
+      ${previews.map((p, i) => `
+        <div class="photo-strip__item ${i === idx ? 'photo-strip__item--active' : ''}">
+          <button class="photo-strip__thumb" data-action="cam-photo-show" data-idx="${i}" style="background-image:url('${p}')">
+            ${i === 0 ? `<span class="photo-strip__primary">${svg('check', 9, 3)} Haupt</span>` : ''}
+          </button>
+          <div class="photo-strip__actions">
+            <button class="photo-strip__act photo-strip__act--del" data-action="cam-photo-delete" data-idx="${i}" title="Foto löschen">${svg('trash-2', 11, 2.5)}</button>
+          </div>
+        </div>
+      `).join('')}
+      ${canAddMore ? `
+        <button class="photo-strip__add" data-action="open-camera">
+          ${svg('camera', 18, 2.2)}
+          <span>${count === 0 ? 'Foto aufnehmen' : 'Mehr Fotos'}</span>
+        </button>
+        <button class="photo-strip__add photo-strip__add--gallery" data-action="open-gallery" title="Aus Galerie">
+          ${svg('image', 18, 2.2)}
+        </button>
+      ` : `
+        <div class="photo-strip__hint">${PHOTO_MAX_PER_ITEM} / ${PHOTO_MAX_PER_ITEM}</div>
+      `}
+    </div>
+    <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="photo-input" data-action="camera-file-picked">
+    <input type="file" id="cameraGalleryInput" accept="image/*" class="photo-input" data-action="camera-file-picked">
     ${(state.voicePhase === 'idle' || state.voicePhase === 'recording') ? `
       <div class="tile" style="padding:0;overflow:hidden">
         <div class="ptt-wrap">
