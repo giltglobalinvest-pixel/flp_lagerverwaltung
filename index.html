@@ -370,7 +370,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.5.1';
+const APP_VERSION = 'v1.5.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -431,6 +431,15 @@ async function airUpdate(table, recordId, fields) {
     const err = await res.json().catch(() => ({}));
     throw new Error('Airtable Update fehlgeschlagen: ' + (err.error?.message || res.status));
   }
+  return await res.json();
+}
+
+// Liest EIN Record frisch (z.B. nach Upload, weil Airtable die Attachment-URLs async befüllt)
+async function airReadOne(table, recordId) {
+  const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+  const url = AIR_URL(table) + '/' + recordId;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error('Record-Lesen fehlgeschlagen: ' + res.status);
   return await res.json();
 }
 
@@ -1178,6 +1187,42 @@ async function regenerateSpecs() {
   }
 }
 
+// Lädt die Photo-Liste eines bereits angezeigten Items frisch nach (im Hintergrund).
+// Macht den Detail-Screen self-healing wenn die in-memory-Daten veraltet sind.
+async function refreshItemPhotos(it) {
+  if (!it?._recordId) return;
+  try {
+    const rec = await airReadOne(TBL_ITEMS, it._recordId);
+    const photos = rec.fields?.photo || [];
+    // Nur neu rendern wenn sich etwas geändert hat
+    const sameCount = (it.photo || []).length === photos.length;
+    const sameFirst = (it.photo?.[0]?.id || '') === (photos[0]?.id || '');
+    if (sameCount && sameFirst) return;
+    it.photo = photos;
+    it.photoUrl = photos[0]?.url || null;
+    if (state.item === it) render();
+  } catch (e) { /* offline / 404 — egal */ }
+}
+
+// Holt Photo-Liste eines Records mit Retry, weil Airtable die Attachment-URLs
+// nach Upload manchmal erst nach 1-2 Sekunden ausliefert.
+async function fetchPhotosWithRetry(recordId, expectedCount, maxAttempts = 5) {
+  let lastPhotos = [];
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const rec = await airReadOne(TBL_ITEMS, recordId);
+      const photos = (rec.fields?.photo) || [];
+      lastPhotos = photos;
+      // Wenn wir mindestens die erwartete Anzahl haben UND alle URLs vorhanden sind \u2192 fertig
+      if (photos.length >= expectedCount && photos.every(p => p.url)) {
+        return photos;
+      }
+    } catch (e) { /* n\u00e4chster Versuch */ }
+    await new Promise(r => setTimeout(r, 600 + i * 400)); // 600, 1000, 1400, 1800, 2200 ms
+  }
+  return lastPhotos; // Fallback: das, was wir zuletzt gesehen haben
+}
+
 // H\u00e4ngt ein neues Foto an das Item an (Multi-Photo).
 // Wenn bereits PHOTO_MAX_PER_ITEM erreicht, abbrechen mit Hinweis.
 async function handleItemPhotoAdd(file) {
@@ -1188,17 +1233,18 @@ async function handleItemPhotoAdd(file) {
     showToast('Max ' + PHOTO_MAX_PER_ITEM + ' Fotos pro Artikel', 'error');
     return;
   }
+  const expectedCount = current.length + 1;
   setLoading(true, 'Foto wird optimiert & hochgeladen \u2026');
   try {
-    const res = await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', file);
-    const fields = res.fields || {};
-    if (fields.photo) {
-      it.photo = fields.photo;
-      it.photoUrl = fields.photo[0]?.url || null;
-    }
+    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', file);
+    setLoading(true, 'Foto wird verarbeitet \u2026');
+    // Frisch nachladen \u2014 uploadAttachment-Response ist nicht zuverl\u00e4ssig
+    const photos = await fetchPhotosWithRetry(it._recordId, expectedCount);
+    it.photo = photos;
+    it.photoUrl = photos[0]?.url || null;
     it.updated = nowIso();
     it.upd = 'gerade eben';
-    state.galleryIndex = (it.photo || []).length - 1; // springe auf neues Foto
+    state.galleryIndex = Math.max(0, photos.length - 1); // springe auf neues Foto
     showToast('Foto hinzugef\u00fcgt', 'success');
   } catch (e) {
     showToast('Upload fehlgeschlagen: ' + e.message, 'error', 3500);
@@ -1213,15 +1259,16 @@ async function handleItemPhotoDelete(idx) {
   const it = state.item;
   if (!it || !it.photo || idx < 0 || idx >= it.photo.length) return;
   const remaining = it.photo.filter((_, i) => i !== idx).map(p => ({ id: p.id }));
+  const expectedCount = remaining.length;
   setLoading(true, 'Foto wird entfernt \u2026');
   try {
-    const res = await airUpdate(TBL_ITEMS, it._recordId, { photo: remaining });
-    const fields = res.fields || {};
-    it.photo = Array.isArray(fields.photo) ? fields.photo : [];
-    it.photoUrl = it.photo[0]?.url || null;
+    await airUpdate(TBL_ITEMS, it._recordId, { photo: remaining });
+    const photos = await fetchPhotosWithRetry(it._recordId, expectedCount);
+    it.photo = photos;
+    it.photoUrl = photos[0]?.url || null;
     it.updated = nowIso();
     it.upd = 'gerade eben';
-    state.galleryIndex = Math.min(state.galleryIndex || 0, Math.max(0, it.photo.length - 1));
+    state.galleryIndex = Math.min(state.galleryIndex || 0, Math.max(0, photos.length - 1));
     showToast('Foto entfernt', 'success');
   } catch (e) {
     showToast('L\u00f6schen fehlgeschlagen: ' + e.message, 'error', 3500);
@@ -1236,12 +1283,13 @@ async function handleItemPhotoSetPrimary(idx) {
   const it = state.item;
   if (!it || !it.photo || idx <= 0 || idx >= it.photo.length) return;
   const reordered = [it.photo[idx], ...it.photo.filter((_, i) => i !== idx)].map(p => ({ id: p.id }));
+  const expectedCount = reordered.length;
   setLoading(true, 'Hauptbild wird gesetzt \u2026');
   try {
-    const res = await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
-    const fields = res.fields || {};
-    it.photo = Array.isArray(fields.photo) ? fields.photo : [];
-    it.photoUrl = it.photo[0]?.url || null;
+    await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
+    const photos = await fetchPhotosWithRetry(it._recordId, expectedCount);
+    it.photo = photos;
+    it.photoUrl = photos[0]?.url || null;
     it.updated = nowIso();
     it.upd = 'gerade eben';
     state.galleryIndex = 0;
@@ -3500,7 +3548,13 @@ document.addEventListener('click', (e) => {
     case 'bestand-clear': state.bestandQuery = ''; render(); break;
     case 'select-item': {
       const it = inventory.find(i => i.id === btn.dataset.id);
-      if (it) { state.item = it; state.galleryIndex = 0; go('detail'); }
+      if (it) {
+        state.item = it;
+        state.galleryIndex = 0;
+        go('detail');
+        // Im Hintergrund frisch nachladen — sicher dass Fotos aktuell sind
+        refreshItemPhotos(it).catch(() => {});
+      }
       break;
     }
     case 'set-filter': state.filterIdx = +btn.dataset.idx; render(); break;
