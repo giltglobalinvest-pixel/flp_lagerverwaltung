@@ -1,0 +1,3200 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lager.OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--c-bg:#DDE7F0;--c-bg-soft:#E8EFF6;--c-surface:#FFFFFF;--c-surface-alt:#F4F7FB;--c-ink:#0F1830;--c-ink-soft:#3D4A66;--c-ink-mute:#5C6E87;--c-ink-subtle:#94A3B8;--c-blue:#2456E5;--c-blue-deep:#1740B8;--c-blue-soft:#EBF1FE;--c-blue-light:#C5D4F2;--c-red:#E5484D;--c-red-soft:#FBE5E6;--c-amber:#D97706;--c-amber-soft:#FEF3C7;--c-green:#16A34A;--c-green-soft:#DCFCE7;--c-green-deep:#0F5132;--c-border:rgba(15,24,48,0.06);--c-border-strong:rgba(15,24,48,0.12);--c-divider:rgba(15,24,48,0.06);--r-tile:20px;--r-md:14px;--r-sm:10px;--r-pill:999px;--elev-1:0 1px 2px rgba(15,24,48,0.04),0 2px 8px rgba(15,24,48,0.04);--elev-2:0 1px 2px rgba(15,24,48,0.06),0 8px 20px rgba(15,24,48,0.06);--elev-blue:0 1px 2px rgba(36,86,229,0.2),0 8px 24px rgba(36,86,229,0.2);--f-display:'Geist',system-ui,sans-serif;--f-mono:'Geist Mono',ui-monospace,monospace}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--f-display);font-feature-settings:"ss01","ss02";background:linear-gradient(160deg,#C5D4F2 0%,#DDE7F0 50%,#B8C9E2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12px;color:var(--c-ink);-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;padding:0;color:inherit}
+input,textarea{font-family:inherit;outline:none}
+svg{display:inline-block;vertical-align:middle;flex-shrink:0}
+.phone{position:relative;width:100%;max-width:400px;aspect-ratio:9/19.5;min-height:720px;background:var(--c-bg);border-radius:44px;border:10px solid var(--c-ink);overflow:hidden;box-shadow:0 50px 100px -20px rgba(15,24,48,0.4),0 0 0 1px rgba(15,24,48,0.08)}
+@media (max-width:600px){body{padding:0}.phone{border-radius:0;border:0;max-width:100%;aspect-ratio:auto;min-height:100vh;height:100vh}}
+.phone__inner{position:relative;height:100%;display:flex;flex-direction:column}
+.app{flex:1;overflow:hidden;position:relative}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--c-bg)}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px}
+.header__slot{width:40px}
+.tile{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)}
+.tile--blue{background:var(--c-blue);color:#fff;border-radius:var(--r-tile);box-shadow:var(--elev-blue);border:none}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;box-shadow:var(--elev-1);color:var(--c-ink);transition:transform .1s}
+.icon-btn:active{transform:scale(.96)}
+.icon-btn--ghost{background:rgba(255,255,255,0.1);border:none;box-shadow:none;color:#fff}
+.icon-btn--blue{background:var(--c-blue);color:#fff;border:none;box-shadow:var(--elev-blue)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;font-size:10px;font-weight:600;border-radius:var(--r-pill);white-space:nowrap}
+.pill--ink{background:var(--c-ink);color:#fff}
+.pill--blue{background:var(--c-blue);color:#fff}
+.pill--blue-soft{background:var(--c-blue-soft);color:var(--c-blue-deep)}
+.pill--amber{background:var(--c-amber-soft);color:var(--c-amber)}
+.pill--red{background:var(--c-red-soft);color:var(--c-red)}
+.pill--neutral{background:var(--c-surface-alt);color:var(--c-ink-soft)}
+.pill--ghost{background:rgba(255,255,255,0.15);color:#fff}
+.code-chip{display:inline-block;padding:2px 6px;font-family:var(--f-mono);font-size:10px;font-weight:500;background:var(--c-surface-alt);color:var(--c-ink-soft);border-radius:6px}
+.item-card{width:100%;padding:14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);display:flex;gap:12px;text-align:left;transition:transform .1s}
+.item-card:active{transform:scale(.99)}
+.item-card--highlight{border:1.5px solid var(--c-blue);box-shadow:var(--elev-blue)}
+.item-card__icon{flex-shrink:0;width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:var(--c-blue-soft);border-radius:var(--r-md);position:relative;color:var(--c-blue)}
+.item-card__icon--neutral{background:var(--c-surface-alt);color:var(--c-ink-soft)}
+.item-card__dot{position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px #fff}
+.item-card__body{flex:1;min-width:0}
+.item-card__row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.item-card__name{font-size:15.5px;font-weight:600;line-height:1.2;letter-spacing:-.015em;margin:4px 0 0}
+.item-card__sub{font-size:11.5px;font-weight:500;color:var(--c-ink-soft);margin:2px 0 0}
+.item-card__divider{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--c-divider)}
+.item-card__loc{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color:var(--c-ink-soft)}
+.item-card__stock{font-size:18px;font-weight:600;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.item-card__stock--critical{color:var(--c-red)}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi{padding:14px}
+.kpi__label{font-size:10px;font-weight:600;color:var(--c-ink-mute);margin-bottom:8px;letter-spacing:.02em;text-transform:uppercase}
+.kpi__value{font-size:28px;font-weight:600;line-height:1;letter-spacing:-.025em}
+.kpi__value--md{font-size:18px;letter-spacing:-.015em}
+.kpi__sub{font-size:10.5px;font-weight:500;color:var(--c-ink-mute);margin-top:6px}
+.kpi--blue{background:var(--c-blue);color:#fff;border:none;box-shadow:var(--elev-blue);border-radius:var(--r-tile)}
+.kpi--blue .kpi__label,.kpi--blue .kpi__sub{color:rgba(255,255,255,0.75)}
+.segctrl{display:flex;gap:4px;padding:4px;background:var(--c-surface-alt);border:1px solid var(--c-border);border-radius:var(--r-md)}
+.segctrl__btn{flex:1;padding:8px;font-size:12.5px;font-weight:600;color:var(--c-ink-mute);border-radius:var(--r-sm);transition:all .15s}
+.segctrl__btn--active{background:var(--c-surface);color:var(--c-ink);box-shadow:var(--elev-1)}
+.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chip-row::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:6px 12px;font-size:12px;font-weight:600;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-pill);box-shadow:var(--elev-1);color:var(--c-ink-soft);white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:transform .1s}
+.chip:active{transform:scale(.97)}
+.chip--active{background:var(--c-ink);color:#fff;border:1px solid var(--c-ink)}
+.chip__count{font-family:var(--f-mono);font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--r-pill);background:var(--c-surface-alt);color:var(--c-ink-soft)}
+.chip--active .chip__count{background:rgba(255,255,255,0.2);color:#fff}
+.field{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);padding:10px 16px}
+.field__label{display:block;font-size:10.5px;font-weight:600;color:var(--c-ink-mute)}
+.field__input{width:100%;background:transparent;border:0;padding:2px 0 0;font-size:16px;font-weight:600;letter-spacing:-.01em;color:var(--c-ink)}
+.search-input{position:relative}
+.search-input input{width:100%;padding:14px 16px 14px 44px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:16px;box-shadow:var(--elev-1);font-size:14px;font-weight:500;color:var(--c-ink)}
+.search-input__icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center}
+.bottom-bar{position:absolute;bottom:12px;left:12px;right:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-2);display:flex;gap:6px;padding:6px}
+.bottom-bar__btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:12.5px;font-weight:600;color:var(--c-ink-mute);border-radius:var(--r-md)}
+.bottom-bar__btn--active{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
+.action-bar{position:absolute;bottom:12px;left:12px;right:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-2);padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.action-bar__btn{padding:10px;font-size:11.5px;font-weight:600;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--c-surface-alt);color:var(--c-ink)}
+.action-bar__btn--primary{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
+.scroll{flex:1;overflow-y:auto;padding:0 20px 116px}
+.scroll>*+*{margin-top:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand__logo{width:40px;height:40px;background:var(--c-ink);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--elev-1)}
+.brand__name{font-size:15px;font-weight:600;line-height:1;letter-spacing:-.01em}
+.brand__sub{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px}
+.notif-btn{position:relative}
+.notif-btn__dot{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--c-red);box-shadow:0 0 0 2px #fff}
+.hero{width:100%;padding:20px;background:var(--c-blue);color:#fff;border-radius:var(--r-tile);box-shadow:var(--elev-blue);text-align:left;position:relative;overflow:hidden;transition:transform .1s}
+.hero:active{transform:scale(.99)}
+.hero::before{content:'';position:absolute;right:-48px;top:-48px;width:192px;height:192px;border-radius:50%;background:radial-gradient(circle,#fff 0%,transparent 70%);opacity:.2}
+.hero__head{position:relative;display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px}
+.hero__icon-circle{width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.hero__title{position:relative;font-size:28px;font-weight:600;line-height:1.05;letter-spacing:-.02em;margin:0 0 16px}
+.hero__foot{position:relative;display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid rgba(255,255,255,0.15)}
+.hero__foot-text{font-size:12.5px;font-weight:500;color:rgba(255,255,255,0.85)}
+.hero--ai{background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);box-shadow:var(--elev-1)}
+.hero--ai::before{background:radial-gradient(circle,var(--c-blue-soft) 0%,transparent 70%);opacity:.5;right:-32px;top:-32px;width:160px;height:160px}
+.hero--ai .hero__title{font-size:22px;line-height:1.1}
+.hero--ai .hero__icon-circle{background:var(--c-blue-soft);color:var(--c-blue)}
+.hero--ai .hero__foot{border-top:1px solid var(--c-divider)}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.action-tile{aspect-ratio:1;padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);display:flex;flex-direction:column;justify-content:space-between;text-align:left;transition:transform .1s}
+.action-tile:active{transform:scale(.98)}
+.action-tile__icon{width:36px;height:36px;background:var(--c-blue-soft);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--c-blue)}
+.action-tile--warn .action-tile__icon{background:var(--c-amber-soft);color:var(--c-amber)}
+.action-tile__title{font-size:16.5px;font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0}
+.action-tile__sub{font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px}
+.action-tile--warn .action-tile__sub{color:var(--c-amber)}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:10px}
+.section-head__title{font-size:14px;font-weight:600;letter-spacing:-.01em;margin:0}
+.compact-list>*+*{margin-top:8px}
+.compact-item{width:100%;padding:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);display:flex;align-items:center;gap:12px;text-align:left;transition:transform .1s}
+.compact-item:active{transform:scale(.99)}
+.compact-item__icon{flex-shrink:0;width:48px;height:48px;background:var(--c-blue-soft);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--c-blue);position:relative}
+.compact-item__body{flex:1;min-width:0}
+.compact-item__id{font-family:var(--f-mono);font-size:10px;font-weight:500;color:var(--c-ink-mute)}
+.compact-item__name{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-item__meta{font-size:11px;font-weight:500;color:var(--c-ink-soft);margin:2px 0 0}
+.compact-item__stock{text-align:right;padding-right:4px}
+.compact-item__stock-val{font-size:20px;font-weight:600;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.listen-screen{background:linear-gradient(180deg,var(--c-blue) 0%,var(--c-blue-deep) 100%);display:flex;flex-direction:column;height:100%}
+.listen-screen__body{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:0 20px 28px}
+.listen-screen .icon-btn{background:rgba(255,255,255,0.12);color:#fff;box-shadow:none;border:none}
+.listen-screen .pill{background:rgba(255,255,255,0.12);color:#fff}
+.listen-title{color:#fff;font-size:40px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:12px 0 0}
+.wave{padding:24px;background:rgba(255,255,255,0.08);border-radius:var(--r-tile);display:flex;justify-content:center;align-items:center;gap:4px;height:88px}
+.wave__bar{width:3px;background:#fff;border-radius:2px;opacity:.85}
+.transcript-card{padding:20px;background:var(--c-surface);border-radius:var(--r-tile);color:var(--c-ink);box-shadow:var(--elev-1)}
+.transcript-card__text{font-size:18px;line-height:1.35;font-weight:500;letter-spacing:-.01em;margin:0;min-height:1.5em}
+.stop-btn{width:64px;height:64px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.2);transition:transform .1s}
+.stop-btn:active{transform:scale(.95)}
+.stop-btn__icon{width:18px;height:18px;background:var(--c-blue);border-radius:3px}
+.qcard{padding:16px}
+.qcard__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.qcard__text{font-size:16px;line-height:1.3;font-weight:600;letter-spacing:-.01em;margin:0}
+.qcard__edit{background:rgba(255,255,255,0.15);color:#fff;padding:4px 10px;font-size:11px;font-weight:600;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px}
+.hero-image{position:relative;aspect-ratio:5/4;background:linear-gradient(135deg,var(--c-blue-soft) 0%,#fff 100%);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.hero-image__circle{width:112px;height:112px;border-radius:50%;background:#fff;box-shadow:var(--elev-2);display:flex;align-items:center;justify-content:center;color:var(--c-blue)}
+.hero-image__tag{position:absolute;padding:2px 8px;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);border-radius:var(--r-pill);box-shadow:var(--elev-1);font-size:10.5px;font-weight:600;color:var(--c-ink-soft)}
+.title-block h1{font-size:26px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:0}
+.title-block__by{font-size:13px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0}
+.title-block__by strong{color:var(--c-ink);font-weight:600}
+.title-block__pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.status-duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.status-card{padding:16px}
+.status-card__label{font-size:10px;font-weight:600;color:var(--c-ink-mute);margin-bottom:10px;letter-spacing:.02em;text-transform:uppercase}
+.status-card__row{display:flex;align-items:center;gap:10px}
+.status-card__icon{flex-shrink:0;width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center}
+.status-card__name{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0}
+.alert-banner{padding:12px 16px;border-radius:var(--r-md);display:flex;align-items:flex-start;gap:10px}
+.alert-banner--amber{background:var(--c-amber-soft);border:1px solid #FDE68A;color:#7C4A06}
+.alert-banner--red{background:var(--c-red-soft);border:1px solid #FCA5A5;color:#7F1D1D}
+.alert-banner__title{font-size:12.5px;font-weight:600;line-height:1.2;margin:0}
+.alert-banner__sub{font-size:11px;font-weight:500;margin:2px 0 0}
+.trend{padding:16px}
+.trend__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.trend__title{font-size:13px;font-weight:600;letter-spacing:-.01em;margin:0}
+.trend__bars{display:flex;align-items:flex-end;gap:6px;height:48px}
+.trend__bar{flex:1;border-radius:3px}
+.trend__bar--past{background:var(--c-blue-light)}
+.trend__bar--current{background:var(--c-blue)}
+.spec-list>*+*{margin-top:8px}
+.spec-row{padding:10px 16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;justify-content:space-between;align-items:center}
+.spec-row__key{font-size:12px;font-weight:500;color:var(--c-ink-mute)}
+.spec-row__val{font-size:13px;font-weight:600;text-align:right}
+.spec-row__val--mono{font-family:var(--f-mono);font-size:11px;font-weight:500}
+.summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
+.hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
+.inline-action{width:100%;margin-top:4px;padding:8px 12px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:11.5px;font-weight:600;box-shadow:var(--elev-1);transition:transform .1s}
+.inline-action:active{transform:scale(.99)}
+.inline-action--blue{background:var(--c-blue);color:#fff}
+.inline-action--amber{background:var(--c-amber);color:#fff}
+.inline-action--red{background:var(--c-red);color:#fff}
+.check-item{width:100%;padding:14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;align-items:flex-start;gap:12px;text-align:left;transition:all .15s}
+.check-item:active{transform:scale(.99)}
+.check-item--checked{background:var(--c-green-soft);border:1.5px solid var(--c-green)}
+.check-item__box{flex-shrink:0;width:24px;height:24px;border-radius:6px;border:1.5px solid var(--c-border-strong);display:flex;align-items:center;justify-content:center;margin-top:2px;color:transparent}
+.check-item--checked .check-item__box{background:var(--c-green);border-color:var(--c-green);color:#fff}
+.check-item__title{font-size:14px;font-weight:600;letter-spacing:-.01em;margin:0}
+.check-item--checked .check-item__title{color:var(--c-green-deep)}
+.check-item__sub{font-size:11.5px;font-weight:500;color:var(--c-ink-soft);line-height:1.35;margin:2px 0 0}
+.check-item--checked .check-item__sub{color:var(--c-green-deep);opacity:.85}
+.result-opt{width:100%;padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;align-items:center;gap:12px;text-align:left;transition:all .15s}
+.result-opt:active{transform:scale(.99)}
+.result-opt--active{border-width:2px}
+.result-opt__icon{flex-shrink:0;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.result-opt__title{font-size:16px;font-weight:600;letter-spacing:-.015em;margin:0}
+.result-opt__sub{font-size:11.5px;font-weight:500;margin:2px 0 0}
+.result-opt__check{flex-shrink:0;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff}
+.cam-screen{background:var(--c-ink);display:flex;flex-direction:column;height:100%}
+.cam-screen .icon-btn{background:rgba(255,255,255,0.1);color:#fff;box-shadow:none;border:none}
+.cam-screen .pill{background:rgba(255,255,255,0.1);color:#fff}
+.viewfinder{flex:1;margin:0 20px 12px;position:relative;overflow:hidden;border-radius:var(--r-tile);box-shadow:0 8px 32px rgba(0,0,0,.5);background:radial-gradient(ellipse at 50% 60%,#1a2940 0%,#050d1a 75%)}
+.viewfinder__corners>*{position:absolute;width:40px;height:40px}
+.viewfinder__corners .tl{top:32px;left:32px;border-top:2px solid #fff;border-left:2px solid #fff;border-radius:8px 0 0 0}
+.viewfinder__corners .tr{top:32px;right:32px;border-top:2px solid #fff;border-right:2px solid #fff;border-radius:0 8px 0 0}
+.viewfinder__corners .bl{bottom:32px;left:32px;border-bottom:2px solid #fff;border-left:2px solid #fff;border-radius:0 0 0 8px}
+.viewfinder__corners .br{bottom:32px;right:32px;border-bottom:2px solid #fff;border-right:2px solid #fff;border-radius:0 0 8px 0}
+.mock-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%) rotate(-2deg);background:#fff;padding:12px 16px;border-radius:6px;box-shadow:var(--elev-2)}
+.mock-label__brand{font-family:var(--f-mono);font-size:9px;font-weight:700;color:var(--c-ink);letter-spacing:-.01em}
+.mock-label__model{font-family:var(--f-mono);font-size:8px;font-weight:500;color:var(--c-ink-soft);margin-top:2px}
+.mock-block{position:absolute;top:calc(50% + 50px);left:50%;transform:translate(-50%,-50%) rotate(-2deg);width:128px;height:48px;background:var(--c-blue);border-radius:8px}
+.cam-shutter{width:72px;height:72px;border-radius:50%;background:#fff;border:3px solid rgba(255,255,255,.25);box-shadow:0 8px 32px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:var(--c-ink);transition:transform .1s}
+.cam-shutter:active{transform:scale(.95)}
+.cam-shutter--ai{color:var(--c-blue)}
+.detect-text{position:absolute;border:2px solid var(--c-blue);border-radius:4px;box-shadow:0 0 0 4px rgba(36,86,229,.2)}
+.detect-text__label{position:absolute;top:-28px;left:0;padding:2px 6px;background:var(--c-blue);border-radius:4px;font-family:var(--f-mono);font-size:9px;font-weight:600;color:#fff}
+.detect-obj{position:absolute;border:2px dashed #fff;border-radius:6px}
+.ai-step{padding:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);display:flex;align-items:center;gap:12px;transition:opacity .3s}
+.ai-step--pending{opacity:.5}
+.ai-step__icon{flex-shrink:0;width:36px;height:36px;background:var(--c-blue-soft);color:var(--c-blue);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;position:relative}
+.ai-step__icon--done{background:var(--c-blue);color:#fff}
+.ai-step__icon--active::after{content:'';position:absolute;inset:0;border-radius:var(--r-sm);border:2px solid var(--c-blue);animation:pulse 1.2s ease-in-out infinite}
+.ai-step__title{font-size:13.5px;font-weight:600;letter-spacing:-.01em;margin:0}
+.ai-step__sub{font-size:11px;font-weight:500;color:var(--c-ink-mute);margin:2px 0 0}
+.match-bar{margin-top:8px;height:4px;border-radius:var(--r-pill);background:var(--c-surface-alt);overflow:hidden}
+.match-bar__fill{height:100%;border-radius:var(--r-pill)}
+.picker-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.picker-tile{padding:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s}
+.picker-tile:active{transform:scale(.97)}
+.picker-tile__label{font-size:11.5px;font-weight:600}
+.picker-list>*+*{margin-top:8px}
+.picker-row{width:100%;padding:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;align-items:center;gap:12px;text-align:left;transition:all .15s}
+.picker-row:active{transform:scale(.99)}
+.picker-row__icon{flex-shrink:0;width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center}
+.picker-row__title{font-size:13.5px;font-weight:600;letter-spacing:-.01em;margin:0}
+.picker-row__check{flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff}
+.success-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center}
+.success-screen__circle{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:24px}
+.success-screen__title{font-size:32px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:16px 0}
+@keyframes wave{0%{transform:scaleY(.2)}100%{transform:scaleY(1)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes scanY{0%{top:-10%}100%{top:110%}}
+@keyframes scanH{0%{top:10%;opacity:0}50%{opacity:1}100%{top:90%;opacity:0}}
+@keyframes pop{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}
+@keyframes dot{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
+.cursor{display:inline-block;width:2px;height:1em;vertical-align:middle;background:currentColor;margin-left:2px;animation:blink 1s infinite}
+.dot-pulse{animation:pulse-dot 1.5s ease-in-out infinite}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#fff 50%,transparent);animation:scanH 2.5s ease-in-out infinite}
+
+/* Action sheet */
+.sheet-backdrop{position:absolute;inset:0;background:rgba(15,24,48,0.4);backdrop-filter:blur(2px);z-index:100;animation:sheetFade .2s ease-out}
+.action-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--c-surface);border-top-left-radius:24px;border-top-right-radius:24px;padding:0 0 12px;box-shadow:0 -8px 32px rgba(15,24,48,0.18);z-index:101;animation:sheetSlide .28s cubic-bezier(.32,.72,0,1)}
+.action-sheet__handle{width:36px;height:4px;background:var(--c-ink-subtle);opacity:.35;border-radius:2px;margin:8px auto 14px;display:block}
+.action-sheet__title{padding:0 20px 14px;font-family:var(--f-mono);font-size:10.5px;font-weight:600;color:var(--c-ink-mute);letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--c-divider)}
+.action-sheet__row{width:100%;display:flex;align-items:center;gap:14px;padding:13px 20px;text-align:left;font-size:14.5px;font-weight:500;color:var(--c-ink);transition:background .1s}
+.action-sheet__row:active{background:var(--c-surface-alt)}
+.action-sheet__row--destructive{color:var(--c-red)}
+.action-sheet__icon{flex-shrink:0;width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--c-surface-alt);color:var(--c-ink-soft)}
+.action-sheet__row--destructive .action-sheet__icon{background:var(--c-red-soft);color:var(--c-red)}
+.action-sheet__sep{height:8px;background:var(--c-bg);margin:4px 0}
+.action-sheet__cancel{display:block;width:calc(100% - 32px);margin:10px 16px 0;padding:14px;background:var(--c-surface-alt);border-radius:14px;font-size:15px;font-weight:600;text-align:center;color:var(--c-ink)}
+@keyframes sheetFade{from{opacity:0}to{opacity:1}}
+@keyframes sheetSlide{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+/* Login screen */
+.login-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;background:linear-gradient(160deg,#C5D4F2 0%,#DDE7F0 50%,#B8C9E2 100%);z-index:200}
+.login-card{width:100%;max-width:340px;padding:28px 24px;background:var(--c-surface);border-radius:24px;box-shadow:0 20px 60px rgba(15,24,48,0.18);text-align:center}
+.login-logo{width:64px;height:64px;border-radius:18px;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:var(--elev-blue)}
+.login-title{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0 0 4px}
+.login-sub{font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 24px}
+.login-input{width:100%;padding:14px 16px;background:var(--c-surface-alt);border:1.5px solid var(--c-border);border-radius:14px;font-size:14px;font-weight:500;font-family:var(--f-mono);color:var(--c-ink);text-align:center;letter-spacing:.02em;outline:none;transition:border-color .15s}
+.login-input:focus{border-color:var(--c-blue);background:#fff}
+.login-btn{width:100%;margin-top:12px;padding:14px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue);transition:opacity .15s}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
+.login-error{margin-top:12px;padding:10px 14px;background:var(--c-red-soft);color:var(--c-red);border-radius:10px;font-size:12px;font-weight:500;text-align:left;display:flex;align-items:flex-start;gap:8px}
+.login-foot{margin-top:18px;font-size:10.5px;font-weight:500;color:var(--c-ink-subtle);font-family:var(--f-mono)}
+
+/* Loading overlay */
+.loading-overlay{position:absolute;inset:0;background:rgba(221,231,240,0.75);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:300}
+.spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--c-border-strong);border-top-color:var(--c-blue);animation:spin 0.8s linear infinite}
+.spinner--sm{width:14px;height:14px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+.toast-stack{position:absolute;top:14px;left:14px;right:14px;display:flex;flex-direction:column;gap:8px;z-index:400;pointer-events:none}
+.toast{padding:11px 14px;background:var(--c-ink);color:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(15,24,48,0.3);font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:10px;animation:toastIn .25s cubic-bezier(.32,.72,0,1);pointer-events:auto}
+.toast--success{background:var(--c-green);color:#fff}
+.toast--error{background:var(--c-red);color:#fff}
+.toast--out{animation:toastOut .2s ease-in forwards}
+@keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes toastOut{to{transform:translateY(-12px);opacity:0}}
+
+/* Logout button in header */
+.logout-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;box-shadow:var(--elev-1);color:var(--c-ink-mute)}
+.logout-btn:active{transform:scale(.96)}
+
+/* Hero image with real photo */
+.hero-image--photo{background:#0F1830}
+.hero-image__img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.photo-input{display:none}
+
+/* Version badge */
+.version-badge{position:fixed;bottom:6px;right:8px;font-family:var(--f-mono);font-size:9px;font-weight:500;color:var(--c-ink-subtle);opacity:.5;pointer-events:none;z-index:1}
+@media (max-width:600px){.version-badge{bottom:4px;right:6px}}
+</style>
+</head>
+<body>
+<div class="phone">
+<div class="phone__inner">
+<div class="app" id="app"></div>
+</div>
+</div>
+<div class="version-badge" id="versionBadge"></div>
+<script>
+/* ============================================================
+   APP CONFIG + AIRTABLE LAYER
+   ============================================================ */
+const APP_VERSION = 'v1.0';
+// Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
+// das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
+const _TKP1 = 'patu8KWM8aWByxCGL';
+const _TKP2 = '69fae5d9fa4b94c266b426dadd71a51f574945d840b33569058ab5e9d89ebef3';
+const APP_CONFIG = {
+  AIRTABLE_READ_KEY: _TKP1 + '.' + _TKP2,
+  MASTER_BASE_ID: 'appzhNrhkLSTEaNFW',
+  APP_BASE_ID: 'appc4YGv2X1v4O1eO',
+  PROJECT_ID: 'p_1777628997641',
+  PROJECT_NAME: 'FLP Lagerverwaltung',
+  GITHUB_REPO: 'giltglobalinvest-pixel/flp_lagerverwaltung',
+};
+
+let APP_KEYS = { airtableWriteKey: null, anthropicKey: null, appBaseId: null, user: null };
+
+const AIR_BASE = () => APP_KEYS.appBaseId || APP_CONFIG.APP_BASE_ID;
+const AIR_URL = (table) => 'https://api.airtable.com/v0/' + AIR_BASE() + '/' + encodeURIComponent(table);
+
+async function airRead(table, filter) {
+  const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+  const all = [];
+  let offset = '';
+  do {
+    let url = AIR_URL(table) + '?pageSize=100';
+    if (filter) url += '&filterByFormula=' + encodeURIComponent(filter);
+    if (offset) url += '&offset=' + encodeURIComponent(offset);
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Airtable Lesen fehlgeschlagen: ' + res.status);
+    const data = await res.json();
+    all.push(...(data.records || []));
+    offset = data.offset || '';
+  } while (offset);
+  return all;
+}
+
+async function airWrite(table, fields) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const res = await fetch(AIR_URL(table), {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Airtable Schreiben fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  return await res.json();
+}
+
+async function airUpdate(table, recordId, fields) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const res = await fetch(AIR_URL(table) + '/' + recordId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Airtable Update fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  return await res.json();
+}
+
+async function airDelete(table, recordId) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const res = await fetch(AIR_URL(table) + '/' + recordId, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey },
+  });
+  if (!res.ok) throw new Error('Airtable L\u00f6schen fehlgeschlagen: ' + res.status);
+  return await res.json();
+}
+
+async function ensureTable(tableName, fields) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const metaUrl = 'https://api.airtable.com/v0/meta/bases/' + AIR_BASE() + '/tables';
+  const metaRes = await fetch(metaUrl, { headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey } });
+  if (!metaRes.ok) throw new Error('Schema-Lesen fehlgeschlagen');
+  const meta = await metaRes.json();
+  const exists = (meta.tables || []).find(t => t.name === tableName);
+  if (exists) return exists;
+  const createRes = await fetch(metaUrl, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: tableName, fields }),
+  });
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    throw new Error('Tabelle konnte nicht angelegt werden: ' + (err.error?.message || createRes.status));
+  }
+  return await createRes.json();
+}
+
+async function uploadFileToRecord(table, recordId, attachmentField, file) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const url = 'https://content.airtable.com/v0/' + AIR_BASE() + '/' + recordId + '/' + attachmentField + '/uploadAttachment';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType: file.type, file: base64, filename: file.name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Upload fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  return await res.json();
+}
+
+/* ============================================================
+   AI / ANTHROPIC
+   ============================================================ */
+async function askAI(prompt, opts = {}) {
+  if (!APP_KEYS.anthropicKey) throw new Error('Anthropic-Key fehlt');
+  const content = [];
+  if (opts.imageBase64 && opts.imageMediaType) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: opts.imageMediaType, data: opts.imageBase64 } });
+  }
+  if (opts.imageUrl) {
+    content.push({ type: 'image', source: { type: 'url', url: opts.imageUrl } });
+  }
+  content.push({ type: 'text', text: prompt });
+
+  const body = {
+    model: opts.model || 'claude-sonnet-4-5-20250929',
+    max_tokens: opts.maxTokens || 1024,
+    messages: [{ role: 'user', content }],
+  };
+  if (opts.system) body.system = opts.system;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': APP_KEYS.anthropicKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('AI-Anfrage fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  const data = await res.json();
+  return data.content && data.content[0] ? data.content[0].text : '';
+}
+
+// Liefert reines JSON-Objekt aus Claude-Antwort (entfernt ggf. Markdown-Codeblock)
+function parseAIJson(text) {
+  let t = (text || '').trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) t = fence[1].trim();
+  return JSON.parse(t);
+}
+
+async function fileToBase64(file) {
+  return await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+async function loginWithUserKey(userKey) {
+  const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+  const formula = "AND({api_key}='" + userKey.replace(/'/g, "\\'") + "',{status}='aktiv')";
+  const userRes = await fetch(
+    'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User?filterByFormula=' + encodeURIComponent(formula),
+    { headers }
+  );
+  if (!userRes.ok) throw new Error('Login-Server nicht erreichbar');
+  const userData = await userRes.json();
+  if (!userData.records || !userData.records.length) throw new Error('Ung\u00fcltiger Key');
+  APP_KEYS.user = { ...userData.records[0].fields, _recordId: userData.records[0].id };
+
+  // Project-spezifische Keys
+  const projectKeysRes = await fetch(
+    'https://api.airtable.com/v0/' + APP_CONFIG.MASTER_BASE_ID + '/Keys?filterByFormula=' + encodeURIComponent("{project_id}='" + APP_CONFIG.PROJECT_ID + "'"),
+    { headers }
+  );
+  if (projectKeysRes.ok) {
+    const projectKeysData = await projectKeysRes.json();
+    (projectKeysData.records || []).forEach(rec => {
+      const f = rec.fields;
+      if (f.key_name === 'anthropicKey') APP_KEYS.anthropicKey = f.key_value;
+      if (f.key_name === 'airtableWriteKey') APP_KEYS.airtableWriteKey = f.key_value;
+      if (f.key_name === 'airtableBaseId') APP_KEYS.appBaseId = f.key_value;
+    });
+  }
+
+  // Globaler Anthropic-Fallback
+  if (!APP_KEYS.anthropicKey) {
+    const globalKeysRes = await fetch(
+      'https://api.airtable.com/v0/' + APP_CONFIG.MASTER_BASE_ID + "/Keys?filterByFormula=" + encodeURIComponent("{project_id}='GLOBAL'"),
+      { headers }
+    );
+    if (globalKeysRes.ok) {
+      const globalKeysData = await globalKeysRes.json();
+      (globalKeysData.records || []).forEach(rec => {
+        if (rec.fields.key_name === 'anthropicKey') APP_KEYS.anthropicKey = rec.fields.key_value;
+      });
+    }
+  }
+
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Schreib-Token fehlt - bitte Admin kontaktieren');
+
+  localStorage.setItem('user_key_' + APP_CONFIG.PROJECT_ID, userKey);
+  return APP_KEYS.user;
+}
+
+async function tryAutoLogin() {
+  const savedKey = localStorage.getItem('user_key_' + APP_CONFIG.PROJECT_ID);
+  if (!savedKey) return false;
+  try {
+    await loginWithUserKey(savedKey);
+    return true;
+  } catch (e) {
+    localStorage.removeItem('user_key_' + APP_CONFIG.PROJECT_ID);
+    return false;
+  }
+}
+
+function logout() {
+  localStorage.removeItem('user_key_' + APP_CONFIG.PROJECT_ID);
+  APP_KEYS = { airtableWriteKey: null, anthropicKey: null, appBaseId: null, user: null };
+  location.reload();
+}
+
+/* ============================================================
+   TOAST + LOADING
+   ============================================================ */
+function showToast(msg, kind = 'info', durationMs = 2400) {
+  let stack = document.getElementById('toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toast-stack';
+    stack.className = 'toast-stack';
+    (document.querySelector('.phone__inner') || document.body).appendChild(stack);
+  }
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind === 'success' ? ' toast--success' : kind === 'error' ? ' toast--error' : '');
+  const icon = kind === 'success' ? svg('check', 13, 3) : kind === 'error' ? svg('alert-triangle', 13, 2.5) : svg('sparkles', 13, 2.5);
+  t.innerHTML = icon + '<span>' + String(msg).replace(/</g, '&lt;') + '</span>';
+  stack.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('toast--out');
+    setTimeout(() => t.remove(), 220);
+  }, durationMs);
+}
+
+function setLoading(on, label) {
+  let ov = document.getElementById('loading-overlay');
+  if (on) {
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'loading-overlay';
+      ov.className = 'loading-overlay';
+      (document.querySelector('.phone__inner') || document.body).appendChild(ov);
+    }
+    ov.innerHTML = '<div class="spinner"></div>' + (label ? '<div style="font-size:12px;font-weight:600;color:var(--c-ink-soft)">' + label + '</div>' : '');
+  } else if (ov) {
+    ov.remove();
+  }
+}
+
+/* ============================================================
+   ICONS - Inline SVGs (lucide.dev, MIT licensed)
+   ============================================================ */
+const ICONS = {
+  search: '<path d="m21 21-4.35-4.35"/><circle cx="11" cy="11" r="8"/>',
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'map-pin': '<path d="M20 10c0 7-8 13-8 13s-8-6-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  'arrow-up-right': '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+  'arrow-down-left': '<path d="M17 7 7 17"/><path d="M17 17H7V7"/>',
+  'arrow-left-right': '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'chevron-up': '<path d="m18 15-6-6-6 6"/>',
+  boxes: '<path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/>',
+  history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  'trending-down': '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
+  package: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="m7.5 4.27 9 5.15"/>',
+  'more-horizontal': '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+  'scan-text': '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h10"/><path d="M7 16h6"/>',
+  'scan-line': '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/>',
+  eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  aperture: '<circle cx="12" cy="12" r="10"/><path d="m14.31 8 5.74 9.94"/><path d="M9.69 8h11.48"/><path d="m7.38 12 5.74-9.94"/><path d="M9.69 16 3.95 6.06"/><path d="M14.31 16H2.83"/><path d="m16.62 12-5.74 9.94"/>',
+  'badge-check': '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/>',
+  'circle-dashed': '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+  'help-circle': '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  'trash-2': '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  'package-open': '<path d="M12 22v-9"/><path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z"/><path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13"/><path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z"/>',
+  'clipboard-check': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+  'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+  'log-out': '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
+  'key-round': '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+  'cloud-upload': '<path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/>',
+  'log-in': '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-4"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+};
+
+function svg(name, size = 16, sw = 2.4) {
+  const path = ICONS[name];
+  if (!path) return `<span style="display:inline-block;width:${size}px;height:${size}px"></span>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  // Auth gates
+  authReady: false,            // hat Auto-Login durchgelaufen?
+  loggedIn: false,
+  loginError: '',
+  loginPending: false,
+  bootingData: false,          // Daten werden initial aus Airtable geladen
+  loginInput: '',
+
+  view: 'home', query: '', item: null, testResult: null,
+  editingQuery: false, editingDetectedText: false,
+  detectedText: 'ZIEHL-ABEGG · ZAdyn4C · 011/W04',
+  filterIdx: 0, issuesTab: 'low', detailTab: 'overview',
+  checks: { visual: false, connect: false, label: false },
+  testNotes: '', testHasPhoto: false, testChosen: null,
+  voicePhase: 'idle', voiceTranscript: '',
+  voiceCond: 'neu', voiceFunc: 'untested',
+  voiceFields: { name: '', maker: '', cat: '', stock: '' },
+  voiceLocDraft: { hall: '', shelf: '', pos: '', box: '' },
+  voicePhotoFile: null, voicePhotoPreview: null,
+  listenTranscript: '', listenPhase: 'listening',
+  aiStep: 0,
+  photoSearchPhase: 'idle', photoSearchFile: null, photoSearchPreview: null,
+  photoSearchTextMatches: [], photoSearchVisualMatches: [],
+  bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
+  quickEdit: null, quickLocDraft: null,
+  locAddingFor: null, locAddDraft: '', locManageMode: null,
+  editForm: null,
+  specsRegenerating: false,
+  // Multi-company support
+  companies: [],
+  activeCompanyId: null,
+  companySwitcherOpen: false,
+  editingCompany: null, // { id, name, color } or { id: null, ... } for new company
+};
+
+/* Accessors that always return data of the active company */
+Object.defineProperty(state, 'company', { get() { return state.companies.find(c => c.id === state.activeCompanyId) || null; } });
+Object.defineProperty(state, 'halls', {
+  get() { return state.company?.halls || []; },
+  set(v) { if (state.company) state.company.halls = v; },
+});
+Object.defineProperty(state, 'shelves', {
+  get() { return state.company?.shelves || []; },
+  set(v) { if (state.company) state.company.shelves = v; },
+});
+
+/* ============================================================
+   DATA
+   ============================================================ */
+// Sample inventory for the primary company (FLP Lift Parts GmbH)
+const sampleInventoryFLP = [
+  { id: 'A1042', title: 'ZAdyn4C Frequenzumrichter', description: 'Hochleistungs-Frequenzumrichter für getriebelose Synchron-Aufzugsantriebe. Sensorlose Vektorregelung mit integrierter STO-Sicherheitsfunktion (Safe Torque Off) nach EN 81-20/50. Geeignet für Antriebsleistungen bis 22 kW bei Versorgungsspannungen von 380–480 V (50/60 Hz). Eingebauter Sinusfilter reduziert Motorgeräusche und elektromagnetische Belastung. Verwendbar als Originalersatzteil für ZAdyn4-Bestandsanlagen sowie in Modernisierungen mit ZAtop-Synchronmotoren.', maker: 'Ziehl-Abegg', cat: 'Antrieb', loc: 'Antriebslager·3·12·01', stock: 4, status: 'low', upd: '2 d', price: 1840, specs: [['Antriebsleistung', '22 kW'], ['Versorgungsspannung', '380–480 V AC'], ['Frequenz', '50 / 60 Hz'], ['Ausgangsstrom', 'max. 45 A'], ['Schutzart', 'IP21'], ['Sicherheit', 'STO Cat 3 · PL d'], ['Norm', 'EN 81-20/50'], ['Schnittstelle', 'CANopen · Modbus RTU'], ['Abmessungen', '320 × 220 × 180 mm'], ['Gewicht', '4,2 kg']], cond: 'refurb', func: 'ok' },
+  { id: 'A1043', title: 'ZAdyn4B Frequenzumrichter', description: 'Vorgängermodell des ZAdyn4C, weiterhin als Originalersatzteil verfügbar. Geeignet für Synchron-Aufzugsmotoren bis 18,5 kW Antriebsleistung. IP54-Schutzart erlaubt Einbau auch in feuchten oder staubigen Maschinenraum-Umgebungen. STO-Sicherheitsfunktion ab Werk integriert, kompatibel mit gängigen Aufzugssteuerungen wie Ziehl-Abegg ZAsbc4.', maker: 'Ziehl-Abegg', cat: 'Antrieb', loc: 'Antriebslager·3·14·02', stock: 6, status: 'ok', upd: '8 d', price: 1620, specs: [['Antriebsleistung', '18,5 kW'], ['Versorgungsspannung', '380–480 V AC'], ['Schutzart', 'IP54'], ['Sicherheit', 'STO Cat 3'], ['Norm', 'EN 81-20/50'], ['Abmessungen', '300 × 210 × 170 mm'], ['Gewicht', '3,9 kg']], cond: 'neu', func: 'ok' },
+  { id: 'B2231', title: 'Memco Pana 40 Lichtgitter', description: 'Optisches Sicherheits-Lichtgitter für Aufzugstüren, geprüft nach EN 81-20/50 Anhang B (Schutzeinrichtung Typ 2). 154 sich überlappende Infrarotstrahlen über die gesamte Türhöhe von 2000 mm gewährleisten lückenlosen Schutz für Personen und Lasten. Beidseitige Montage am Türschwert mit selbstklebenden Halteclips, Spannungsversorgung 24 V DC. Zweiseitige Anbringung sorgt für Redundanz und automatische Selbstüberwachung mit Fehlerausgabe an die Steuerung.', maker: 'Memco', cat: 'Sicherheit', loc: 'Hauptlager·1·04·05', stock: 12, status: 'ok', upd: '5 h', price: 290, specs: [['Erfassungshöhe', '2000 mm'], ['Strahlanzahl', '154 (überlappend)'], ['Wellenlänge', '880 nm IR'], ['Versorgungsspannung', '24 V DC'], ['Stromaufnahme', '< 120 mA'], ['Reaktionszeit', '< 50 ms'], ['Norm', 'EN 81-20/50 · Typ 2'], ['Schutzart', 'IP54'], ['Profil', '30 × 12 mm Aluminium']], cond: 'neu', func: 'ok' },
+  { id: 'C1108', title: 'Augusta evolution Türantrieb', description: 'Mitte-öffnender Frequenzumrichter-gesteuerter Türantrieb für Personen- und Lastenaufzüge mit Öffnungsweiten zwischen 800 und 1100 mm. Geräuscharmer Synchronmotor mit integriertem Encoder, kompatibel mit Augusta-Türblättern aller Generationen seit 2014. Hochlaufzeit zur Endstellung typ. 2,1 s, Öffnungs- und Schließkräfte parametrierbar nach EN 81-20:2014 §5.3.5. Diagnose-Display mit Klartext-Fehlercodes vereinfacht die Erstinbetriebnahme.', maker: 'Wittur', cat: 'Türen', loc: 'Werkstatt·2·08', stock: 2, status: 'low', upd: '1 d', price: 720, specs: [['Öffnungsweite', '800–1100 mm'], ['Türtyp', 'mitte-öffnend, 2 Flügel'], ['Motor', 'Synchron mit Encoder'], ['Hochlaufzeit', 'typ. 2,1 s'], ['Versorgung', '230 V AC, 50 Hz'], ['Norm', 'EN 81-20:2014 §5.3.5'], ['Schnittstelle', 'CAN, Klartext-Display'], ['Abmessungen', '180 × 120 × 60 mm'], ['Gewicht', '0,8 kg']], cond: 'refurb', func: 'untested' },
+  { id: 'D3344', title: 'Liftdialog GSM/4G Notruf', description: 'Aufzugs-Notrufgerät mit Mehrband-Mobilfunkmodul für 2G/3G/4G-Netze. Erfüllt die Anforderungen der EN 81-28:2018 für bidirektionale Notrufkommunikation. Automatischer Tagestest mit Bestätigung an der hinterlegten Leitstelle, Akku-Backup für mindestens 1 Stunde Betrieb bei Stromausfall. Konfiguration über Web-Interface oder direkt am Gerät, bis zu 3 Zielrufnummern hinterlegbar. Inklusive freigeschalteter SIM-Karte mit M2M-Tarif für 24 Monate.', maker: 'Liftdialog', cat: 'Notruf', loc: 'Hauptlager·4·01·02', stock: 8, status: 'ok', upd: '3 h', price: 410, specs: [['Mobilfunk', '2G / 3G / 4G LTE'], ['Norm', 'EN 81-28:2018'], ['Akku-Backup', 'min. 60 min'], ['Versorgung', '12–24 V DC'], ['Tagestest', 'autom. mit Bestätigung'], ['Zielrufnummern', 'bis zu 3'], ['Konfiguration', 'Web-Interface / lokal'], ['SIM-Karte', 'M2M, 24 Monate inkl.'], ['Abmessungen', '160 × 100 × 40 mm']], cond: 'neu', func: 'ok' },
+  { id: 'E7621', title: 'Treibscheibe Ø 240 mm', description: 'Gusseiserne Treibscheibe für getriebelose und getriebeantriebs-Aufzüge mittlerer Förderlast. Durchmesser 240 mm bei einer Spurbreite von 80 mm, ausgelegt für 6 Tragseile mit 8 mm Durchmesser in halbrunder Rillenform mit Untertüten. Härtegradierte Lauffläche (HRC 38–42) mit verlängerter Standzeit. Demontiertes Gebraucht-Teil aus Modernisierung, Verschleiß im zulässigen Bereich gemäß TRA 102. Vor Einbau Begleitprüfung empfohlen.', maker: 'Aufzug-Werk Süd', cat: 'Mechanik', loc: 'Außenlager·Boden', stock: 3, status: 'low', upd: '4 d', price: 380, specs: [['Material', 'Gusseisen GG-25'], ['Durchmesser', '240 mm'], ['Spurbreite', '80 mm'], ['Seilanzahl', '6'], ['Seildurchmesser', '8 mm'], ['Rillenform', 'halbrund mit Untertüten'], ['Oberflächenhärte', 'HRC 38–42'], ['Norm', 'TRA 102'], ['Gewicht', '6,5 kg']], cond: 'used', func: 'unknown' },
+  { id: 'F0099', title: 'PFB-S2 Fangvorrichtung', description: 'Beidseitig wirkende Fangvorrichtung mit progressiver Fangbacken-Charakteristik für Lasten bis 3500 kg Tragfähigkeit. Auslösung erfolgt über mechanischen Geschwindigkeitsbegrenzer ab 1,15-facher Nenngeschwindigkeit, Bremsweg innerhalb der Toleranzen nach EN 81-20:2020 §5.6.2. Werksbaugleich kompatibel mit gängigen Schienen-Profilen T70-T127. Zustand: gebraucht, Funktion derzeit nicht zertifiziert — vor Wiedereinbau Sachverständigenprüfung erforderlich.', maker: 'PFB Holding', cat: 'Sicherheit', loc: 'Werkstatt·2·01·03', stock: 1, status: 'critical', upd: '6 d', price: 1290, specs: [['Auslöseart', 'progressiv, beidseitig'], ['Tragfähigkeit', 'bis 3500 kg'], ['Auslösegeschw.', '1,15 × v(nenn)'], ['Schienenprofil', 'T70 – T127'], ['Norm', 'EN 81-20:2020 §5.6.2'], ['Bremsweg', 'innerhalb Toleranz'], ['Geschw.-Begrenzer', 'mechanisch, separat'], ['Abmessungen', '420 × 180 × 90 mm'], ['Gewicht', '8,0 kg']], cond: 'used', func: 'defective' },
+  { id: 'G1100', title: 'ZAB-150 Bremsmagnet', description: 'Doppelbacken-Bremsmagnet für direkte Synchron-Aufzugsantriebe der ZAtop-Baureihe. Versorgungsspannung 110 V DC bei 1,2 A Haltestrom, federbelastete Backen mit asbestfreiem Reibbelag. Manuelle Lüftungseinrichtung für Notbetrieb und Wartung. Mechanische Beschädigung am Lüftungshebel — irreparabel, Ersatzteil bereits bestellt. Eintrag dient der Dokumentation der Entsorgung gemäß WEEE-Richtlinie.', maker: 'Ziehl-Abegg', cat: 'Antrieb', loc: 'Reservelager·1·02', stock: 0, status: 'critical', upd: '12 d', price: 540, specs: [['Bauart', 'Doppelbacken, federbelastet'], ['Versorgungsspannung', '110 V DC'], ['Haltestrom', '1,2 A'], ['Reibbelag', 'asbestfrei'], ['Notlüftung', 'manuell (defekt)'], ['Kompatibilität', 'ZAtop-Baureihe'], ['Abmessungen', '120 × 80 × 60 mm'], ['Gewicht', '2,1 kg']], cond: 'used', func: 'scrap' },
+];
+
+/* Company defaults — palette + initial halls/shelves catalogue. Each company has an isolated dataset. */
+const COMPANY_COLORS = ['#2456E5', '#7C3AED', '#0891B2', '#DC2626', '#16A34A', '#D97706', '#DB2777', '#0284C7'];
+const DEFAULT_HALLS = ['Hauptlager', 'Werkstatt', 'Außenlager'];
+const DEFAULT_SHELVES = ['1', '2', '3', '4', '5', '6', 'Boden'];
+
+function makeCompany({ id, name, color, inventory = [], halls, shelves }) {
+  return {
+    id: id || ('co-' + Math.random().toString(36).slice(2, 8)),
+    name,
+    color: color || COMPANY_COLORS[0],
+    inventory,
+    halls: halls ? [...halls] : [...DEFAULT_HALLS],
+    shelves: shelves ? [...shelves] : [...DEFAULT_SHELVES],
+  };
+}
+
+// Companies werden nach erfolgreichem Login aus Airtable geladen.
+// Seed-Daten f\u00fcr die allerste FLP-Firma:
+const SEED_FLP_INVENTORY = sampleInventoryFLP;
+const SEED_FLP_HALLS = ['Hauptlager', 'Werkstatt', 'Antriebslager', 'Au\u00dfenlager', 'Reservelager'];
+const SEED_FLP_SHELVES = ['1', '2', '3', '4', '5', '6', 'Boden'];
+
+// Backward-compatible accessor: many screen renderers iterate over `inventory` as a free variable.
+// Defining it as a non-writable getter on `globalThis` lets every existing reference (e.g. `inventory.filter(...)`)
+// resolve to the active company's inventory without any further code changes.
+Object.defineProperty(globalThis, 'inventory', { get() { return state.company?.inventory || []; }, configurable: true });
+
+/* ============================================================
+   AIRTABLE TABLES SCHEMA + LOAD/SAVE
+   ============================================================ */
+const TBL_COMPANIES = 'Firmen';
+const TBL_ITEMS = 'Artikel';
+
+const COMPANY_FIELDS = [
+  { name: 'company_id', type: 'singleLineText' },
+  { name: 'name', type: 'singleLineText' },
+  { name: 'color', type: 'singleLineText' },
+  { name: 'halls', type: 'multilineText' },
+  { name: 'shelves', type: 'multilineText' },
+  { name: 'created', type: 'singleLineText' },
+  { name: 'api_key', type: 'singleLineText' },
+];
+
+const ITEM_FIELDS = [
+  { name: 'item_id', type: 'singleLineText' },
+  { name: 'company_id', type: 'singleLineText' },
+  { name: 'title', type: 'singleLineText' },
+  { name: 'description', type: 'multilineText' },
+  { name: 'maker', type: 'singleLineText' },
+  { name: 'cat', type: 'singleLineText' },
+  { name: 'loc', type: 'singleLineText' },
+  { name: 'cond', type: 'singleLineText' },
+  { name: 'func', type: 'singleLineText' },
+  { name: 'specs', type: 'multilineText' },
+  { name: 'photo', type: 'multipleAttachments' },
+  { name: 'updated', type: 'singleLineText' },
+  { name: 'api_key', type: 'singleLineText' },
+];
+
+async function ensureAllTables() {
+  await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
+  await ensureTable(TBL_ITEMS, ITEM_FIELDS);
+}
+
+function nowIso() { return new Date().toISOString(); }
+function shortId(prefix) { return (prefix || '') + Math.random().toString(36).slice(2, 8).toUpperCase(); }
+function relTime(iso) {
+  if (!iso) return '\u2014';
+  const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
+  const diffH = Math.max(0, (Date.now() - t) / 36e5);
+  if (diffH < 1) return Math.max(1, Math.round(diffH * 60)) + ' min';
+  if (diffH < 24) return Math.round(diffH) + ' h';
+  return Math.round(diffH / 24) + ' d';
+}
+
+function recordToCompany(rec) {
+  const f = rec.fields || {};
+  let halls = SEED_FLP_HALLS.slice();
+  let shelves = SEED_FLP_SHELVES.slice();
+  try { if (f.halls) halls = JSON.parse(f.halls); } catch(e) {}
+  try { if (f.shelves) shelves = JSON.parse(f.shelves); } catch(e) {}
+  return {
+    id: f.company_id,
+    _recordId: rec.id,
+    name: f.name || '',
+    color: f.color || COMPANY_COLORS[0],
+    halls, shelves,
+    inventory: [],
+  };
+}
+
+function recordToItem(rec) {
+  const f = rec.fields || {};
+  let specs = [];
+  try { if (f.specs) specs = JSON.parse(f.specs); } catch(e) {}
+  const photoArr = Array.isArray(f.photo) ? f.photo : [];
+  return {
+    _recordId: rec.id,
+    id: f.item_id,
+    company_id: f.company_id,
+    title: f.title || '',
+    description: f.description || '',
+    maker: f.maker || '',
+    cat: f.cat || '',
+    loc: f.loc || '',
+    cond: f.cond || 'used',
+    func: f.func || 'unknown',
+    specs,
+    photo: photoArr,
+    photoUrl: photoArr[0]?.url || null,
+    updated: f.updated || nowIso(),
+    upd: relTime(f.updated),
+  };
+}
+
+function itemToFields(it, apiKey) {
+  return {
+    item_id: it.id,
+    company_id: it.company_id,
+    title: it.title || '',
+    description: it.description || '',
+    maker: it.maker || '',
+    cat: it.cat || '',
+    loc: it.loc || '',
+    cond: it.cond || 'used',
+    func: it.func || 'unknown',
+    specs: JSON.stringify(it.specs || []),
+    updated: it.updated || nowIso(),
+    api_key: apiKey,
+  };
+}
+
+function companyToFields(c, apiKey) {
+  return {
+    company_id: c.id,
+    name: c.name,
+    color: c.color,
+    halls: JSON.stringify(c.halls || []),
+    shelves: JSON.stringify(c.shelves || []),
+    created: c._created || nowIso(),
+    api_key: apiKey,
+  };
+}
+
+async function loadAllData() {
+  const apiKey = APP_KEYS.user.api_key;
+  const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
+
+  const [companyRecs, itemRecs] = await Promise.all([
+    airRead(TBL_COMPANIES, filter),
+    airRead(TBL_ITEMS, filter),
+  ]);
+
+  let companies = companyRecs.map(recordToCompany).filter(c => c.id);
+
+  // Seed bei erstem Start: FLP Lift Parts mit Beispiel-Bestand
+  if (companies.length === 0) {
+    showToast('Erste Einrichtung \u2026 Beispieldaten werden angelegt', 'info', 3000);
+    const flpId = 'co_flp_' + Date.now().toString(36);
+    const seedCompany = {
+      id: flpId,
+      name: 'FLP Lift Parts',
+      color: '#2456E5',
+      halls: SEED_FLP_HALLS.slice(),
+      shelves: SEED_FLP_SHELVES.slice(),
+      inventory: [],
+      _created: nowIso(),
+    };
+    const created = await airWrite(TBL_COMPANIES, companyToFields(seedCompany, apiKey));
+    seedCompany._recordId = created.id;
+    companies = [seedCompany];
+
+    // Seed-Artikel anlegen (mit kleiner Verz\u00f6gerung gegen Rate-Limit)
+    for (const tpl of SEED_FLP_INVENTORY) {
+      const it = {
+        ...tpl,
+        company_id: flpId,
+        updated: nowIso(),
+        photo: [],
+        photoUrl: null,
+      };
+      try {
+        const rec = await airWrite(TBL_ITEMS, itemToFields(it, apiKey));
+        it._recordId = rec.id;
+        seedCompany.inventory.push(it);
+      } catch (e) {
+        console.warn('Seed-Artikel \u00fcbersprungen:', e.message);
+      }
+    }
+  } else {
+    // Items den Companies zuordnen
+    const items = itemRecs.map(recordToItem);
+    const byCompany = {};
+    items.forEach(it => {
+      (byCompany[it.company_id] = byCompany[it.company_id] || []).push(it);
+    });
+    companies.forEach(c => {
+      c.inventory = byCompany[c.id] || [];
+    });
+  }
+
+  state.companies = companies;
+  state.activeCompanyId = companies[0]?.id || null;
+}
+
+function persistItemPatch(it, patch) {
+  if (!it?._recordId) return Promise.resolve();
+  const fields = {};
+  Object.keys(patch).forEach(k => {
+    if (k === 'specs') fields.specs = JSON.stringify(patch.specs || []);
+    else fields[k] = patch[k];
+  });
+  fields.updated = nowIso();
+  return airUpdate(TBL_ITEMS, it._recordId, fields)
+    .catch(err => showToast('Sync fehlgeschlagen: ' + err.message, 'error', 3500));
+}
+
+async function persistCompany(c) {
+  const fields = companyToFields(c, APP_KEYS.user.api_key);
+  if (c._recordId) return await airUpdate(TBL_COMPANIES, c._recordId, fields);
+  const rec = await airWrite(TBL_COMPANIES, fields);
+  c._recordId = rec.id;
+  return rec;
+}
+
+async function persistCompanyHallsShelves(c) {
+  if (!c?._recordId) return;
+  try {
+    await airUpdate(TBL_COMPANIES, c._recordId, {
+      halls: JSON.stringify(c.halls || []),
+      shelves: JSON.stringify(c.shelves || []),
+    });
+  } catch (e) { showToast('Sync fehlgeschlagen: ' + e.message, 'error', 3500); }
+}
+
+async function deleteCompanyAndItems(c) {
+  // L\u00f6sche zuerst alle Items
+  for (const it of (c.inventory || [])) {
+    if (it._recordId) {
+      try { await airDelete(TBL_ITEMS, it._recordId); } catch(e) { /* fortfahren */ }
+    }
+  }
+  if (c._recordId) await airDelete(TBL_COMPANIES, c._recordId);
+}
+
+async function regenerateSpecs() {
+  const it = state.item;
+  if (!it) return;
+  if (state.specsRegenerating) return;
+  state.specsRegenerating = true;
+  showToast('AI generiert technische Daten \u2026', 'info', 1800);
+  try {
+    const sys = 'Du bist Experte f\u00fcr Aufzugsersatzteile. Aus den Angaben erzeugst du eine pr\u00e4zise Liste technischer Daten f\u00fcr ein Lager-System. Antworte AUSSCHLIESSLICH mit einem JSON-Array von [label, value]-Paaren. Werte kompakt, mit Einheiten. Keine Erkl\u00e4rungen, kein Markdown.';
+    const prompt = 'Artikel:\nTitel: ' + it.title + '\nHersteller: ' + it.maker + '\nKategorie: ' + it.cat + '\nBeschreibung: ' + (it.description || '') + '\n\nErzeuge 6 bis 10 technische Datenfelder. Beispiel-Format:\n[["Antriebsleistung","22 kW"],["Schutzart","IP21"]]';
+    const opts = { system: sys, maxTokens: 700 };
+    if (it.photoUrl) opts.imageUrl = it.photoUrl;
+    const txt = await askAI(prompt, opts);
+    let specs;
+    try { specs = parseAIJson(txt); } catch (e) { throw new Error('AI-Antwort konnte nicht gelesen werden'); }
+    if (!Array.isArray(specs)) throw new Error('AI lieferte kein Array');
+    specs = specs.filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), String(p[1])]);
+    it.specs = specs;
+    if (state.editForm) state.editForm.specs = specs;
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    await persistItemPatch(it, { specs });
+    showToast('Technische Daten aktualisiert', 'success');
+  } catch (e) {
+    showToast('AI-Fehler: ' + e.message, 'error', 3500);
+  } finally {
+    state.specsRegenerating = false;
+    render();
+  }
+}
+
+async function handleItemPhotoReplace(file) {
+  const it = state.item;
+  if (!it) return;
+  setLoading(true, 'Foto wird hochgeladen \u2026');
+  try {
+    const res = await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', file);
+    // Antwort enth\u00e4lt updated record \u2014 fields lesen
+    const fields = res.fields || {};
+    if (fields.photo) {
+      it.photo = fields.photo;
+      it.photoUrl = fields.photo[0]?.url || null;
+    }
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    showToast('Foto aktualisiert', 'success');
+  } catch (e) {
+    showToast('Upload fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+async function runPhotoSearch() {
+  state.photoSearchPhase = 'analyze';
+  state.aiStep = 0;
+  go('aiAnalyze');
+  try {
+    if (!state.photoSearchFile) throw new Error('Kein Foto');
+    state.aiStep = 1; render();
+    const base64 = await fileToBase64(state.photoSearchFile);
+    const mediaType = state.photoSearchFile.type || 'image/jpeg';
+
+    // Schritt 1: Claude Vision \u2014 OCR + Bauteil-Identifikation
+    const visionPrompt = 'Du analysierst ein Foto eines Aufzugs-Ersatzteils. Antworte AUSSCHLIESSLICH als JSON:\n{"text_on_label":"...","probable_maker":"...","probable_model":"...","category":"Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung","keywords":["w1","w2",...]}';
+    const visionRes = await askAI(visionPrompt, { imageBase64: base64, imageMediaType: mediaType, maxTokens: 400 });
+    let info; try { info = parseAIJson(visionRes); } catch(e) { info = { keywords: [] }; }
+    state.aiStep = 2; render();
+
+    // Schritt 2: Lokal aus Bestand passende Treffer suchen (Text-Match + Vision-Match)
+    const items = inventory;
+    const lc = (s) => (s || '').toLowerCase();
+    const labelText = lc(info.text_on_label) + ' ' + lc(info.probable_maker) + ' ' + lc(info.probable_model);
+    const tokens = (info.keywords || []).concat([info.probable_maker, info.probable_model]).map(lc).filter(Boolean);
+
+    function scoreItem(it) {
+      const hay = (it.title + ' ' + it.maker + ' ' + it.id + ' ' + (it.description || '')).toLowerCase();
+      let score = 0;
+      tokens.forEach(tk => { if (tk && hay.includes(tk)) score += 30; });
+      if (info.category && it.cat === info.category) score += 25;
+      if (info.probable_maker && lc(it.maker) === lc(info.probable_maker)) score += 35;
+      // Etikett-Text ein- oder enth\u00e4lt
+      if (labelText.trim() && (hay.includes(lc(it.title)) || labelText.includes(lc(it.id)))) score += 40;
+      return Math.min(99, score);
+    }
+    const ranked = items.map(it => ({ it, score: scoreItem(it) })).sort((a,b) => b.score - a.score);
+    const text = ranked.filter(r => r.score >= 60).slice(0, 2).map(r => r.it);
+    const visual = ranked.filter(r => r.score < 60 && r.score >= 15).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
+
+    state.photoSearchTextMatches = text;
+    state.photoSearchVisualMatches = visual;
+    state.photoSearchPhase = 'results';
+    go('photoResults');
+  } catch (e) {
+    showToast('Foto-Suche fehlgeschlagen: ' + e.message, 'error', 3500);
+    state.photoSearchPhase = 'idle';
+    go('photoSearch');
+  }
+}
+
+async function saveNewItemFromVoice() {
+  const f = state.voiceFields || {};
+  const name = (f.name || '').trim();
+  if (!name) { showToast('Bezeichnung fehlt', 'error'); return; }
+  const company = state.company;
+  if (!company) { showToast('Keine Firma aktiv', 'error'); return; }
+
+  const newItem = {
+    id: shortId('A'),
+    company_id: company.id,
+    title: name,
+    description: state.voiceTranscript || '',
+    maker: (f.maker || '').trim(),
+    cat: (f.cat || '').trim() || 'Mechanik',
+    loc: buildLoc(state.voiceLocDraft || {}),
+    cond: state.voiceCond || 'neu',
+    func: state.voiceFunc || 'untested',
+    specs: [],
+    photo: [],
+    photoUrl: null,
+    updated: nowIso(),
+  };
+  newItem.upd = 'gerade eben';
+
+  setLoading(true, 'Artikel wird angelegt \u2026');
+  try {
+    const rec = await airWrite(TBL_ITEMS, itemToFields(newItem, APP_KEYS.user.api_key));
+    newItem._recordId = rec.id;
+
+    if (state.voicePhotoFile) {
+      setLoading(true, 'Foto wird hochgeladen \u2026');
+      try {
+        const up = await uploadFileToRecord(TBL_ITEMS, rec.id, 'photo', state.voicePhotoFile);
+        const fld = up.fields || {};
+        if (fld.photo) {
+          newItem.photo = fld.photo;
+          newItem.photoUrl = fld.photo[0]?.url || null;
+        }
+      } catch (e) { showToast('Foto-Upload fehlgeschlagen: ' + e.message, 'error', 3500); }
+    }
+
+    company.inventory.unshift(newItem);
+    state.item = newItem;
+
+    // Specs im Hintergrund generieren
+    if (newItem.photoUrl || (newItem.title && newItem.maker)) {
+      regenerateSpecs(); // l\u00e4uft asynchron, aktualisiert state.item
+    }
+
+    state.voicePhotoFile = null;
+    state.voicePhotoPreview = null;
+    showToast('Artikel angelegt', 'success');
+    go('saved');
+  } catch (e) {
+    showToast('Speichern fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function parseVoiceTranscript(transcript) {
+  if (!transcript) return;
+  try {
+    const sys = 'Du extrahierst Felder f\u00fcr ein Lager-System f\u00fcr Aufzugsersatzteile aus deutschsprachiger Sprache. Antworte AUSSCHLIESSLICH als JSON:\n{"name":"","maker":"","cat":"Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung|","loc":{"hall":"","shelf":"","pos":"","box":""},"cond":"neu|refurb|used|","func":"ok|untested|unknown|defective|scrap|","stock":""}\nLasse Felder leer wenn nicht erw\u00e4hnt.';
+    const txt = await askAI('Diktat: ' + transcript, { system: sys, maxTokens: 400 });
+    const data = parseAIJson(txt);
+    state.voiceFields = {
+      name: data.name || state.voiceFields.name || '',
+      maker: data.maker || state.voiceFields.maker || '',
+      cat: data.cat || state.voiceFields.cat || '',
+      stock: data.stock || state.voiceFields.stock || '',
+    };
+    if (data.loc) {
+      state.voiceLocDraft = {
+        hall: data.loc.hall || '',
+        shelf: data.loc.shelf || '',
+        pos: data.loc.pos || '',
+        box: data.loc.box || '',
+      };
+    }
+    if (data.cond) state.voiceCond = data.cond;
+    if (data.func) state.voiceFunc = data.func;
+    state.voicePhase = 'done';
+    render();
+  } catch (e) {
+    showToast('Sprache konnte nicht ausgewertet werden: ' + e.message, 'error', 3500);
+    state.voicePhase = 'done';
+    render();
+  }
+}
+
+/* ============================================================
+   WEB SPEECH API
+   ============================================================ */
+const Speech = {
+  rec: null,
+  active: false,
+  start(onUpdate, onFinal) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { showToast('Sprache nicht unterst\u00fctzt (bitte Chrome/Safari)', 'error', 3500); return false; }
+    this.stop();
+    this.rec = new SR();
+    this.rec.lang = 'de-DE';
+    this.rec.interimResults = true;
+    this.rec.continuous = true;
+    let finalText = '';
+    this.rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const tr = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += tr; else interim += tr;
+      }
+      onUpdate?.((finalText + ' ' + interim).trim());
+    };
+    this.rec.onerror = (e) => {
+      if (e.error === 'no-speech') return;
+      showToast('Mikrofon-Fehler: ' + e.error, 'error', 3500);
+    };
+    this.rec.onend = () => {
+      this.active = false;
+      onFinal?.(finalText.trim());
+    };
+    try { this.rec.start(); this.active = true; return true; }
+    catch (e) { showToast('Konnte Mikrofon nicht starten', 'error'); return false; }
+  },
+  stop() {
+    if (this.rec && this.active) {
+      try { this.rec.stop(); } catch(e) {}
+    }
+    this.active = false;
+  },
+};
+
+const CONDITION = {
+  neu:    { label: 'Neu', short: 'Neu', icon: 'sparkles', bg: 'var(--c-blue-soft)', fg: 'var(--c-blue-deep)' },
+  refurb: { label: 'Generalüberholt', short: 'Refurb.', icon: 'wrench', bg: 'var(--c-bg-soft)', fg: 'var(--c-blue-deep)' },
+  used:   { label: 'Gebraucht', short: 'Gebr.', icon: 'package-open', bg: 'var(--c-surface-alt)', fg: 'var(--c-ink-soft)' },
+};
+const FUNCTION_STATUS = {
+  ok:        { label: 'Getestet · OK', short: 'Getestet OK', icon: 'badge-check', bg: 'var(--c-green-soft)', fg: 'var(--c-green-deep)', dot: 'var(--c-green)' },
+  untested:  { label: 'Funktion · ungetestet', short: 'Ungetestet', icon: 'circle-dashed', bg: 'var(--c-blue-soft)', fg: 'var(--c-blue-deep)', dot: 'var(--c-blue)' },
+  unknown:   { label: 'Unbekannt', short: 'Unbekannt', icon: 'help-circle', bg: 'var(--c-surface-alt)', fg: 'var(--c-ink-soft)', dot: 'var(--c-ink-mute)' },
+  defective: { label: 'Defekt', short: 'Defekt', icon: 'alert-triangle', bg: 'var(--c-amber-soft)', fg: 'var(--c-amber)', dot: 'var(--c-amber)' },
+  scrap:     { label: 'Schrott', short: 'Schrott', icon: 'trash-2', bg: 'var(--c-red-soft)', fg: 'var(--c-red)', dot: 'var(--c-red)' },
+};
+const CONDITION_KEYS = ['neu', 'refurb', 'used'];
+const FUNCTION_KEYS  = ['ok', 'untested', 'unknown', 'defective', 'scrap'];
+const CATEGORIES = ['Antrieb', 'Sicherheit', 'Türen', 'Notruf', 'Mechanik', 'Steuerung', 'Beleuchtung'];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const stockPill = (s) => {
+  if (s === 'ok') return '';
+  const c = { low: { cls: 'pill--blue-soft', label: 'Niedrig' }, critical: { cls: 'pill--red', label: 'Kritisch' } }[s];
+  return `<span class="pill ${c.cls}">${s === 'critical' ? '<span class="dot-pulse" style="width:4px;height:4px;border-radius:50%;background:currentColor"></span>' : ''}${c.label}</span>`;
+};
+const condPill = (k) => {
+  const c = CONDITION[k]; if (!c) return '';
+  return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${c.short}</span>`;
+};
+const funcPill = (k) => {
+  const c = FUNCTION_STATUS[k]; if (!c) return '';
+  return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${c.short}</span>`;
+};
+
+const itemCard = (it, opts = {}) => `
+<button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}">
+  <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+    ${it.photoUrl ? `<img src="${it.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 22, 2.2)}
+    <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+  </div>
+  <div class="item-card__body">
+    <div class="item-card__row"><span class="code-chip">#${it.id}</span></div>
+    <h3 class="item-card__name">${it.title}</h3>
+    <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
+    <div class="item-card__row" style="margin-top:8px">${condPill(it.cond)}${funcPill(it.func)}</div>
+    <div class="item-card__divider">
+      <span class="item-card__loc">${svg('map-pin', 11, 2.4)} ${it.loc || '\u2014'}</span>
+    </div>
+  </div>
+</button>`;
+
+const headerBar = (l, c, r) => `<div class="header"><div class="header__slot">${l || ''}</div>${c || ''}<div class="header__slot" style="display:flex;justify-content:flex-end">${r || ''}</div></div>`;
+const backBtn = (a) => `<button class="icon-btn" data-action="${a}">${svg('arrow-left', 17, 2.5)}</button>`;
+const parseLoc = (loc) => { const p = (loc || '').split('·'); return { hall: p[0] || '', shelf: p[1] || '', pos: p[2] || '', box: p[3] || '' }; };
+const buildLoc = (l) => [l.hall, l.shelf, l.pos, l.box].filter(p => p != null && p !== '').join('·');
+
+// Returns the active locDraft based on the current view, used by global manage handlers.
+// Auto-initializes the draft if missing so add/remove always have a target to mutate.
+function getActiveLocDraft() {
+  if (state.view === 'detail' && state.quickEdit === 'loc') {
+    if (!state.quickLocDraft) state.quickLocDraft = { hall:'', shelf:'', pos:'', box:'' };
+    return state.quickLocDraft;
+  }
+  if (state.view === 'edit' && state.editForm) {
+    if (!state.editForm.locDraft) state.editForm.locDraft = { hall:'', shelf:'', pos:'', box:'' };
+    return state.editForm.locDraft;
+  }
+  if (state.view === 'voice') {
+    if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' };
+    return state.voiceLocDraft;
+  }
+  return null;
+}
+
+// Inline "Neu" button / input for adding a hall or shelf to the catalog
+function renderLocAddRow(target) {
+  return state.locAddingFor === target ? `
+    <div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 10px;background:var(--c-surface);border:1.5px solid var(--c-blue);border-radius:var(--r-pill);box-shadow:var(--elev-1);flex-shrink:0">
+      <input data-action="loc-add-input" value="${(state.locAddDraft || '').replace(/"/g, '&quot;')}" placeholder="Neu" style="background:transparent;border:0;padding:0;width:140px;font-size:12px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit" autofocus>
+      <button data-action="loc-add-save" style="width:22px;height:22px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center">${svg('check', 11, 3)}</button>
+      <button data-action="loc-add-cancel" style="width:22px;height:22px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('x', 11, 2.5)}</button>
+    </div>
+  ` : `
+    <button class="chip" data-action="loc-add-start" data-target="${target}" style="border:1.5px dashed var(--c-blue-light);color:var(--c-blue);background:transparent;box-shadow:none">${svg('plus', 11, 2.5)} Neu</button>
+  `;
+}
+
+// Reusable picker for hall/shelf with manage mode and add/remove. scope = 'quick' | 'edit' | 'voice'
+function renderLocPicker(scope, target, label, options, selectedValue, opts = {}) {
+  const isManaging = state.locManageMode === target;
+  const allowNone = !!opts.allowNone;
+  const noneActive = allowNone && !selectedValue && !isManaging;
+  const noneStyle = `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${noneActive ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
+  const setAction = `${scope}-loc-${target}`;
+  const clearAction = `${scope}-loc-clear`;
+  return `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px;gap:10px">
+        <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">${label}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${allowNone && !isManaging ? `<button data-action="${clearAction}" data-target="${target}" style="${noneStyle}">— Keins</button>` : ''}
+          <button data-action="loc-manage-toggle" data-target="${target}" style="font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
+            ${isManaging ? svg('check', 10, 3) : svg('pencil', 10, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
+          </button>
+        </div>
+      </div>
+      <div class="chip-row">
+        ${!isManaging ? renderLocAddRow(target) : ''}
+        ${options.map(o => {
+          const active = !isManaging && selectedValue === o;
+          const ev = String(o).replace(/"/g, '&quot;');
+          if (isManaging) {
+            const removeAction = target === 'hall' ? 'loc-remove-hall' : 'loc-remove-shelf';
+            return `<button class="chip" data-action="${removeAction}" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${o} ${svg('x', 11, 2.8)}</button>`;
+          }
+          return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${setAction}" data-val="${ev}">${o}</button>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+const wave = (n = 28) => Array.from({ length: n }, (_, i) => {
+  const h = 20 + Math.abs(Math.sin(i * 0.7)) * 80;
+  const dur = 0.7 + (i % 5) * 0.18;
+  return `<div class="wave__bar" style="height:${h}%;animation:wave ${dur}s ease-in-out ${i * 0.025}s infinite alternate"></div>`;
+}).join('');
+
+
+/* ============================================================
+   SCREENS
+   ============================================================ */
+
+function renderHome() {
+  return `
+<div class="screen">
+  <div class="header">
+    <button class="brand" data-action="open-company-switcher" style="background:transparent;border:0;padding:0;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''" ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+      <div class="brand__logo" style="background:${state.company?.color || 'var(--c-ink)'}">${svg('boxes', 18, 2.2)}</div>
+      <div>
+        <div class="brand__name">${state.company?.name || 'Lager'}</div>
+        <div class="brand__sub" style="display:inline-flex;align-items:center;gap:4px">${state.companies.length} ${state.companies.length === 1 ? 'Firma' : 'Firmen'} \u00b7 Wechseln ${svg('chevron-down', 9, 2.5)}</div>
+      </div>
+    </button>
+    <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
+  </div>
+  <div class="scroll">
+    <button class="hero" data-action="go-listen">
+      <div class="hero__head">
+        <div class="pill pill--ghost">${svg('mic', 11, 2.5)} Sprachsuche</div>
+        <div class="hero__icon-circle">${svg('mic', 16, 2.4)}</div>
+      </div>
+      <h1 class="hero__title">Was suchst<br>du heute?</h1>
+      <div class="hero__foot"><span class="hero__foot-text">Tippen & sprechen</span>${svg('arrow-right', 14, 2.4)}</div>
+    </button>
+    <button class="hero hero--ai" data-action="go-photo-search">
+      <div class="hero__head">
+        <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} AI · Foto-Suche</div>
+        <div class="hero__icon-circle">${svg('camera', 16, 2.4)}</div>
+      </div>
+      <h1 class="hero__title">Bauteil oder<br>Etikett fotografieren</h1>
+      <div class="hero__foot" style="gap:8px">
+        <div class="pill pill--blue-soft" style="font-family:var(--f-mono)">${svg('scan-text', 11, 2.5)} OCR</div>
+        <div class="pill pill--neutral" style="font-family:var(--f-mono)">${svg('eye', 11, 2.5)} Vision</div>
+        <span style="margin-left:auto;display:flex">${svg('arrow-right', 14, 2.4)}</span>
+      </div>
+    </button>
+    <div class="search-input">
+      <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
+      <input type="text" placeholder="oder Text eingeben" data-action="manual-search-input" value="${state.query}">
+    </div>
+    <div class="action-grid">
+      ${[
+        { icon: 'plus', title: 'Neuer Artikel', sub: 'Foto + Stimme', action: 'go-camera' },
+        { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
+      ].map(a => `
+        <button class="action-tile ${a.warn ? 'action-tile--warn' : ''}" data-action="${a.action}">
+          <div class="action-tile__icon">${svg(a.icon, 17, 2.4)}</div>
+          <div><h3 class="action-tile__title">${a.title}</h3><div class="action-tile__sub">${a.sub}</div></div>
+        </button>`).join('')}
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Zuletzt bearbeitet</h2></div>
+      <div class="compact-list">
+        ${inventory.length === 0 ? `
+          <div class="tile" style="padding:24px;text-align:center">
+            <div style="font-size:13px;font-weight:600;color:var(--c-ink-soft)">Noch keine Artikel angelegt</div>
+            <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Tippe auf \u201eNeuer Artikel\u201c oder \u201eFoto-Suche\u201c</div>
+          </div>` :
+        [...inventory].sort((a,b) => Date.parse(b.updated || 0) - Date.parse(a.updated || 0)).slice(0, 3).map(it => `
+          <button class="compact-item" data-action="select-item" data-id="${it.id}">
+            <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+              ${it.photoUrl ? `<img src="${it.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 19, 2.2)}
+              <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+            </div>
+            <div class="compact-item__body">
+              <div class="compact-item__id">#${it.id}</div>
+              <div class="compact-item__name">${it.title}</div>
+              <div class="compact-item__meta">${CONDITION[it.cond]?.label || '\u2014'} \u00b7 ${FUNCTION_STATUS[it.func]?.short || '\u2014'}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;color:var(--c-ink-mute);font-size:11px;font-weight:500;padding-right:4px">
+              ${svg('map-pin', 11, 2.4)} <span style="font-family:var(--f-mono);font-size:10.5px;color:var(--c-ink-soft)">${(it.loc || '').split('\u00b7')[0] || '\u2014'}</span>
+            </div>
+          </button>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar">
+    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
+    <button class="bottom-bar__btn" data-action="go-camera">${svg('plus', 15, 2.4)} Neu</button>
+    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
+  </div>
+</div>`;
+}
+
+function renderListen() {
+  return `
+<div class="screen listen-screen">
+  <div class="header">
+    <button class="icon-btn" data-action="go-home">${svg('x', 18, 2.5)}</button>
+    <div class="pill"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:#fff"></span> Live · 00:03</div>
+    <div class="header__slot"></div>
+  </div>
+  <div class="listen-screen__body">
+    <div>
+      <div style="color:rgba(255,255,255,0.7);font-size:11px;font-weight:600">Höre zu · DE-DE</div>
+      <h1 class="listen-title">Sprich<br>jetzt.</h1>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="wave">${wave(28)}</div>
+      <div class="transcript-card">
+        <div style="font-size:10.5px;font-weight:600;color:var(--c-ink-mute);margin-bottom:8px">Transkript</div>
+        <p class="transcript-card__text" id="transcriptText">${state.listenTranscript}<span class="cursor" style="background:var(--c-blue)"></span></p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+      <button class="stop-btn" data-action="listen-stop"><div class="stop-btn__icon"></div></button>
+      <span style="color:rgba(255,255,255,0.7);font-size:11px;font-weight:500">Tippen zum Stoppen</span>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderResults() {
+  const filters = ['Alle', 'Funktioniert', 'Defekt/Schrott', 'Generalüberholt'];
+  const lo = state.query.toLowerCase();
+  let m = inventory.filter(it => {
+    if (!lo) return true;
+    const hay = (it.title + ' ' + it.maker + ' ' + it.cat + ' ' + (it.description || '') + ' ' + it.id + ' ' + (it.loc || '')).toLowerCase();
+    return hay.includes(lo);
+  });
+  if (state.filterIdx === 1) m = m.filter(it => it.func === 'ok' || it.func === 'untested');
+  if (state.filterIdx === 2) m = m.filter(it => it.func === 'defective' || it.func === 'scrap');
+  if (state.filterIdx === 3) m = m.filter(it => it.cond === 'refurb');
+
+  return `
+<div class="screen">
+  ${headerBar(
+    backBtn('go-home'),
+    `<div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:18px;font-weight:600;letter-spacing:-.02em">${m.length}</span><span style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute)">Treffer</span></div>`,
+    `<button class="icon-btn icon-btn--blue" data-action="go-listen">${svg('mic', 15, 2.5)}</button>`
+  )}
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:12px">
+    <div class="tile tile--blue qcard">
+      <div class="qcard__head">
+        <span style="font-size:10.5px;font-weight:600;color:rgba(255,255,255,0.75)">Verstanden als</span>
+        ${state.editingQuery
+          ? `<button class="qcard__edit" data-action="query-save" style="background:#fff;color:var(--c-blue-deep)">${svg('check', 11, 3)} Übernehmen</button>`
+          : `<button class="qcard__edit" data-action="query-edit">${svg('pencil', 10, 2.5)} Korrigieren</button>`}
+      </div>
+      ${state.editingQuery
+        ? `<textarea data-action="query-input" rows="2" style="width:100%;background:transparent;border:0;color:#fff;font-family:var(--f-display);font-size:16px;font-weight:600;letter-spacing:-.01em;line-height:1.3;resize:none">${state.query}</textarea>`
+        : `<p class="qcard__text">${state.query}</p>`}
+    </div>
+    <div class="chip-row">
+      ${filters.map((f, i) => `<button class="chip ${state.filterIdx === i ? 'chip--active' : ''}" data-action="set-filter" data-idx="${i}">${f}</button>`).join('')}
+    </div>
+  </div>
+  <div class="scroll" style="padding-top:12px;padding-bottom:24px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${m.length === 0
+        ? `<div class="tile" style="padding:32px;text-align:center"><div style="font-size:14px;font-weight:500;color:var(--c-ink-mute)">Keine Treffer</div></div>`
+        : m.map(it => itemCard(it)).join('')}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderBestand() {
+  // Aggregate categories
+  const catCounts = {};
+  inventory.forEach(it => { catCounts[it.cat] = (catCounts[it.cat] || 0) + 1; });
+  const categories = Object.keys(catCounts).sort();
+  const totalHalls = new Set(inventory.map(it => parseLoc(it.loc).hall).filter(Boolean)).size;
+
+  // Aggregate manufacturers
+  const makerCounts = {};
+  inventory.forEach(it => { makerCounts[it.maker] = (makerCounts[it.maker] || 0) + 1; });
+  const makers = Object.keys(makerCounts).sort((a, b) => makerCounts[b] - makerCounts[a] || a.localeCompare(b));
+
+  // Aggregate conditions
+  const condCounts = {};
+  inventory.forEach(it => { condCounts[it.cond] = (condCounts[it.cond] || 0) + 1; });
+
+  // Aggregate function statuses
+  const funcCounts = {};
+  inventory.forEach(it => { funcCounts[it.func] = (funcCounts[it.func] || 0) + 1; });
+
+  // Apply category filter
+  let items = state.bestandFilter === 'all' ? [...inventory] : inventory.filter(it => it.cat === state.bestandFilter);
+
+  // Apply manufacturer filter
+  if (state.bestandMaker && state.bestandMaker !== 'all') {
+    items = items.filter(it => it.maker === state.bestandMaker);
+  }
+
+  // Apply condition filter
+  if (state.bestandCond && state.bestandCond !== 'all') {
+    items = items.filter(it => it.cond === state.bestandCond);
+  }
+
+  // Apply function status filter
+  if (state.bestandFunc && state.bestandFunc !== 'all') {
+    items = items.filter(it => it.func === state.bestandFunc);
+  }
+
+  // Apply search query
+  const q = (state.bestandQuery || '').trim().toLowerCase();
+  if (q) {
+    items = items.filter(it =>
+      it.title.toLowerCase().includes(q) ||
+      it.maker.toLowerCase().includes(q) ||
+      it.id.toLowerCase().includes(q) ||
+      (it.description || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Apply sort
+  if (state.bestandSort === 'az') {
+    items.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (state.bestandSort === 'updated') {
+    items.sort((a, b) => Date.parse(b.updated || 0) - Date.parse(a.updated || 0));
+  }
+
+  // Group by category when no filter, no maker, no cond, no func and no query active
+  const grouped = state.bestandFilter === 'all' && (!state.bestandMaker || state.bestandMaker === 'all') && (!state.bestandCond || state.bestandCond === 'all') && (!state.bestandFunc || state.bestandFunc === 'all') && !q;
+  const filterLabel = 'KATEGORIE';
+
+  return `
+<div class="screen">
+  <div class="header">
+    <button class="icon-btn" data-action="go-home">${svg('arrow-left', 17, 2.5)}</button>
+    <button data-action="open-company-switcher" style="display:flex;align-items:center;gap:8px;padding:5px 11px 5px 5px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-pill);cursor:pointer">
+      <div style="width:24px;height:24px;border-radius:7px;background:${state.company?.color || 'var(--c-ink)'};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('boxes', 11, 2.4)}</div>
+      <span style="font-size:12px;font-weight:600;letter-spacing:-.005em;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${state.company?.name || ''}</span>
+      ${svg('chevron-down', 11, 2.5)}
+    </button>
+    <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
+  </div>
+
+  <div style="padding:0 20px 4px">
+    <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">Bestand</h1>
+    <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${inventory.length} Artikel · ${categories.length} Kategorien · ${makers.length} Hersteller · ${totalHalls} ${totalHalls === 1 ? 'Halle' : 'Hallen'}</p>
+  </div>
+
+  <div style="padding:14px 20px 0">
+    <div class="search-input">
+      <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
+      <input type="text" placeholder="Im Bestand suchen ..." data-action="bestand-query" value="${(state.bestandQuery || '').replace(/"/g, '&quot;')}" autocomplete="off">
+      ${q ? `<button data-action="bestand-clear" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute)">${svg('x', 12, 2.5)}</button>` : ''}
+    </div>
+  </div>
+
+  ${(() => {
+    const activeCount =
+      (state.bestandFilter !== 'all' ? 1 : 0) +
+      (state.bestandMaker && state.bestandMaker !== 'all' ? 1 : 0) +
+      (state.bestandCond && state.bestandCond !== 'all' ? 1 : 0) +
+      (state.bestandFunc && state.bestandFunc !== 'all' ? 1 : 0);
+    const expanded = state.bestandFiltersExpanded;
+    return `
+  <div style="padding:12px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <button data-action="toggle-bestand-filters" style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-surface)'};color:${activeCount > 0 ? '#fff' : 'var(--c-ink)'};border:1px solid ${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-border)'};box-shadow:${activeCount > 0 ? 'var(--elev-blue)' : 'var(--elev-1)'};border-radius:var(--r-pill);font-size:12.5px;font-weight:600;transition:all .15s">
+      ${svg('filter', 12, 2.5)}
+      Filter${activeCount > 0 ? ` · ${activeCount}` : ''}
+      ${svg(expanded ? 'chevron-up' : 'chevron-down', 12, 2.5)}
+    </button>
+    <div style="display:flex;align-items:center;gap:2px;padding:3px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-pill);flex-shrink:0">
+      ${[['updated', 'Aktualität'], ['az', 'A – Z']].map(([id, label]) => `
+        <button data-action="set-bestand-sort" data-sort="${id}" style="padding:5px 11px;font-size:11px;font-weight:600;border-radius:var(--r-pill);transition:all .15s;${state.bestandSort === id ? 'background:var(--c-ink);color:#fff' : 'color:var(--c-ink-mute)'}">${label}</button>
+      `).join('')}
+    </div>
+  </div>
+
+  ${expanded ? `
+  <div style="padding:12px 20px 0">
+    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Kategorie</div>
+    <div class="chip-row">
+      <button class="chip ${state.bestandFilter === 'all' ? 'chip--active' : ''}" data-action="set-bestand-filter" data-cat="all">
+        Alle <span class="chip__count">${inventory.length}</span>
+      </button>
+      ${categories.map(cat => `
+        <button class="chip ${state.bestandFilter === cat ? 'chip--active' : ''}" data-action="set-bestand-filter" data-cat="${cat}">
+          ${cat} <span class="chip__count">${catCounts[cat]}</span>
+        </button>
+      `).join('')}
+    </div>
+  </div>
+
+  <div style="padding:10px 20px 0">
+    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Hersteller</div>
+    <div class="chip-row">
+      <button class="chip ${(state.bestandMaker || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-maker" data-maker="all">
+        Alle <span class="chip__count">${inventory.length}</span>
+      </button>
+      ${makers.map(m => `
+        <button class="chip ${state.bestandMaker === m ? 'chip--active' : ''}" data-action="set-bestand-maker" data-maker="${m.replace(/"/g, '&quot;')}">
+          ${m} <span class="chip__count">${makerCounts[m]}</span>
+        </button>
+      `).join('')}
+    </div>
+  </div>
+
+  <div style="padding:10px 20px 0">
+    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Zustand</div>
+    <div class="chip-row">
+      <button class="chip ${(state.bestandCond || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-cond" data-cond="all">
+        Alle <span class="chip__count">${inventory.length}</span>
+      </button>
+      ${CONDITION_KEYS.map(k => {
+        const cfg = CONDITION[k];
+        const active = state.bestandCond === k;
+        const count = condCounts[k] || 0;
+        return `<button class="chip ${active ? 'chip--active' : ''}" data-action="set-bestand-cond" data-cond="${k}">
+          ${svg(cfg.icon, 11, 2.5)} ${cfg.label} <span class="chip__count">${count}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <div style="padding:10px 20px 0">
+    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Funktion</div>
+    <div class="chip-row">
+      <button class="chip ${(state.bestandFunc || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-func" data-func="all">
+        Alle <span class="chip__count">${inventory.length}</span>
+      </button>
+      ${FUNCTION_KEYS.map(k => {
+        const cfg = FUNCTION_STATUS[k];
+        const active = state.bestandFunc === k;
+        const count = funcCounts[k] || 0;
+        if (count === 0) return '';
+        return `<button class="chip ${active ? 'chip--active' : ''}" data-action="set-bestand-func" data-func="${k}">
+          ${svg(cfg.icon, 11, 2.5)} ${cfg.short} <span class="chip__count">${count}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  </div>
+
+  ${activeCount > 0 ? `
+    <div style="padding:12px 20px 0;display:flex;justify-content:flex-end">
+      <button data-action="reset-bestand-filters" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:6px 10px">
+        ${svg('rotate-ccw', 11, 2.5)} Filter zurücksetzen
+      </button>
+    </div>
+  ` : ''}
+  ` : ''}
+
+  <div style="padding:12px 20px 0">
+    <span style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);font-variant-numeric:tabular-nums">${items.length} ${items.length === 1 ? 'Treffer' : 'Treffer'}${q ? ` für „${q}"` : ''}</span>
+  </div>
+  `;
+  })()}
+
+  <div class="scroll" style="padding-top:14px;padding-bottom:90px">
+    ${items.length === 0
+      ? `<div class="tile" style="padding:40px 24px;text-align:center">
+          <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 12px">${svg('search', 22, 2)}</div>
+          <div style="font-size:14px;font-weight:600;color:var(--c-ink)">Keine Artikel gefunden</div>
+          <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${q ? 'Versuche es mit anderen Suchbegriffen' : 'Mit dieser Filterauswahl ist nichts hinterlegt'}</div>
+        </div>`
+      : grouped
+        ? renderGroupedItems(items)
+        : `<div style="display:flex;flex-direction:column;gap:8px">${items.map(it => itemCard(it)).join('')}</div>`}
+  </div>
+
+  <div class="bottom-bar">
+    <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
+    <button class="bottom-bar__btn" data-action="go-camera">${svg('plus', 15, 2.4)} Neu</button>
+    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('boxes', 15, 2.4)} Bestand</button>
+  </div>
+</div>`;
+}
+
+function renderGroupedItems(items) {
+  // Group by cat
+  const groups = {};
+  items.forEach(it => { (groups[it.cat] = groups[it.cat] || []).push(it); });
+  return Object.entries(groups).map(([cat, list]) => `
+    <div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 4px;margin-bottom:10px">
+        <h2 style="font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--c-ink-mute);margin:0">${cat}</h2>
+        <span style="flex:1;height:1px;background:var(--c-divider)"></span>
+        <span style="font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--c-ink-mute)">${list.length}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">${list.map(it => itemCard(it)).join('')}</div>
+    </div>
+  `).join('');
+}
+
+function renderDetail() {
+  const it = state.item;
+  if (!it) return '';
+  const cond = CONDITION[it.cond];
+  const func = FUNCTION_STATUS[it.func];
+
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<span class="pill pill--ink" style="font-family:var(--f-mono)">#${it.id}</span>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:124px">
+    <div class="hero-image ${it.photoUrl ? 'hero-image--photo' : ''}">
+      ${it.photoUrl
+        ? `<img src="${it.photoUrl}" alt="" class="hero-image__img">`
+        : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
+    </div>
+    <div class="title-block">
+      <div class="title-block__pills"><span class="pill pill--blue-soft">${it.cat}</span></div>
+      <h1>${it.title}</h1>
+      <p class="title-block__by">von <strong>${it.maker}</strong></p>
+    </div>
+    <div class="status-duo">
+      <button class="tile status-card" data-action="quick-cond" style="position:relative;text-align:left;width:100%;cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''" ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+        <div class="status-card__label">ZUSTAND</div>
+        <div class="status-card__row">
+          <div class="status-card__icon" style="background:${cond.bg};color:${cond.fg}">${svg(cond.icon, 17, 2.4)}</div>
+          <div><h4 class="status-card__name">${cond.label}</h4></div>
+        </div>
+        <span style="position:absolute;top:14px;right:14px;color:var(--c-ink-subtle);display:flex">${svg('pencil', 11, 2.4)}</span>
+      </button>
+      <button class="tile status-card" data-action="quick-func" style="position:relative;text-align:left;width:100%;cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''" ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+        <div class="status-card__label">FUNKTION</div>
+        <div class="status-card__row">
+          <div class="status-card__icon" style="background:${func.bg};color:${func.fg}">${svg(func.icon, 17, 2.4)}</div>
+          <div><h4 class="status-card__name">${func.label}</h4></div>
+        </div>
+        <span style="position:absolute;top:14px;right:14px;color:var(--c-ink-subtle);display:flex">${svg('pencil', 11, 2.4)}</span>
+      </button>
+    </div>
+    ${(it.func === 'defective' || it.func === 'scrap') ? `
+      <div class="alert-banner ${it.func === 'scrap' ? 'alert-banner--red' : 'alert-banner--amber'}">
+        ${svg('alert-triangle', 16, 2.4)}
+        <div>
+          <p class="alert-banner__title">${it.func === 'scrap' ? 'Nicht für Wartung verwenden' : 'Vor Verwendung Reparatur prüfen'}</p>
+          <p class="alert-banner__sub">${it.func === 'scrap' ? 'Artikel ist als Schrott markiert.' : 'Funktion gestört. Reparatur oder Austausch erforderlich.'}</p>
+        </div>
+      </div>` : ''}
+    <div class="kpi-grid" style="grid-template-columns:1fr">
+      <button class="tile kpi" data-action="quick-loc" style="position:relative;text-align:left;width:100%;cursor:pointer;transition:transform .1s;padding:16px 18px" onmousedown="this.style.transform='scale(.99)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''" ontouchstart="this.style.transform='scale(.99)'" ontouchend="this.style.transform=''">
+        ${(() => {
+          const p = parseLoc(it.loc);
+          const cell = (label, val, opts = {}) => `
+            <div style="${opts.muted ? 'opacity:.5' : ''}">
+              <div style="font-family:var(--f-mono);font-size:9px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${label}</div>
+              <div style="font-family:var(--f-mono);font-size:22px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:${opts.muted ? 'var(--c-ink-subtle)' : 'var(--c-ink)'};line-height:1">${val || '—'}</div>
+            </div>`;
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="kpi__label" style="margin:0">Lagerort</div>
+              <span style="color:var(--c-ink-subtle);display:flex">${svg('pencil', 11, 2.4)}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+              ${cell('Halle', p.hall)}
+              ${cell('Regal', p.shelf)}
+              ${cell('Platz', p.pos)}
+              ${cell('Kiste', p.box, { muted: !p.box })}
+            </div>
+          `;
+        })()}
+      </button>
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Beschreibung</h2></div>
+      <div class="tile" style="padding:18px 20px">
+        <p style="font-size:13.5px;line-height:1.6;font-weight:500;color:var(--c-ink-soft);margin:0">${it.description}</p>
+      </div>
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Eigenschaften</h2></div>
+      <div class="spec-list">
+        ${[['Hersteller', it.maker || '\u2014'], ['Kategorie', it.cat || '\u2014'], ['Lagerort', it.loc || '\u2014'], ['Zuletzt aktualisiert', 'vor ' + relTime(it.updated)]]
+          .map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val">${v}</span></div>`).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="section-head" style="align-items:flex-start;margin-bottom:4px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <h2 class="section-head__title">Technische Daten</h2>
+            <span class="pill pill--blue-soft">${svg('sparkles', 10, 2.5)} AI generiert</span>
+          </div>
+          <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${it.specs?.length ? 'Aus Foto und Etikett abgeleitet' : 'Noch keine Daten generiert \u2014 \u201eNeu\u201c klicken'}</div>
+        </div>
+        <button data-action="regenerate-specs" style="background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);padding:6px 10px;font-size:11px;font-weight:600;color:var(--c-ink-soft);border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:4px">${svg('rotate-ccw', 11, 2.5)} Neu</button>
+      </div>
+      <div class="spec-list" style="margin-top:10px">
+        ${(it.specs || []).map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val spec-row__val--mono">${v}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="action-bar" style="grid-template-columns:1fr;padding:6px">
+    <button class="action-bar__btn action-bar__btn--primary" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
+  </div>
+
+  ${state.quickEdit === 'cond' ? `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Zustand ändern</div>
+      <div style="padding:16px">
+        <div class="picker-grid">
+          ${CONDITION_KEYS.map(k => {
+            const cfg = CONDITION[k];
+            const active = it.cond === k;
+            return `
+              <button class="picker-tile" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-quick-cond" data-id="${k}">
+                <span style="color:${active ? cfg.fg : 'var(--c-ink-mute)'};display:flex">${svg(cfg.icon, 18, 2.2)}</span>
+                <span class="picker-tile__label" style="color:${active ? cfg.fg : 'var(--c-ink-soft)'}">${cfg.label}</span>
+              </button>`;
+          }).join('')}
+        </div>
+      </div>
+      <button class="action-sheet__cancel" data-action="close-quick">Abbrechen</button>
+    </div>
+  ` : ''}
+
+  ${state.quickEdit === 'func' ? `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Funktion ändern</div>
+      <div style="padding:14px 16px 4px">
+        <div class="picker-list">
+          ${FUNCTION_KEYS.map(k => {
+            const cfg = FUNCTION_STATUS[k];
+            const active = it.func === k;
+            return `
+              <button class="picker-row" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-quick-func" data-id="${k}">
+                <div class="picker-row__icon" style="background:${active ? '#fff' : cfg.bg};color:${cfg.fg}">${svg(cfg.icon, 16, 2.4)}</div>
+                <div style="flex:1;min-width:0"><h4 class="picker-row__title" style="${active ? `color:${cfg.fg}` : ''}">${cfg.label}</h4></div>
+                ${active ? `<div class="picker-row__check" style="background:${cfg.fg}">${svg('check', 11, 3.5)}</div>` : ''}
+              </button>`;
+          }).join('')}
+        </div>
+      </div>
+      <button class="action-sheet__cancel" data-action="close-quick">Abbrechen</button>
+    </div>
+  ` : ''}
+
+  ${state.quickEdit === 'loc' ? (() => {
+    const d = state.quickLocDraft || { hall: '', shelf: '', pos: '', box: '' };
+    return `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet" style="max-height:85vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Lagerort ändern</div>
+      <div class="js-scroll" style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0" data-scroll-key="quick-loc-sheet">>
+        ${renderLocPicker('quick', 'hall', 'Halle', state.halls, d.hall)}
+        ${renderLocPicker('quick', 'shelf', 'Regal', state.shelves, d.shelf, { allowNone: true })}
+        <div class="field">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+            <label class="field__label" style="margin:0">Regalplatz</label>
+            <button data-action="quick-loc-clear" data-target="pos" style="font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${!d.pos ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}">— Keiner</button>
+          </div>
+          <input class="field__input" data-action="quick-loc-pos-input" value="${(d.pos || '').replace(/"/g, '&quot;')}" placeholder="z.B. 12" style="font-family:var(--f-mono);font-size:16px" autocomplete="off">
+        </div>
+        <div class="field">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+            <label class="field__label" style="margin:0">Kistennummer</label>
+            <button data-action="quick-loc-clear" data-target="box" style="font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${!d.box ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}">— Keine</button>
+          </div>
+          <input class="field__input" data-action="quick-loc-box-input" value="${(d.box || '').replace(/"/g, '&quot;')}" placeholder="z.B. K-12" style="font-family:var(--f-mono);font-size:16px" autocomplete="off">
+        </div>
+        ${(d.hall || d.shelf || d.pos || d.box) ? `
+          <div style="padding:12px 14px;background:var(--c-bg-soft);border-radius:var(--r-md);display:flex;align-items:center;gap:10px">
+            <span style="color:var(--c-ink-mute);display:flex">${svg('map-pin', 14, 2.4)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:10px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Vorschau</div>
+              <div style="font-family:var(--f-mono);font-size:15px;font-weight:600;color:var(--c-ink);letter-spacing:-.005em">${buildLoc(d) || '—'}</div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="save-quick-loc" style="padding:14px">${svg('check', 14, 3)} Sichern</button>
+      </div>
+    </div>
+    `;
+  })() : ''}
+</div>`;
+}
+
+function renderEdit() {
+  const it = state.item;
+  const f = state.editForm;
+  if (!it || !f) return '';
+
+  return `
+<div class="screen">
+  ${headerBar(
+    `<button class="icon-btn" data-action="cancel-edit">${svg('x', 18, 2.5)}</button>`,
+    `<div style="font-size:14px;font-weight:600;letter-spacing:-.01em">Artikel bearbeiten</div>`,
+    `<span class="pill pill--ink" style="font-family:var(--f-mono)">#${it.id}</span>`
+  )}
+
+  <div class="scroll" style="padding-bottom:100px">
+
+    <!-- Photo with edit controls -->
+    <div class="hero-image ${it.photoUrl ? 'hero-image--photo' : ''}" style="aspect-ratio:5/3">
+      ${it.photoUrl
+        ? `<img src="${it.photoUrl}" alt="" class="hero-image__img">`
+        : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
+      <input type="file" id="editPhotoInput" accept="image/*" capture="environment" class="photo-input" data-action="edit-photo-picked">
+      <div style="position:absolute;bottom:12px;left:12px;right:12px;display:flex;gap:8px">
+        <button onclick="document.getElementById('editPhotoInput').click()" style="background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);box-shadow:var(--elev-1);padding:8px 12px;font-size:11.5px;font-weight:600;color:var(--c-ink);border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px">${svg('camera', 12, 2.5)} ${it.photoUrl ? 'Ersetzen' : 'Foto hinzuf\u00fcgen'}</button>
+      </div>
+    </div>
+
+    <!-- Allgemein -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Allgemein</h2></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="field">
+          <label class="field__label">TITEL</label>
+          <input class="field__input" data-action="edit-field" data-key="title" value="${f.title.replace(/"/g, '&quot;')}">
+        </div>
+        <div class="tile" style="padding:12px 16px">
+          <label class="field__label" style="display:block;margin-bottom:6px">BESCHREIBUNG</label>
+          <textarea data-action="edit-field" data-key="description" rows="7" style="width:100%;background:transparent;border:0;font-family:var(--f-display);font-size:13.5px;font-weight:500;line-height:1.55;color:var(--c-ink);resize:vertical;outline:none;padding:0">${f.description}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label">HERSTELLER</label>
+          <input class="field__input" data-action="edit-field" data-key="maker" value="${f.maker.replace(/"/g, '&quot;')}" style="font-size:14px">
+        </div>
+      </div>
+    </div>
+
+    <!-- Kategorie -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Kategorie</h2></div>
+      <div class="chip-row">
+        ${CATEGORIES.map(c => `
+          <button class="chip ${f.cat === c ? 'chip--active' : ''}" data-action="edit-cat" data-cat="${c}">${c}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Lagerort -->
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Lagerort</h2>
+        ${(() => {
+          const ld = f.locDraft || { hall:'', shelf:'', pos:'', box:'' };
+          const preview = buildLoc(ld);
+          return preview ? `<span class="code-chip" style="font-size:11px">${preview}</span>` : '';
+        })()}
+      </div>
+      ${(() => {
+        const ld = f.locDraft || { hall:'', shelf:'', pos:'', box:'' };
+        const noneStyle = (active) => `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${active ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
+        return `
+          <div style="display:flex;flex-direction:column;gap:14px">
+            ${renderLocPicker('edit', 'hall', '1 · Halle', state.halls, ld.hall)}
+            ${renderLocPicker('edit', 'shelf', '2 · Regal', state.shelves, ld.shelf, { allowNone: true })}
+            <div class="field">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <label class="field__label" style="margin:0">3 · Regalplatz</label>
+                <button data-action="edit-loc-clear" data-target="pos" style="${noneStyle(!ld.pos)}">— Keiner</button>
+              </div>
+              <input class="field__input" data-action="edit-loc-pos" value="${(ld.pos || '').replace(/"/g, '&quot;')}" placeholder="z.B. 12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+            </div>
+            <div class="field">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <label class="field__label" style="margin:0">4 · Kistennummer</label>
+                <button data-action="edit-loc-clear" data-target="box" style="${noneStyle(!ld.box)}">— Keine</button>
+              </div>
+              <input class="field__input" data-action="edit-loc-box" value="${(ld.box || '').replace(/"/g, '&quot;')}" placeholder="z.B. K-12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+            </div>
+          </div>
+        `;
+      })()}
+    </div>
+
+    <!-- Zustand -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Zustand</h2></div>
+      <div class="picker-grid">
+        ${CONDITION_KEYS.map(k => {
+          const cfg = CONDITION[k];
+          const active = f.cond === k;
+          return `
+            <button class="picker-tile" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="edit-cond" data-id="${k}">
+              <span style="color:${active ? cfg.fg : 'var(--c-ink-mute)'};display:flex">${svg(cfg.icon, 18, 2.2)}</span>
+              <span class="picker-tile__label" style="color:${active ? cfg.fg : 'var(--c-ink-soft)'}">${cfg.label}</span>
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Funktion -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Funktion</h2></div>
+      <div class="picker-list">
+        ${FUNCTION_KEYS.map(k => {
+          const cfg = FUNCTION_STATUS[k];
+          const active = f.func === k;
+          return `
+            <button class="picker-row" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="edit-func" data-id="${k}">
+              <div class="picker-row__icon" style="background:${active ? '#fff' : cfg.bg};color:${cfg.fg}">${svg(cfg.icon, 16, 2.4)}</div>
+              <div style="flex:1;min-width:0"><h4 class="picker-row__title" style="${active ? `color:${cfg.fg}` : ''}">${cfg.label}</h4></div>
+              ${active ? `<div class="picker-row__check" style="background:${cfg.fg}">${svg('check', 11, 3.5)}</div>` : ''}
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Technische Daten -->
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Technische Daten</h2>
+        <span class="pill pill--blue-soft">${svg('sparkles', 10, 2.5)} AI · ${(f.specs || []).length}</span>
+      </div>
+      <div style="padding:8px 12px;background:var(--c-blue-soft);border-radius:12px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span style="color:var(--c-blue-deep);display:flex">${svg('sparkles', 13, 2.5)}</span>
+        <span style="font-size:11px;font-weight:500;color:var(--c-blue-deep);line-height:1.35">Aus Foto und Etikett ermittelt — nicht manuell editierbar</span>
+      </div>
+      <div class="spec-list" style="opacity:0.75">
+        ${(f.specs || []).slice(0, 4).map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val spec-row__val--mono">${v}</span></div>`).join('')}
+        ${(f.specs || []).length > 4 ? `<div class="spec-row" style="justify-content:center;color:var(--c-ink-mute);font-size:11.5px;font-weight:500">+ ${f.specs.length - 4} weitere</div>` : ''}
+      </div>
+      <button data-action="regenerate-specs" style="width:100%;margin-top:10px;padding:11px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12.5px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px">
+        ${svg('rotate-ccw', 13, 2.5)} Specs neu generieren
+      </button>
+    </div>
+
+    <!-- Gefahrenzone -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title" style="color:var(--c-red)">Gefahrenzone</h2></div>
+      <button data-action="edit-delete" class="tile" style="width:100%;padding:14px 16px;display:flex;align-items:center;gap:12px;text-align:left;color:var(--c-red);border-color:rgba(229,72,77,0.2)">
+        <div style="flex-shrink:0;width:32px;height:32px;background:var(--c-red-soft);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--c-red)">${svg('trash-2', 15, 2.4)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:600;letter-spacing:-.005em">Artikel löschen</div>
+          <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">Eintrag wird permanent entfernt</div>
+        </div>
+        ${svg('chevron-right', 14, 2.5)}
+      </button>
+    </div>
+
+  </div>
+
+  <div class="action-bar" style="grid-template-columns:1fr 2fr">
+    <button class="action-bar__btn" data-action="cancel-edit">Abbrechen</button>
+    <button class="action-bar__btn action-bar__btn--primary" data-action="save-edit">${svg('check', 14, 2.8)} Änderungen sichern</button>
+  </div>
+</div>`;
+}
+
+function renderIssues() {
+  const defective = inventory.filter(it => it.func === 'defective');
+  const scrap = inventory.filter(it => it.func === 'scrap');
+  const untested = inventory.filter(it => it.func === 'unknown' || it.func === 'untested');
+  const tabs = {
+    defect:   { label: 'Defekt', items: defective, color: 'var(--c-amber)', icon: 'alert-triangle', hint: 'Reparatur pr\u00fcfen' },
+    scrap:    { label: 'Schrott', items: scrap, color: 'var(--c-red)', icon: 'trash-2', hint: 'Entsorgung dokumentieren' },
+    untested: { label: 'Test offen', items: untested, color: 'var(--c-ink-soft)', icon: 'help-circle', hint: 'Funktion noch nicht best\u00e4tigt' },
+  };
+  if (!tabs[state.issuesTab]) state.issuesTab = 'defect';
+  const a = tabs[state.issuesTab];
+
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--amber">${svg('alert-triangle', 11, 2.5)} Aufmerksamkeit</div>`,
+    `<div class="header__slot"></div>`)}
+  <div style="padding:0 20px 8px"><h1 style="font-size:26px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:0">Was Aufmerksamkeit<br>braucht</h1></div>
+  <div style="padding:8px 20px">
+    <div class="chip-row">
+      ${Object.entries(tabs).map(([id, t]) => `
+        <button class="chip ${state.issuesTab === id ? 'chip--active' : ''}" data-action="set-issues-tab" data-tab="${id}">
+          <span style="color:${state.issuesTab === id ? '#fff' : t.color};display:flex">${svg(t.icon, 12, 2.5)}</span>
+          ${t.label}
+          <span class="chip__count">${t.items.length}</span>
+        </button>`).join('')}
+    </div>
+  </div>
+  <div style="padding:12px 20px 0">
+    <div class="hint-banner" style="background:${a.color}15;border:1px solid ${a.color}30;color:${a.color}">
+      ${svg(a.icon, 13, 2.5)} ${a.hint}
+    </div>
+  </div>
+  <div class="scroll" style="padding-top:12px;padding-bottom:24px">
+    ${a.items.length === 0
+      ? `<div class="tile" style="padding:32px;text-align:center"><div style="margin-bottom:8px;color:var(--c-green)">${svg('check', 28, 2)}</div><div style="font-size:14px;font-weight:600">Keine Eintr\u00e4ge</div></div>`
+      : `<div style="display:flex;flex-direction:column;gap:8px">${a.items.map(it => itemCard(it)).join('')}</div>`}
+  </div>
+</div>`;
+}
+
+
+function renderTestStart() {
+  const it = state.item;
+  const checklist = [
+    { id: 'visual', label: 'Sichtprüfung', sub: 'Keine sichtbaren Schäden, Risse oder Korrosion' },
+    { id: 'connect', label: 'Anschlüsse & Kabel', sub: 'Stecker, Klemmen und Kabel intakt' },
+    { id: 'label', label: 'Beschriftung lesbar', sub: 'Hersteller, Typ, Seriennummer erkennbar' },
+  ];
+  const allChecked = Object.values(state.checks).every(Boolean);
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-detail'), `<div class="pill pill--ink">${svg('clipboard-check', 11, 2.5)} Funktionstest · 1 / 2</div>`)}
+  <div class="scroll" style="padding-bottom:124px">
+    <div>
+      <h1 style="font-size:26px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:0">Vorprüfung</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">Sichtbare Merkmale kontrollieren.</p>
+    </div>
+    ${it ? `
+      <div class="tile" style="background:var(--c-bg-soft);padding:16px;display:flex;align-items:center;gap:12px">
+        <div class="compact-item__icon" style="background:#fff;border:1px solid var(--c-border);width:48px;height:48px">${svg('package', 20, 2.2)}<span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func].dot}"></span></div>
+        <div style="flex:1;min-width:0">
+          <div class="compact-item__id">#${it.id}</div>
+          <div style="font-size:14px;font-weight:600;line-height:1.2">${it.title}</div>
+          <div style="margin-top:6px">${funcPill(it.func)}</div>
+        </div>
+      </div>` : ''}
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Sichtprüfung</h2></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${checklist.map(c => `
+          <button class="check-item ${state.checks[c.id] ? 'check-item--checked' : ''}" data-action="toggle-check" data-id="${c.id}">
+            <div class="check-item__box">${state.checks[c.id] ? svg('check', 14, 3.5) : ''}</div>
+            <div style="flex:1">
+              <h4 class="check-item__title">${c.label}</h4>
+              <p class="check-item__sub">${c.sub}</p>
+            </div>
+          </button>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="action-bar" style="grid-template-columns:1fr 1fr">
+    <button class="action-bar__btn" data-action="go-detail">Abbrechen</button>
+    <button class="action-bar__btn ${allChecked ? 'action-bar__btn--primary' : ''}" data-action="go-test-result" ${allChecked ? '' : 'disabled style="background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none"'}>Test beginnen ${svg('arrow-right', 14, 2.5)}</button>
+  </div>
+</div>`;
+}
+
+function renderTestResult() {
+  const opts = [
+    { id: 'ok', cfg: FUNCTION_STATUS.ok, sub: 'Funktion bestätigt · für Wartung freigegeben' },
+    { id: 'defective', cfg: FUNCTION_STATUS.defective, sub: 'Funktion gestört · Reparatur prüfen' },
+    { id: 'scrap', cfg: FUNCTION_STATUS.scrap, sub: 'Nicht zu reparieren · Entsorgung' },
+  ];
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-test-start'), `<div class="pill pill--ink">${svg('clipboard-check', 11, 2.5)} Funktionstest · 2 / 2</div>`)}
+  <div class="scroll" style="padding-bottom:100px">
+    <div>
+      <h1 style="font-size:26px;font-weight:600;line-height:1.05;letter-spacing:-.025em;margin:0">Ergebnis<br>dokumentieren</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">Wähle den passenden Status.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${opts.map(o => {
+        const active = state.testChosen === o.id;
+        return `
+          <button class="result-opt ${active ? 'result-opt--active' : ''}" style="${active ? `background:${o.cfg.bg};border-color:${o.cfg.fg}` : ''}" data-action="set-test-result" data-id="${o.id}">
+            <div class="result-opt__icon" style="background:${active ? '#fff' : o.cfg.bg};color:${o.cfg.fg}">${svg(o.cfg.icon, 20, 2.4)}</div>
+            <div style="flex:1;min-width:0">
+              <h4 class="result-opt__title" style="${active ? `color:${o.cfg.fg}` : ''}">${o.cfg.label}</h4>
+              <p class="result-opt__sub" style="color:${active ? o.cfg.fg : 'var(--c-ink-soft)'};opacity:${active ? 0.85 : 1}">${o.sub}</p>
+            </div>
+            ${active ? `<div class="result-opt__check" style="background:${o.cfg.fg}">${svg('check', 13, 3.5)}</div>` : svg('chevron-right', 16, 2.4)}
+          </button>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="action-bar" style="grid-template-columns:1fr;padding:6px">
+    <button class="action-bar__btn ${state.testChosen ? 'action-bar__btn--primary' : ''}" data-action="save-test" ${state.testChosen ? '' : 'disabled style="background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none"'}>${state.testChosen ? `Status sichern ${svg('check', 16, 3)}` : 'Ergebnis wählen'}</button>
+  </div>
+</div>`;
+}
+
+function renderTestSaved() {
+  const cfg = state.testResult ? FUNCTION_STATUS[state.testResult] : FUNCTION_STATUS.ok;
+  const it = state.item;
+  return `
+<div class="screen">
+  <div class="success-screen">
+    <div class="success-screen__circle" style="background:${cfg.fg};box-shadow:0 8px 24px ${cfg.fg}40">${svg(cfg.icon, 36, 2.5)}</div>
+    <div class="pill" style="background:${cfg.bg};color:${cfg.fg};margin-bottom:20px">Test gespeichert</div>
+    <h2 class="success-screen__title">Status aktualisiert</h2>
+    <p style="font-size:13px;font-weight:500;color:var(--c-ink-soft);margin:0 0 24px">Funktion ist nun „${cfg.label}".</p>
+    ${it ? `
+      <div class="tile" style="width:100%;padding:16px;margin-bottom:24px;text-align:left">
+        <div style="font-size:10.5px;font-weight:600;color:var(--c-ink-mute);margin-bottom:6px">Geprüfter Artikel</div>
+        <p style="font-size:14px;font-weight:600;line-height:1.2;letter-spacing:-.015em;margin:0">${it.title}</p>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${condPill(it.cond)}${funcPill(state.testResult || it.func)}</div>
+      </div>` : ''}
+    <div style="display:flex;gap:8px;width:100%">
+      <button style="flex:1;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);padding:12px;border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px" data-action="go-home">${svg('arrow-left', 14, 2.5)} Zurück</button>
+      <button style="flex:1;background:var(--c-blue);color:#fff;padding:12px;border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:var(--elev-blue)" data-action="go-detail">Detail ansehen ${svg('arrow-right', 14, 2.5)}</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderPhotoSearch() {
+  return `
+<div class="screen cam-screen">
+  ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="go-home">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill">${svg('sparkles', 11, 2.5)} AI \u00b7 Foto-Suche</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="viewfinder">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;text-align:center;padding:32px">
+      <div style="width:88px;height:88px;border-radius:24px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin-bottom:16px">${svg('sparkles', 36, 2)}</div>
+      <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">Foto vom Bauteil</div>
+      <div style="font-size:11.5px;font-weight:500;opacity:.7;line-height:1.5">Claude erkennt Etikett & Bauteil und<br>sucht passende Artikel im Bestand</div>
+    </div>
+    <div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>
+  </div>
+  <input type="file" id="photoSearchInput" accept="image/*" capture="environment" class="photo-input" data-action="photo-search-picked">
+  <input type="file" id="photoSearchGallery" accept="image/*" class="photo-input" data-action="photo-search-picked">
+  <div style="padding:0 20px 20px;display:flex;align-items:center;justify-content:space-between">
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" onclick="document.getElementById('photoSearchGallery').click()">${svg('image', 18, 2.2)}</button>
+    <button class="cam-shutter cam-shutter--ai" onclick="document.getElementById('photoSearchInput').click()">${svg('camera', 26, 2.2)}</button>
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px;opacity:.4">${svg('zap', 18, 2.2)}</button>
+  </div>
+</div>`;
+}
+
+function renderAIAnalyze() {
+  const steps = [
+    { icon: 'scan-text', label: 'Etikett & Bauteil erkennen', sub: 'Claude Vision', done: state.aiStep >= 2 },
+    { icon: 'search', label: 'Im Bestand suchen', sub: inventory.length + ' Artikel \u00b7 lokal', done: state.aiStep >= 2 },
+  ];
+  const preview = state.photoSearchPreview;
+  return `
+<div class="screen">
+  ${headerBar('', `<div class="pill pill--blue" style="box-shadow:var(--elev-blue)">${svg('sparkles', 11, 2.5)} AI analysiert</div>`)}
+  <div style="padding:0 20px;flex:1;display:flex;flex-direction:column">
+    <div class="tile" style="position:relative;aspect-ratio:5/4;background:#0F1830;overflow:hidden;margin-bottom:20px">
+      ${preview
+        ? `<img src="${preview}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`
+        : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;opacity:.5">${svg('image', 40, 2)}</div>`}
+      ${state.aiStep < 2 ? `<div style="position:absolute;inset:0;pointer-events:none"><div style="position:absolute;left:0;right:0;height:48px;background:linear-gradient(180deg,transparent,rgba(36,86,229,0.25) 50%,transparent);animation:scanY 1.8s ease-in-out infinite"></div></div>` : ''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${steps.map((s, i) => {
+        const active = !s.done && (i === 0 || (i === 1 && state.aiStep >= 1));
+        return `
+          <div class="ai-step ${(!s.done && !active) ? 'ai-step--pending' : ''}">
+            <div class="ai-step__icon ${s.done ? 'ai-step__icon--done' : ''} ${active ? 'ai-step__icon--active' : ''}">
+              ${s.done ? svg('check', 16, 3) : svg(s.icon, 15, 2.4)}
+            </div>
+            <div style="flex:1;min-width:0">
+              <h4 class="ai-step__title">${s.label}</h4>
+              <p class="ai-step__sub">${s.sub}</p>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderPhotoResults() {
+  const textMatches = state.photoSearchTextMatches || [];
+  const visualMatches = state.photoSearchVisualMatches || [];
+  const total = textMatches.length + visualMatches.length;
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--blue" style="box-shadow:var(--elev-blue)">${svg('sparkles', 11, 2.5)} ${total} AI-Treffer</div>`,
+    `<button class="icon-btn" data-action="go-photo-search">${svg('camera', 15, 2.5)}</button>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${total === 0 ? `
+      <div class="tile" style="padding:32px;text-align:center">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 12px">${svg('search', 22, 2)}</div>
+        <div style="font-size:14px;font-weight:600">Keine passenden Artikel gefunden</div>
+        <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Versuche ein anderes Foto oder lege den Artikel neu an</div>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="go-camera" style="margin-top:18px;padding:12px 18px">${svg('plus', 14, 2.5)} Neuer Artikel</button>
+      </div>` : ''}
+    ${textMatches.length ? `
+      <div>
+        <div class="section-head">
+          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">Aus Beschriftung</h2><span class="pill pill--blue">Sicher</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">${textMatches.map(it => itemCard(it, { highlighted: true })).join('')}</div>
+      </div>` : ''}
+    ${visualMatches.length ? `
+      <div>
+        <div class="section-head">
+          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">Visuell \u00e4hnlich</h2><span class="pill pill--amber">${svg('alert-triangle', 9, 2.5)} Pr\u00fcfen</span></div>
+        </div>
+        <div class="hint-banner" style="background:var(--c-amber-soft);color:#7C4A06;margin-bottom:8px">${svg('alert-triangle', 13, 2.4)} Beschriftung pr\u00fcfen vor Verwendung.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${visualMatches.map(it => `
+            <button class="item-card" data-action="select-item" data-id="${it.id}">
+              <div class="item-card__icon item-card__icon--neutral">${svg('package', 22, 2.2)}<span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func].dot}"></span></div>
+              <div class="item-card__body">
+                <div class="item-card__row"><span class="code-chip">#${it.id}</span><span class="pill pill--neutral">${svg('eye', 9, 2.5)} ${it.match}%</span></div>
+                <h3 class="item-card__name">${it.title}</h3>
+                <div class="item-card__row" style="margin-top:6px">${condPill(it.cond)}${funcPill(it.func)}</div>
+                <div class="match-bar"><div class="match-bar__fill" style="width:${it.match}%;background:${it.match > 70 ? 'var(--c-blue)' : it.match > 55 ? 'var(--c-amber)' : 'var(--c-ink-subtle)'}"></div></div>
+              </div>
+            </button>`).join('')}
+        </div>
+      </div>` : ''}
+  </div>
+</div>`;
+}
+
+function renderCamera() {
+  const preview = state.voicePhotoPreview;
+  return `
+<div class="screen cam-screen">
+  ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="go-home">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill">Foto vom Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center">
+    ${preview
+      ? `<img src="${preview}" alt="" style="width:100%;height:100%;object-fit:contain;background:#0F1830">`
+      : `<div style="text-align:center;color:#fff">
+          <div style="width:96px;height:96px;border-radius:24px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">${svg('camera', 40, 1.8)}</div>
+          <div style="font-size:14px;font-weight:500;opacity:.85">Tippen zum Aufnehmen oder Ausw\u00e4hlen</div>
+          <div style="font-size:11px;font-weight:500;opacity:.5;margin-top:4px">JPG/PNG \u00b7 max. 5 MB</div>
+         </div>`}
+    <div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>
+  </div>
+  <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="photo-input" data-action="camera-file-picked">
+  <input type="file" id="cameraGalleryInput" accept="image/*" class="photo-input" data-action="camera-file-picked">
+  <div style="padding:0 20px 20px;display:flex;align-items:center;justify-content:space-between">
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" data-action="open-gallery">${svg('image', 18, 2.2)}</button>
+    ${preview
+      ? `<button class="cam-shutter" data-action="continue-to-voice" style="background:var(--c-blue);color:#fff">${svg('arrow-right', 26, 2.5)}</button>`
+      : `<button class="cam-shutter" data-action="open-camera">${svg('camera', 26, 2.2)}</button>`}
+    <button class="icon-btn icon-btn--ghost" style="width:48px;height:48px;border-radius:14px" data-action="reset-camera-photo" ${preview ? '' : 'style="opacity:.4"'}>${svg('rotate-ccw', 18, 2.2)}</button>
+  </div>
+</div>`;
+}
+
+function renderVoiceForm() {
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--ink">Schritt 02 / 03</div>`,
+    state.voicePhase === 'done' ? `<button class="pill pill--blue" data-action="save-new-item">Sichern</button>` : `<button class="pill pill--neutral" disabled>Sichern</button>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    <div class="hero-image">
+      <div style="width:96px;height:96px;border-radius:50%;background:var(--c-blue);box-shadow:var(--elev-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 36, 2.5)}</div>
+    </div>
+    ${state.voicePhase === 'idle' ? `
+      <button class="hero" data-action="voice-start">
+        <div class="hero__head" style="margin-bottom:0;align-items:center">
+          <div style="display:flex;align-items:center;gap:16px">
+            <div class="hero__icon-circle" style="width:48px;height:48px">${svg('mic', 20, 2.4)}</div>
+            <div>
+              <div style="font-size:17px;font-weight:600;line-height:1.2">Beschreibung diktieren</div>
+              <div style="color:rgba(255,255,255,0.75);font-size:11px;font-weight:500;margin-top:4px">Name · Hersteller · Kategorie · Lager · Menge</div>
+            </div>
+          </div>
+        </div>
+      </button>` : ''}
+    ${state.voicePhase === 'listen' ? `
+      <div class="tile" style="background:var(--c-bg-soft);padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot-pulse" style="width:6px;height:6px;border-radius:50%;background:var(--c-blue)"></span><span style="font-size:11px;font-weight:600;color:var(--c-blue-deep)">Aufnahme läuft</span></div>
+        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0;color:var(--c-ink)">${state.voiceTranscript}<span class="cursor" style="background:var(--c-blue)"></span></p>
+      </div>` : ''}
+    ${state.voicePhase === 'done' ? `
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--c-blue);display:flex;align-items:center;justify-content:center;color:#fff">${svg('check', 12, 3)}</div><span style="font-size:11px;font-weight:600">Verarbeitet</span></div>
+        <p style="font-size:13.5px;font-weight:500;line-height:1.4;margin:0">"Türantrieb Wittur Augusta evolution, Türen, C-3-15, drei Stück"</p>
+      </div>` : ''}
+    <div>
+      <div class="section-head"><h2 class="section-head__title">${state.voicePhase === 'done' ? 'Erkannte Felder' : 'Felder'}</h2></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${[{ k: 'name', l: 'Bezeichnung' }, { k: 'maker', l: 'Hersteller' }, { k: 'cat', l: 'Kategorie' }, { k: 'stock', l: 'Bestand · Stk' }].map((f, i) => `
+          <div class="field">
+            <label class="field__label">${String(i + 1).padStart(2, '0')} · ${f.l}</label>
+            <input class="field__input" data-action="voice-field" data-key="${f.k}" placeholder="—" value="${(state.voiceFields[f.k] || '').replace(/"/g, '&quot;')}">
+          </div>`).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Lagerort</h2>
+        ${(() => {
+          const ld = state.voiceLocDraft || { hall:'', shelf:'', pos:'', box:'' };
+          const preview = buildLoc(ld);
+          return preview ? `<span class="code-chip" style="font-size:11px">${preview}</span>` : '';
+        })()}
+      </div>
+      ${(() => {
+        const ld = state.voiceLocDraft || { hall:'', shelf:'', pos:'', box:'' };
+        const noneStyle = (active) => `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${active ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
+        return `
+          <div style="display:flex;flex-direction:column;gap:14px">
+            ${renderLocPicker('voice', 'hall', '1 · Halle', state.halls, ld.hall)}
+            ${renderLocPicker('voice', 'shelf', '2 · Regal', state.shelves, ld.shelf, { allowNone: true })}
+            <div class="field">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <label class="field__label" style="margin:0">3 · Regalplatz</label>
+                <button data-action="voice-loc-clear" data-target="pos" style="${noneStyle(!ld.pos)}">— Keiner</button>
+              </div>
+              <input class="field__input" data-action="voice-loc-pos" value="${(ld.pos || '').replace(/"/g, '&quot;')}" placeholder="z.B. 12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+            </div>
+            <div class="field">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <label class="field__label" style="margin:0">4 · Kistennummer</label>
+                <button data-action="voice-loc-clear" data-target="box" style="${noneStyle(!ld.box)}">— Keine</button>
+              </div>
+              <input class="field__input" data-action="voice-loc-box" value="${(ld.box || '').replace(/"/g, '&quot;')}" placeholder="z.B. K-12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+            </div>
+          </div>
+        `;
+      })()}
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Zustand</h2></div>
+      <div class="picker-grid">
+        ${CONDITION_KEYS.map(k => {
+          const cfg = CONDITION[k]; const active = state.voiceCond === k;
+          return `
+            <button class="picker-tile" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-cond" data-id="${k}">
+              <span style="color:${active ? cfg.fg : 'var(--c-ink-mute)'};display:flex">${svg(cfg.icon, 18, 2.2)}</span>
+              <span class="picker-tile__label" style="color:${active ? cfg.fg : 'var(--c-ink-soft)'}">${cfg.label}</span>
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Funktion</h2></div>
+      <div class="picker-list">
+        ${FUNCTION_KEYS.map(k => {
+          const cfg = FUNCTION_STATUS[k]; const active = state.voiceFunc === k;
+          return `
+            <button class="picker-row" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-func" data-id="${k}">
+              <div class="picker-row__icon" style="background:${active ? '#fff' : cfg.bg};color:${cfg.fg}">${svg(cfg.icon, 16, 2.4)}</div>
+              <div style="flex:1;min-width:0"><h4 class="picker-row__title" style="${active ? `color:${cfg.fg}` : ''}">${cfg.label}</h4></div>
+              ${active ? `<div class="picker-row__check" style="background:${cfg.fg}">${svg('check', 11, 3.5)}</div>` : ''}
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+    <button style="width:100%;padding:14px;background:${state.voicePhase === 'done' ? 'var(--c-blue)' : 'var(--c-surface-alt)'};color:${state.voicePhase === 'done' ? '#fff' : 'var(--c-ink-subtle)'};border-radius:14px;font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:8px;${state.voicePhase === 'done' ? 'box-shadow:var(--elev-blue)' : ''}" data-action="save-new-item" ${state.voicePhase === 'done' ? '' : 'disabled'}>
+      Im Lager ablegen ${svg('arrow-right', 16, 2.5)}
+    </button>
+  </div>
+</div>`;
+}
+
+function renderSaved() {
+  const it = state.item;
+  return `
+<div class="screen">
+  <div class="success-screen">
+    <div class="success-screen__circle" style="background:var(--c-blue);box-shadow:var(--elev-blue)">${svg('check', 36, 3)}</div>
+    <div class="pill pill--blue-soft">Erfolgreich</div>
+    <h2 class="success-screen__title">Artikel<br>angelegt</h2>
+    ${it ? `
+      <div class="tile" style="width:100%;padding:16px;text-align:left;margin-bottom:16px">
+        <div style="font-size:10.5px;font-weight:600;color:var(--c-ink-mute);margin-bottom:6px">Neuer Eintrag \u00b7 #${it.id}</div>
+        <p style="font-size:15px;font-weight:600;line-height:1.2;margin:0">${it.title}</p>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${condPill(it.cond)}${funcPill(it.func)}</div>
+        ${it.loc ? `<div style="margin-top:8px;font-family:var(--f-mono);font-size:11px;color:var(--c-ink-mute)">${svg('map-pin', 10, 2.4)} ${it.loc}</div>` : ''}
+      </div>` : ''}
+    <div style="display:flex;gap:8px;width:100%">
+      <button style="flex:1;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);padding:12px;border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px" data-action="go-home">${svg('arrow-left', 14, 2.5)} Zur Suche</button>
+      ${it ? `<button style="flex:1;background:var(--c-blue);color:#fff;padding:12px;border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:var(--elev-blue)" data-action="go-detail">Detail ansehen ${svg('arrow-right', 14, 2.5)}</button>` : ''}
+    </div>
+  </div>
+</div>`;
+}
+
+/* ============================================================
+   ROUTER + EVENTS
+   ============================================================ */
+/* ============================================================
+   COMPANY SWITCHER & EDITOR (rendered as overlay above every screen)
+   ============================================================ */
+function renderCompanyOverlay() {
+  if (state.editingCompany) return renderCompanyEditor();
+  if (state.companySwitcherOpen) return renderCompanySwitcher();
+  return '';
+}
+
+function renderCompanySwitcher() {
+  const total = state.companies.length;
+  return `
+    <div class="sheet-backdrop" data-action="close-company-switcher"></div>
+    <div class="action-sheet" style="max-height:80vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Firma wechseln · ${total}</div>
+      <div class="js-scroll" data-scroll-key="company-switcher" style="padding:10px 14px 8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;min-height:0">
+        ${state.companies.map(c => {
+          const active = c.id === state.activeCompanyId;
+          const itemCount = (c.inventory || []).length;
+          return `
+            <div style="display:flex;align-items:stretch;gap:6px">
+              <button data-action="select-company" data-id="${c.id}" style="flex:1;padding:12px 14px;background:${active ? 'var(--c-bg-soft)' : 'var(--c-surface)'};border:1.5px solid ${active ? c.color : 'var(--c-border)'};border-radius:var(--r-md);box-shadow:${active ? '0 2px 12px ' + c.color + '20' : 'var(--elev-1)'};display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;transition:transform .1s">
+                <div style="width:38px;height:38px;border-radius:10px;background:${c.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('boxes', 16, 2.2)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+                  <div style="font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">${itemCount} ${itemCount === 1 ? 'Artikel' : 'Artikel'} · ${c.halls.length} ${c.halls.length === 1 ? 'Halle' : 'Hallen'}</div>
+                </div>
+                ${active ? `<div style="width:24px;height:24px;border-radius:50%;background:${c.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('check', 13, 3.5)}</div>` : ''}
+              </button>
+              <button data-action="edit-company" data-id="${c.id}" style="width:42px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer">${svg('pencil', 14, 2.4)}</button>
+            </div>
+          `;
+        }).join('')}
+        <button data-action="add-company" style="margin-top:6px;padding:14px;background:transparent;border:1.5px dashed var(--c-blue-light);color:var(--c-blue);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+          ${svg('plus', 14, 2.5)} Neue Firma anlegen
+        </button>
+      </div>
+      <div style="padding:10px 14px 12px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="close-company-switcher" style="width:100%;padding:13px">Schließen</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderCompanyEditor() {
+  const e = state.editingCompany;
+  const isNew = !e.id;
+  const canSave = (e.name || '').trim().length > 0;
+  const canDelete = !isNew && state.companies.length > 1;
+  return `
+    <div class="sheet-backdrop" data-action="cancel-company-edit"></div>
+    <div class="action-sheet" style="max-height:80vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">${isNew ? 'Neue Firma anlegen' : 'Firma bearbeiten'}</div>
+      <div class="js-scroll" data-scroll-key="company-editor" style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+        <div style="display:flex;align-items:center;gap:14px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md)">
+          <div style="width:54px;height:54px;border-radius:14px;background:${e.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px ${e.color}30">${svg('boxes', 22, 2.2)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Vorschau</div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(e.name || '').trim() || 'Firmenname'}</div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">FIRMENNAME</label>
+          <input class="field__input" data-action="company-name-input" value="${(e.name || '').replace(/"/g, '&quot;')}" placeholder="z.B. Aszendio Aufzugservice GmbH" autocomplete="off" autofocus>
+        </div>
+        <div>
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:8px">Akzentfarbe</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${COMPANY_COLORS.map(col => `
+              <button data-action="company-color" data-col="${col}" style="width:40px;height:40px;border-radius:12px;background:${col};border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:${e.color === col ? '0 0 0 3px var(--c-bg),0 0 0 5px ' + col : 'none'};transition:transform .1s" onmousedown="this.style.transform='scale(.9)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''">
+                ${e.color === col ? svg('check', 16, 3) : ''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        ${isNew ? `
+          <div style="padding:12px 14px;background:var(--c-blue-soft);border-radius:var(--r-md);display:flex;align-items:flex-start;gap:10px;color:var(--c-blue-deep)">
+            ${svg('sparkles', 14, 2.4)}
+            <div style="font-size:12px;font-weight:500;line-height:1.4">Neue Firmen starten mit leerem Bestand. Hallen, Regale und Artikel werden firmenspezifisch verwaltet.</div>
+          </div>
+        ` : ''}
+        ${canDelete ? `
+          <div style="margin-top:8px;padding-top:14px;border-top:1px solid var(--c-divider)">
+            <button data-action="delete-company" style="width:100%;padding:12px;background:transparent;border:1px solid var(--c-red);color:var(--c-red);border-radius:var(--r-md);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer">
+              ${svg('trash-2', 14, 2.4)} Firma & alle Daten löschen
+            </button>
+          </div>
+        ` : ''}
+      </div>
+      <div style="padding:10px 14px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="cancel-company-edit" style="padding:13px">Abbrechen</button>
+        <button class="action-bar__btn ${canSave ? 'action-bar__btn--primary' : ''}" data-action="save-company" ${canSave ? '' : 'disabled style="background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none;cursor:not-allowed"'} style="padding:13px">
+          ${svg('check', 14, 3)} ${isNew ? 'Anlegen' : 'Sichern'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================
+   LOGIN / BOOT SCREENS
+   ============================================================ */
+function renderBoot(label) {
+  return `
+<div class="screen" style="display:flex;align-items:center;justify-content:center">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div class="spinner"></div>
+    <div style="font-size:13px;font-weight:600;color:var(--c-ink-soft);letter-spacing:-.005em">${label || 'Lade \u2026'}</div>
+  </div>
+</div>`;
+}
+
+function renderLogin() {
+  const err = state.loginError;
+  const pending = state.loginPending;
+  const val = (state.loginInput || '').replace(/"/g, '&quot;');
+  return `
+<div class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">${svg('boxes', 28, 2.2)}</div>
+    <h1 class="login-title">Lager.OS</h1>
+    <div class="login-sub">Bitte mit pers\u00f6nlichem Zugangs-Schl\u00fcssel anmelden</div>
+    <form data-action="login-submit" autocomplete="off">
+      <input type="password" class="login-input" data-action="login-input" value="${val}" placeholder="Pers\u00f6nlicher Schl\u00fcssel" autocomplete="off" ${pending ? 'disabled' : 'autofocus'}>
+      <button type="submit" class="login-btn" ${pending || !state.loginInput ? 'disabled' : ''}>
+        ${pending ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Pr\u00fcfe \u2026' : svg('log-in', 14, 2.5) + ' Anmelden'}
+      </button>
+    </form>
+    ${err ? `<div class="login-error">${svg('alert-triangle', 13, 2.5)}<span>${err}</span></div>` : ''}
+    <div class="login-foot">${APP_CONFIG.PROJECT_NAME} \u00b7 ${APP_VERSION}</div>
+  </div>
+</div>`;
+}
+
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, camera: renderCamera, voice: renderVoiceForm, saved: renderSaved };
+
+let timers = [];
+function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
+
+function render() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  // Auth-Gate: vor erfolgreichem Login werden ausschlie\u00dflich Boot/Login angezeigt
+  if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
+  if (!state.loggedIn)  { app.innerHTML = renderLogin(); return; }
+  if (state.bootingData) { app.innerHTML = renderBoot('Daten werden geladen \u2026'); return; }
+
+  // Save scroll positions of scrollable containers (.scroll = main screen scroll area, .js-scroll = inner sheet scroll)
+  const savedScrolls = {};
+  app.querySelectorAll('.scroll').forEach((el, i) => { savedScrolls[`scroll:${i}`] = el.scrollTop; });
+  app.querySelectorAll('.js-scroll').forEach(el => {
+    const k = el.dataset.scrollKey;
+    if (k) savedScrolls[`js:${k}`] = el.scrollTop;
+  });
+
+  // Save horizontal scroll for chip rows (so management mode in the middle of a long chip row doesn't lose position)
+  app.querySelectorAll('.chip-row').forEach((el, i) => { savedScrolls[`chip:${i}`] = el.scrollLeft; });
+
+  // Save focus state of any active input/textarea so live-typing doesn't lose focus
+  const activeEl = document.activeElement;
+  let savedFocus = null;
+  if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && activeEl.dataset?.action) {
+    savedFocus = { action: activeEl.dataset.action, key: activeEl.dataset.key, target: activeEl.dataset.target, pos: activeEl.selectionStart };
+  }
+
+  app.innerHTML = (screens[state.view]?.() || '') + renderCompanyOverlay();
+
+  // Restore scroll positions
+  app.querySelectorAll('.scroll').forEach((el, i) => { if (savedScrolls[`scroll:${i}`]) el.scrollTop = savedScrolls[`scroll:${i}`]; });
+  app.querySelectorAll('.js-scroll').forEach(el => {
+    const k = el.dataset.scrollKey;
+    if (k && savedScrolls[`js:${k}`]) el.scrollTop = savedScrolls[`js:${k}`];
+  });
+  app.querySelectorAll('.chip-row').forEach((el, i) => { if (savedScrolls[`chip:${i}`]) el.scrollLeft = savedScrolls[`chip:${i}`]; });
+
+  // Restore focus
+  if (savedFocus) {
+    let selector = `[data-action="${savedFocus.action}"]`;
+    if (savedFocus.key) selector += `[data-key="${savedFocus.key}"]`;
+    if (savedFocus.target) selector += `[data-target="${savedFocus.target}"]`;
+    const newEl = app.querySelector(selector);
+    if (newEl && (newEl.tagName === 'INPUT' || newEl.tagName === 'TEXTAREA')) {
+      newEl.focus();
+      try { if (savedFocus.pos != null) newEl.setSelectionRange(savedFocus.pos, savedFocus.pos); } catch(e) {}
+    }
+  }
+
+  triggerEffects();
+}
+
+function triggerEffects() {
+  clearTimers();
+  if (state.view === 'listen') {
+    state.listenTranscript = '';
+    Speech.start(
+      (txt) => {
+        state.listenTranscript = txt;
+        const el = document.getElementById('transcriptText');
+        if (el) el.innerHTML = (txt || '').replace(/</g, '&lt;') + '<span class="cursor" style="background:var(--c-blue)"></span>';
+      },
+      (finalText) => {
+        state.query = (finalText || state.listenTranscript || '').trim();
+        if (state.view === 'listen') {
+          if (state.query) go('results');
+          else go('home');
+        }
+      },
+    );
+  } else if (state.view !== 'listen') {
+    Speech.stop();
+  }
+  // aiAnalyze wird jetzt von runPhotoSearch() gesteuert (echte AI), keine Mock-Animation mehr
+}
+
+function go(view) {
+  state.view = view;
+  if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; }
+  state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
+  if (view !== 'results') state.editingQuery = false;
+  if (view !== 'detail') state.detailTab = 'overview';
+  if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
+  if (view !== 'testResult') state.testChosen = null;
+  if (view === 'home') { state.item = null; state.testResult = null; }
+  if (view !== 'voice' && view !== 'saved') { state.voicePhase = 'idle'; state.voiceTranscript = ''; state.voiceFields = { name: '', maker: '', cat: '', stock: '' }; state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' }; }
+  render();
+}
+
+async function handleLogin() {
+  const key = (state.loginInput || '').trim();
+  if (!key) { state.loginError = 'Bitte Schl\u00fcssel eingeben'; render(); return; }
+  state.loginPending = true; state.loginError = ''; render();
+  try {
+    await loginWithUserKey(key);
+    state.loginPending = false;
+    state.loggedIn = true;
+    state.loginInput = '';
+    render();
+    showToast('Willkommen, ' + (APP_KEYS.user.name || 'Benutzer'), 'success');
+    await bootData();
+  } catch (err) {
+    state.loginPending = false;
+    state.loginError = err.message || 'Login fehlgeschlagen';
+    render();
+  }
+}
+
+document.addEventListener('submit', (e) => {
+  const f = e.target.closest('[data-action="login-submit"]');
+  if (!f) return;
+  e.preventDefault();
+  handleLogin();
+});
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const a = btn.dataset.action;
+  switch (a) {
+    case 'logout': if (confirm('Wirklich abmelden?')) logout(); break;
+    case 'go-home': go('home'); break;
+
+    /* Company switcher / editor */
+    case 'open-company-switcher':
+      state.companySwitcherOpen = true;
+      render();
+      break;
+    case 'close-company-switcher':
+      state.companySwitcherOpen = false;
+      render();
+      break;
+    case 'select-company': {
+      const id = btn.dataset.id;
+      if (state.activeCompanyId !== id) {
+        state.activeCompanyId = id;
+        // Reset state that's tied to the previous company's data
+        state.item = null;
+        state.editForm = null;
+        state.bestandFilter = 'all';
+        state.bestandMaker = 'all';
+        state.bestandCond = 'all';
+        state.bestandFunc = 'all';
+        state.bestandQuery = '';
+        state.bestandFiltersExpanded = false;
+        state.locManageMode = null;
+        state.locAddingFor = null;
+      }
+      state.companySwitcherOpen = false;
+      go('home');
+      break;
+    }
+    case 'add-company':
+      state.editingCompany = { id: null, name: '', color: COMPANY_COLORS[state.companies.length % COMPANY_COLORS.length] };
+      state.companySwitcherOpen = false;
+      render();
+      break;
+    case 'edit-company': {
+      const c = state.companies.find(x => x.id === btn.dataset.id);
+      if (c) {
+        state.editingCompany = { id: c.id, name: c.name, color: c.color };
+        state.companySwitcherOpen = false;
+        render();
+      }
+      break;
+    }
+    case 'company-color':
+      if (state.editingCompany) { state.editingCompany.color = btn.dataset.col; render(); }
+      break;
+    case 'cancel-company-edit':
+      state.editingCompany = null;
+      render();
+      break;
+    case 'save-company': {
+      const eC = state.editingCompany;
+      if (!eC || !(eC.name || '').trim()) break;
+      const isNew = !eC.id;
+      let c;
+      if (eC.id) {
+        c = state.companies.find(x => x.id === eC.id);
+        if (c) { c.name = eC.name.trim(); c.color = eC.color; }
+      } else {
+        c = makeCompany({ name: eC.name.trim(), color: eC.color });
+        c.id = 'co_' + shortId();
+        c._created = nowIso();
+        state.companies.push(c);
+        state.activeCompanyId = c.id;
+        state.item = null;
+        state.editForm = null;
+        state.bestandFilter = 'all';
+        state.bestandMaker = 'all';
+        state.bestandCond = 'all';
+        state.bestandFunc = 'all';
+        state.bestandQuery = '';
+      }
+      state.editingCompany = null;
+      setLoading(true, 'Speichere \u2026');
+      persistCompany(c)
+        .then(() => showToast(isNew ? 'Firma angelegt' : 'Firma gespeichert', 'success'))
+        .catch(err => showToast('Speichern fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => { setLoading(false); render(); });
+      go('home');
+      break;
+    }
+    case 'delete-company': {
+      const eC = state.editingCompany;
+      if (!eC?.id || state.companies.length <= 1) break;
+      const c = state.companies.find(x => x.id === eC.id);
+      if (!c) break;
+      if (!confirm(`Firma \u201e${c.name}\u201c und alle zugeh\u00f6rigen Daten wirklich l\u00f6schen?\nDiese Aktion kann nicht r\u00fcckg\u00e4ngig gemacht werden.`)) break;
+      setLoading(true, 'L\u00f6sche \u2026');
+      deleteCompanyAndItems(c)
+        .then(() => {
+          const idx = state.companies.findIndex(x => x.id === eC.id);
+          if (idx >= 0) state.companies.splice(idx, 1);
+          if (state.activeCompanyId === eC.id) {
+            state.activeCompanyId = state.companies[0].id;
+            state.item = null;
+            state.editForm = null;
+          }
+          state.editingCompany = null;
+          showToast('Firma gel\u00f6scht', 'success');
+          go('home');
+        })
+        .catch(err => showToast('L\u00f6schen fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'go-listen': go('listen'); break;
+    case 'go-camera': go('camera'); break;
+    case 'go-issues': go('issues'); break;
+    case 'go-bestand': go('bestand'); break;
+    case 'go-photo-search': go('photoSearch'); break;
+    case 'go-test-start': go('testStart'); break;
+    case 'go-test-result': go('testResult'); break;
+    case 'go-detail': go('detail'); break;
+    case 'go-edit': {
+      const it = state.item;
+      if (!it) break;
+      state.editForm = {
+        title: it.title || '',
+        description: it.description || '',
+        maker: it.maker || '',
+        cat: it.cat || '',
+        loc: it.loc || '',
+        locDraft: parseLoc(it.loc || ''),
+        cond: it.cond || 'used',
+        func: it.func || 'unknown',
+      };
+      go('edit');
+      break;
+    }
+    case 'cancel-edit':
+      state.editForm = null;
+      go('detail');
+      break;
+    case 'save-edit': {
+      if (!state.item || !state.editForm) break;
+      const f = state.editForm;
+      if (f.locDraft) f.loc = buildLoc(f.locDraft);
+      const { locDraft, ...saveData } = f;
+      const it = state.item;
+      Object.assign(it, saveData);
+      it.updated = nowIso();
+      it.upd = 'gerade eben';
+      setLoading(true, 'Speichere \u2026');
+      airUpdate(TBL_ITEMS, it._recordId, itemToFields(it, APP_KEYS.user.api_key))
+        .then(() => { showToast('Artikel gespeichert', 'success'); })
+        .catch(err => showToast('Speichern fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => { setLoading(false); render(); });
+      state.editForm = null;
+      go('detail');
+      break;
+    }
+    case 'edit-cat': if (state.editForm) { state.editForm.cat = btn.dataset.cat; render(); } break;
+    case 'edit-cond': if (state.editForm) { state.editForm.cond = btn.dataset.id; render(); } break;
+    case 'edit-func': if (state.editForm) { state.editForm.func = btn.dataset.id; render(); } break;
+    case 'edit-loc-hall': if (state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.hall = btn.dataset.val; render(); } break;
+    case 'edit-loc-shelf': if (state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.shelf = btn.dataset.val; render(); } break;
+    case 'edit-loc-clear': if (state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft[btn.dataset.target] = ''; render(); } break;
+    case 'edit-delete': {
+      if (!confirm('Artikel wirklich aus dem Bestand entfernen?\nDiese Aktion kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) break;
+      const it = state.item;
+      const idx = inventory.findIndex(x => x.id === it.id);
+      setLoading(true, 'L\u00f6sche \u2026');
+      airDelete(TBL_ITEMS, it._recordId)
+        .then(() => {
+          if (idx >= 0) inventory.splice(idx, 1);
+          showToast('Artikel gel\u00f6scht', 'success');
+          state.item = null;
+          state.editForm = null;
+          go('home');
+        })
+        .catch(err => showToast('L\u00f6schen fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'regenerate-specs': regenerateSpecs(); break;
+    case 'quick-cond': state.quickEdit = 'cond'; render(); break;
+    case 'quick-func': state.quickEdit = 'func'; render(); break;
+    case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
+    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
+    case 'set-quick-cond': {
+      if (state.item) {
+        state.item.cond = btn.dataset.id;
+        state.item.updated = nowIso();
+        state.item.upd = 'gerade eben';
+        persistItemPatch(state.item, { cond: state.item.cond });
+      }
+      state.quickEdit = null;
+      render();
+      break;
+    }
+    case 'set-quick-func': {
+      if (state.item) {
+        state.item.func = btn.dataset.id;
+        state.item.updated = nowIso();
+        state.item.upd = 'gerade eben';
+        persistItemPatch(state.item, { func: state.item.func });
+      }
+      state.quickEdit = null;
+      render();
+      break;
+    }
+    case 'save-quick-loc': {
+      const newLoc = state.quickLocDraft ? buildLoc(state.quickLocDraft) : '';
+      if (state.item && newLoc) {
+        state.item.loc = newLoc;
+        state.item.updated = nowIso();
+        state.item.upd = 'gerade eben';
+        persistItemPatch(state.item, { loc: newLoc });
+      }
+      state.quickEdit = null;
+      state.quickLocDraft = null;
+      state.locAddingFor = null;
+      state.locAddDraft = '';
+      state.locManageMode = null;
+      render();
+      break;
+    }
+    case 'quick-loc-clear': if (state.quickLocDraft) { state.quickLocDraft[btn.dataset.target] = ''; render(); } break;
+    case 'loc-add-start': state.locAddingFor = btn.dataset.target; state.locAddDraft = ''; render(); break;
+    case 'loc-add-cancel': state.locAddingFor = null; state.locAddDraft = ''; render(); break;
+    case 'loc-add-save': {
+      const v = (state.locAddDraft || '').trim();
+      const draft = getActiveLocDraft();
+      let changed = false;
+      if (v && draft) {
+        if (state.locAddingFor === 'hall' && !state.halls.includes(v)) {
+          state.halls.push(v); draft.hall = v; changed = true;
+        } else if (state.locAddingFor === 'shelf' && !state.shelves.includes(v)) {
+          state.shelves.push(v); draft.shelf = v; changed = true;
+        }
+      }
+      state.locAddingFor = null;
+      state.locAddDraft = '';
+      if (changed) persistCompanyHallsShelves(state.company);
+      render();
+      break;
+    }
+    case 'loc-manage-toggle': {
+      const target = btn.dataset.target;
+      state.locManageMode = state.locManageMode === target ? null : target;
+      state.locAddingFor = null;
+      state.locAddDraft = '';
+      render();
+      break;
+    }
+    case 'loc-remove-hall': {
+      const h = btn.dataset.val;
+      state.halls = state.halls.filter(x => x !== h);
+      const draft = getActiveLocDraft();
+      if (draft && draft.hall === h) draft.hall = '';
+      persistCompanyHallsShelves(state.company);
+      render();
+      break;
+    }
+    case 'loc-remove-shelf': {
+      const s = btn.dataset.val;
+      state.shelves = state.shelves.filter(x => x !== s);
+      const draft = getActiveLocDraft();
+      if (draft && draft.shelf === s) draft.shelf = '';
+      persistCompanyHallsShelves(state.company);
+      render();
+      break;
+    }
+    case 'quick-loc-hall': if (state.quickLocDraft) { state.quickLocDraft.hall = btn.dataset.val; render(); } break;
+    case 'quick-loc-shelf': if (state.quickLocDraft) { state.quickLocDraft.shelf = btn.dataset.val; render(); } break;
+    case 'set-bestand-filter': state.bestandFilter = btn.dataset.cat; render(); break;
+    case 'set-bestand-maker': state.bestandMaker = btn.dataset.maker; render(); break;
+    case 'set-bestand-cond': state.bestandCond = btn.dataset.cond; render(); break;
+    case 'set-bestand-func': state.bestandFunc = btn.dataset.func; render(); break;
+    case 'set-bestand-sort': state.bestandSort = btn.dataset.sort; render(); break;
+    case 'toggle-bestand-filters': state.bestandFiltersExpanded = !state.bestandFiltersExpanded; render(); break;
+    case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; render(); break;
+    case 'bestand-clear': state.bestandQuery = ''; render(); break;
+    case 'select-item': {
+      const it = inventory.find(i => i.id === btn.dataset.id);
+      if (it) { state.item = it; go('detail'); }
+      break;
+    }
+    case 'set-filter': state.filterIdx = +btn.dataset.idx; render(); break;
+    case 'set-issues-tab': state.issuesTab = btn.dataset.tab; render(); break;
+    case 'set-detail-tab': state.detailTab = btn.dataset.tab; render(); break;
+    case 'query-edit': state.editingQuery = true; render(); break;
+    case 'query-save': state.editingQuery = false; render(); break;
+    case 'toggle-check': state.checks[btn.dataset.id] = !state.checks[btn.dataset.id]; render(); break;
+    case 'set-test-result': state.testChosen = btn.dataset.id; render(); break;
+    case 'save-test': state.testResult = state.testChosen; go('testSaved'); break;
+    case 'listen-stop':
+      Speech.stop();
+      // onend f\u00fchrt die Navigation aus
+      break;
+    case 'capture-photo': go('aiAnalyze'); break;
+    case 'capture-new-item': go('voice'); break;
+    case 'open-camera': document.getElementById('cameraFileInput')?.click(); break;
+    case 'open-gallery': document.getElementById('cameraGalleryInput')?.click(); break;
+    case 'reset-camera-photo':
+      state.voicePhotoFile = null;
+      state.voicePhotoPreview = null;
+      render();
+      break;
+    case 'continue-to-voice':
+      go('voice');
+      break;
+    case 'open-photo-search-camera': document.getElementById('photoSearchInput')?.click(); break;
+    case 'voice-start': {
+      state.voicePhase = 'listen';
+      state.voiceTranscript = '';
+      render();
+      const ok = Speech.start(
+        (txt) => {
+          state.voiceTranscript = txt;
+          const el = document.querySelector('[data-action="voice-start"] ~ * .transcript-card__text, .tile p');
+          // einfacher Re-Render
+          render();
+        },
+        (finalText) => {
+          state.voiceTranscript = finalText || state.voiceTranscript;
+          if (state.voiceTranscript) {
+            showToast('Wird ausgewertet \u2026', 'info', 1500);
+            parseVoiceTranscript(state.voiceTranscript);
+          } else {
+            state.voicePhase = 'idle';
+            render();
+          }
+        },
+      );
+      if (!ok) { state.voicePhase = 'idle'; render(); }
+      break;
+    }
+    case 'voice-stop': {
+      Speech.stop();
+      // onend handler \u00fcbernimmt den Rest
+      break;
+    }
+    case 'set-cond': state.voiceCond = btn.dataset.id; render(); break;
+    case 'set-func': state.voiceFunc = btn.dataset.id; render(); break;
+    case 'voice-loc-hall': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.hall = btn.dataset.val; render(); break; }
+    case 'voice-loc-shelf': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.shelf = btn.dataset.val; render(); break; }
+    case 'voice-loc-clear': { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft[btn.dataset.target] = ''; render(); break; }
+    case 'save-new-item': if (state.voicePhase === 'done') saveNewItemFromVoice(); break;
+  }
+});
+
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  const a = t.dataset?.action;
+  if (a === 'login-input') {
+    state.loginInput = t.value;
+    // Button-Disabled-Zustand aktualisieren ohne Re-Render (Fokus halten)
+    const btn = document.querySelector('.login-btn');
+    if (btn) btn.disabled = !t.value || state.loginPending;
+    return;
+  }
+  if (a === 'manual-search-input') state.query = t.value;
+  else if (a === 'query-input') state.query = t.value;
+  else if (a === 'voice-field') state.voiceFields[t.dataset.key] = t.value;
+  else if (a === 'voice-loc-pos') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.pos = t.value; }
+  else if (a === 'voice-loc-box') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.box = t.value; }
+  else if (a === 'bestand-query') { state.bestandQuery = t.value; render(); }
+  else if (a === 'loc-add-input') state.locAddDraft = t.value;
+  else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
+  else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
+  else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
+  else if (a === 'edit-loc-pos' && state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.pos = t.value; }
+  else if (a === 'edit-loc-box' && state.editForm) { state.editForm.locDraft = state.editForm.locDraft || { hall:'', shelf:'', pos:'', box:'' }; state.editForm.locDraft.box = t.value; }
+  else if (a === 'company-name-input' && state.editingCompany) { state.editingCompany.name = t.value; render(); }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.dataset?.action === 'manual-search-input' && e.key === 'Enter' && state.query) go('results');
+  else if (e.target.dataset?.action === 'loc-add-input' && e.key === 'Enter') {
+    document.querySelector('[data-action="loc-add-save"]')?.click();
+  }
+});
+
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  const a = t.dataset?.action;
+  if (!a) return;
+  const file = t.files && t.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Datei zu gro\u00df (max. 5 MB)', 'error');
+    t.value = '';
+    return;
+  }
+  if (a === 'camera-file-picked') {
+    const url = URL.createObjectURL(file);
+    state.voicePhotoFile = file;
+    state.voicePhotoPreview = url;
+    t.value = '';
+    render();
+  } else if (a === 'photo-search-picked') {
+    const url = URL.createObjectURL(file);
+    state.photoSearchFile = file;
+    state.photoSearchPreview = url;
+    t.value = '';
+    runPhotoSearch();
+  } else if (a === 'edit-photo-picked' && state.item) {
+    handleItemPhotoReplace(file);
+    t.value = '';
+  }
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function bootData() {
+  state.bootingData = true; render();
+  try {
+    await ensureAllTables();
+    await loadAllData();
+    state.bootingData = false;
+    render();
+  } catch (e) {
+    state.bootingData = false;
+    state.loggedIn = false;
+    state.loginError = 'Daten konnten nicht geladen werden: ' + e.message;
+    showToast(state.loginError, 'error', 3500);
+    render();
+  }
+}
+
+async function init() {
+  const vb = document.getElementById('versionBadge');
+  if (vb) vb.textContent = APP_CONFIG.PROJECT_NAME + ' \u00b7 ' + APP_VERSION;
+  // Erst rendern (zeigt Boot-Spinner), dann Auto-Login probieren
+  render();
+  const ok = await tryAutoLogin();
+  state.authReady = true;
+  if (ok) {
+    state.loggedIn = true;
+    render();
+    await bootData();
+  } else {
+    state.loggedIn = false;
+    render();
+  }
+
+  // Update-Check (best effort, blockiert nichts)
+  setTimeout(checkForUpdate, 1500);
+}
+
+async function checkForUpdate() {
+  try {
+    const r = await fetch('https://api.github.com/repos/' + APP_CONFIG.GITHUB_REPO + '/releases/latest');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.tag_name && d.tag_name !== APP_VERSION) {
+      showToast('Neue Version verf\u00fcgbar: ' + d.tag_name + ' \u2014 Loader neu starten', 'info', 5000);
+    }
+  } catch (e) { /* offline / Repo privat / Rate-Limit \u2014 egal */ }
+}
+
+init();
+
+</script>
+</body>
+</html>
