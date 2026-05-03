@@ -455,7 +455,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.12.1';
+const APP_VERSION = 'v1.12.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2439,15 +2439,21 @@ const formatVp = (v) => {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 };
 
-// Liefert ein kleines Badge für item-card / compact-item: VP-Chip wenn im Shop, "VERKAUFT"-Stamp wenn sold.
+// Liefert kleine Badges für item-card / compact-item:
+//  - Preis-Chip wenn vp gesetzt und (im Shop oder verkauft) — bleibt auch nach Verkauf sichtbar
+//  - "VERKAUFT"-Chip rot wenn sold
 const shopBadges = (it, opts = {}) => {
   const sm = opts.size === 'sm';
-  const cls = sm ? 'price-chip price-chip--sm' : 'price-chip';
+  const priceCls = sm ? 'price-chip price-chip--sm' : 'price-chip';
   const parts = [];
+  // Preis weiterhin zeigen — auch wenn verkauft (durchgestrichen wäre auch nice, aber Mono lesbarer)
+  const showPrice = it?.vp != null && (it?.inShop || it?.sold);
+  if (showPrice) {
+    const soldStyle = it.sold ? ' style="background:#FFF1B0;color:#7A5400;border-color:#F5C95B;text-decoration:line-through;text-decoration-color:rgba(122,84,0,.45)"' : '';
+    parts.push(`<span class="${priceCls}"${soldStyle}>${formatVp(it.vp)}</span>`);
+  }
   if (it?.sold) {
     parts.push(`<span class="price-chip ${sm ? 'price-chip--sm' : ''}" style="background:#FDE2E2;color:#9B1C1F;border-color:#F4A6A8">VERKAUFT</span>`);
-  } else if (it?.inShop && it?.vp != null) {
-    parts.push(`<span class="${cls}">${formatVp(it.vp)}</span>`);
   }
   return parts.join('');
 };
@@ -3076,6 +3082,11 @@ function renderDetail() {
           <div class="sold-banner__title">Verkauft · nicht mehr verfügbar</div>
           <div class="sold-banner__sub">${it.soldAt ? 'Verkauft am ' + new Date(it.soldAt).toLocaleDateString('de-DE') : ''}</div>
         </div>
+        ${it.vp != null ? `
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:var(--f-mono);font-size:9px;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.05em">Verkaufspreis</div>
+            <div style="font-family:var(--f-mono);font-size:17px;font-weight:700;letter-spacing:.02em;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.55);margin-top:2px">${formatVp(it.vp)}</div>
+          </div>` : ''}
       </div>` : ''}
     ${(it.inShop && it.vp != null && !it.sold) ? `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#E6F4EA;border:1px solid #8FD4A6;border-radius:var(--r-tile);gap:10px">
