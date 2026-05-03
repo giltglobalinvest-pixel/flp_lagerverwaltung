@@ -414,7 +414,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.8.5';
+const APP_VERSION = 'v1.8.6';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -949,6 +949,30 @@ function logout() {
 /* ============================================================
    TOAST + LOADING
    ============================================================ */
+// Kopiert Text ins Clipboard. Fallback via temporäres <textarea> falls Clipboard-API blockt (z.B. iOS in nicht-https oder älter).
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
 function showToast(msg, kind = 'info', durationMs = 2400) {
   let stack = document.getElementById('toast-stack');
   if (!stack) {
@@ -2592,10 +2616,13 @@ function renderDetail() {
         ${it.trackerUrl ? `
           <div class="tracker-tile__row">
             <div class="tracker-tile__label">${svg('qr-code', 12, 2.5)} QR-LINK</div>
-            <a href="${it.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" class="tracker-tile__link" title="${it.trackerUrl.replace(/"/g, '&quot;')}">
-              <span class="tracker-tile__url">${it.trackerUrl}</span>
-              ${svg('external-link', 13, 2.5)}
-            </a>
+            <div style="display:inline-flex;align-items:center;gap:4px;min-width:0;flex:1;justify-content:flex-end">
+              <a href="${it.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" class="tracker-tile__link" title="${it.trackerUrl.replace(/"/g, '&quot;')}" style="min-width:0">
+                <span class="tracker-tile__url">${it.trackerUrl}</span>
+                ${svg('external-link', 13, 2.5)}
+              </a>
+              <button data-action="copy-text" data-text="${it.trackerUrl.replace(/"/g, '&quot;')}" title="Link kopieren" style="flex:none;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.6);border:1px solid rgba(245,201,91,0.6);border-radius:8px;color:#7A5400;transition:background .12s">${svg('copy', 13, 2.4)}</button>
+            </div>
           </div>` : ''}
       </div>
     ` : ''}
@@ -2863,7 +2890,11 @@ function renderEdit() {
           <label class="field__label">QR-LINK (URL)</label>
           <input class="field__input" data-action="edit-field" data-key="trackerUrl" value="${(f.trackerUrl || '').replace(/"/g, '&quot;')}" placeholder="https://…" style="font-family:var(--f-mono);font-size:12px" autocomplete="off">
         </div>
-        ${f.trackerUrl ? `<a href="${f.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:6px 0;text-decoration:none">${svg('external-link', 11, 2.5)} Link öffnen</a>` : ''}
+        ${f.trackerUrl ? `
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+            <a href="${f.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;text-decoration:none">${svg('external-link', 11, 2.5)} Link öffnen</a>
+            <button data-action="copy-text" data-text="${f.trackerUrl.replace(/"/g, '&quot;')}" style="font-size:11.5px;font-weight:600;color:var(--c-ink-soft);display:inline-flex;align-items:center;gap:5px">${svg('copy', 11, 2.5)} Kopieren</button>
+          </div>` : ''}
       </div>
     </div>
 
@@ -3726,7 +3757,11 @@ function renderVoiceForm() {
           <label class="field__label">QR-Link (URL)</label>
           <input class="field__input" data-action="voice-field" data-key="trackerUrl" placeholder="${state.voiceScanRunning ? 'Wird aus QR gelesen …' : 'https://…'}" value="${(state.voiceFields.trackerUrl || '').replace(/"/g, '&quot;')}" style="font-family:var(--f-mono);font-size:12px" autocomplete="off">
         </div>
-        ${state.voiceFields.trackerUrl ? `<a href="${state.voiceFields.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:6px 0;text-decoration:none">${svg('external-link', 11, 2.5)} Link öffnen</a>` : ''}
+        ${state.voiceFields.trackerUrl ? `
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+            <a href="${state.voiceFields.trackerUrl.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;text-decoration:none">${svg('external-link', 11, 2.5)} Link öffnen</a>
+            <button data-action="copy-text" data-text="${state.voiceFields.trackerUrl.replace(/"/g, '&quot;')}" style="font-size:11.5px;font-weight:600;color:var(--c-ink-soft);display:inline-flex;align-items:center;gap:5px">${svg('copy', 11, 2.5)} Kopieren</button>
+          </div>` : ''}
       </div>
     </div>
     <div>
@@ -4299,6 +4334,16 @@ document.addEventListener('click', (e) => {
     /* Edit-Form: Tracker aus den bereits am Item hängenden Fotos scannen */
     case 'edit-scan-label': {
       scanItemPhotosForTracker();
+      break;
+    }
+    /* Generischer Copy-to-Clipboard via data-text-Attribut */
+    case 'copy-text': {
+      const text = btn.dataset.text || '';
+      if (!text) break;
+      copyTextToClipboard(text).then(ok => {
+        if (ok) showToast('Link kopiert', 'success', 1800);
+        else showToast('Kopieren fehlgeschlagen', 'error', 2400);
+      });
       break;
     }
 
