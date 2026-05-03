@@ -446,7 +446,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.11';
+const APP_VERSION = 'v1.11.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -907,6 +907,60 @@ async function scanItemPhotosForTracker() {
   } catch (e) {
     showToast('Scan fehlgeschlagen: ' + e.message, 'error', 3000);
   } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Stellt das erste Foto eines bereits gespeicherten Items frei.
+// Lädt das Foto runter, prozessiert mit KI, hängt es an Airtable an, sortiert um, löscht das alte erste.
+async function bgRemoveItemFirstPhoto() {
+  const it = state.item;
+  if (!it) return;
+  const photos = it.photo || [];
+  if (photos.length === 0) { showToast('Kein Foto vorhanden', 'info', 2200); return; }
+  if (state.bgRemoving) return;
+  state.bgRemoving = true;
+  setLoading(true, 'Foto wird geladen …');
+  render();
+  try {
+    // 1) Erstes Foto als File holen
+    const file = await _fetchPhotoAsFile(photos[0], 0);
+    if (!file) throw new Error('Foto konnte nicht heruntergeladen werden');
+
+    // 2) KI-Freistellen (lädt Modell beim ersten Mal ~30 MB)
+    setLoading(true, 'Lade KI-Modell — beim ersten Mal kann es 30–60 s dauern …');
+    const result = await removePhotoBackground(file);
+
+    // 3) Hochladen (wird ans Ende angehängt)
+    setLoading(true, 'Hochladen …');
+    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', result);
+
+    // 4) Frisch nachladen, neues Foto identifizieren, an Position 0 setzen, altes erstes entfernen
+    setLoading(true, 'Bilder werden neu sortiert …');
+    const oldIds = new Set(photos.map(p => p.id));
+    const oldFirstId = photos[0].id;
+    const fresh = await fetchPhotosWithRetry(it._recordId, photos.length + 1);
+    const newPhoto = fresh.find(p => !oldIds.has(p.id));
+    if (!newPhoto) {
+      // Fallback: nur neu laden, ohne Reorder
+      it.photo = fresh;
+      it.photoUrl = fresh[0]?.url || null;
+    } else {
+      const reordered = [newPhoto, ...fresh.filter(p => p.id !== newPhoto.id && p.id !== oldFirstId)].map(p => ({ id: p.id }));
+      await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
+      const finalPhotos = await fetchPhotosWithRetry(it._recordId, reordered.length);
+      it.photo = finalPhotos;
+      it.photoUrl = finalPhotos[0]?.url || null;
+    }
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    state.galleryIndex = 0;
+    showToast('Hauptfoto freigestellt', 'success', 2400);
+  } catch (e) {
+    showToast('Freistellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 4500);
+  } finally {
+    state.bgRemoving = false;
     setLoading(false);
     render();
   }
@@ -3108,6 +3162,11 @@ function renderEdit() {
             <div class="photo-strip__hint">${PHOTO_MAX_PER_ITEM} / ${PHOTO_MAX_PER_ITEM} Fotos</div>
           `}
         </div>
+        ${photos.length > 0 ? `
+          <button data-action="edit-bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;margin-top:10px;padding:10px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px;${state.bgRemoving ? 'opacity:.6' : ''}">
+            ${svg('sparkles', 12, 2.5)} ${state.bgRemoving ? 'Wird freigestellt \u2014 bitte warten \u2026' : 'Hauptfoto freistellen (KI)'}
+          </button>
+        ` : ''}
       `;
     })()}
 
@@ -4612,6 +4671,7 @@ document.addEventListener('click', (e) => {
 
     /* Hauptfoto freistellen (Hintergrund entfernen via KI) */
     case 'bg-remove-first': bgRemoveFirstPhoto(); break;
+    case 'edit-bg-remove-first': bgRemoveItemFirstPhoto(); break;
 
     /* Tracker / QR aus dem aktuellen Foto rescannen */
     case 'rescan-tracker': {
