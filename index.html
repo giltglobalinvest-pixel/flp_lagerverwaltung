@@ -446,7 +446,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.10';
+const APP_VERSION = 'v1.11';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -710,6 +710,50 @@ async function fileToBase64(file) {
 }
 
 /* ============================================================
+   HINTERGRUND-FREISTELLEN (imgly background-removal, lazy)
+   Modell wird beim ersten Aufruf geladen (~30 MB, gecacht).
+   Ergebnis: weißer Hintergrund (Katalog-Look) als JPEG.
+   ============================================================ */
+let _bgRemovalLib = null;
+async function _loadBgRemovalLib() {
+  if (_bgRemovalLib) return _bgRemovalLib;
+  // ESM-Build vom jsdelivr-CDN holen — funktioniert in modernen Browsern (iOS Safari 16+, Chrome).
+  const url = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+  _bgRemovalLib = await import(url);
+  return _bgRemovalLib;
+}
+
+async function removePhotoBackground(file) {
+  if (!file) throw new Error('Kein Foto');
+  const lib = await _loadBgRemovalLib();
+  // Liefert PNG-Blob mit transparentem Hintergrund
+  const transparentBlob = await lib.removeBackground(file);
+
+  // Auf weißem Hintergrund komponieren → sauberer Katalog-Look + kompaktes JPEG
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    const u = URL.createObjectURL(transparentBlob);
+    i.onload = () => { URL.revokeObjectURL(u); resolve(i); };
+    i.onerror = () => { URL.revokeObjectURL(u); reject(new Error('Result-Bild nicht ladbar')); };
+    i.src = u;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0);
+
+  const finalBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+  if (!finalBlob) throw new Error('JPEG-Encoding fehlgeschlagen');
+  const baseName = (file.name || 'photo').replace(/\.[^./]+$/, '');
+  return new File([finalBlob], baseName + '_freigestellt.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+}
+
+/* ============================================================
    ETIKETT / QR-SCANNER
    Kombiniert nativen BarcodeDetector (für QR-URL) mit Claude Vision (für Tracker-Nummer-OCR).
    ============================================================ */
@@ -863,6 +907,36 @@ async function scanItemPhotosForTracker() {
   } catch (e) {
     showToast('Scan fehlgeschlagen: ' + e.message, 'error', 3000);
   } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Stellt das erste Foto im Voice-/Camera-Flow frei (Hintergrund weg → weißer BG).
+// Trigger: User-Klick im Camera-Screen.
+async function bgRemoveFirstPhoto() {
+  const original = state.voicePhotoFiles?.[0];
+  if (!original) { showToast('Erst ein Foto aufnehmen', 'info', 2200); return; }
+  if (state.bgRemoving) return;
+  state.bgRemoving = true;
+  setLoading(true, 'Lade KI-Modell …');
+  render();
+  try {
+    // Beim ersten Aufruf wird der ~30 MB Modell-Download getriggert. Danach ist der Cache aktiv.
+    setLoading(true, 'Hintergrund wird entfernt — kann 10–30 s dauern …');
+    const result = await removePhotoBackground(original);
+    // Original-Preview-URL freigeben, neue erstellen
+    try { URL.revokeObjectURL(state.voicePhotoPreviews[0]); } catch (_) {}
+    state.voicePhotoFiles[0] = result;
+    state.voicePhotoPreviews[0] = URL.createObjectURL(result);
+    // Im Camera-Screen das frisch freigestellte Foto anzeigen
+    state.galleryIndex = 0;
+    state.cameraShowLive = false;
+    showToast('Hauptfoto freigestellt', 'success', 2400);
+  } catch (e) {
+    showToast('Freistellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 4500);
+  } finally {
+    state.bgRemoving = false;
     setLoading(false);
     render();
   }
@@ -1125,6 +1199,7 @@ const state = {
   voiceCond: 'neu', voiceFunc: 'untested',
   voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
+  bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   voiceLocDraft: { hall: '', shelf: '', pos: '', box: '' },
   voicePhotoFiles: [], voicePhotoPreviews: [],
   cameraDenied: false,       // true wenn User Kamera-Permission verweigert hat
@@ -3532,6 +3607,11 @@ function renderCamera() {
       </button>
     </div>
   ` : `
+    <div style="padding:0 20px 8px">
+      <button data-action="bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:11px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:12px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.bgRemoving ? 'opacity:.6' : ''}">
+        ${svg('sparkles', 13, 2.5)} ${state.bgRemoving ? 'Wird freigestellt — bitte warten …' : 'Hauptfoto freistellen (KI)'}
+      </button>
+    </div>
     <div style="padding:0 20px 16px">
       <button data-action="continue-to-voice" style="width:100%;padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
         Weiter mit ${count} Foto${count === 1 ? '' : 's'} ${svg('arrow-right', 16, 2.5)}
@@ -4529,6 +4609,9 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'edit-cat': if (state.editForm) { state.editForm.cat = btn.dataset.cat; render(); } break;
+
+    /* Hauptfoto freistellen (Hintergrund entfernen via KI) */
+    case 'bg-remove-first': bgRemoveFirstPhoto(); break;
 
     /* Tracker / QR aus dem aktuellen Foto rescannen */
     case 'rescan-tracker': {
