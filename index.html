@@ -455,7 +455,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.12';
+const APP_VERSION = 'v1.12.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1118,6 +1118,94 @@ function logout() {
 /* ============================================================
    TOAST + LOADING
    ============================================================ */
+/* ============================================================
+   SOLD-POLLING (Option A)
+   Im Hintergrund alle 30 s die Items abfragen und auf neue
+   "verkauft"-Markierungen reagieren — falls ein anderer User
+   etwas verkauft hat, sehen alle App-Instanzen es zeitnah.
+   Läuft nur wenn Tab/App im Vordergrund.
+   ============================================================ */
+const SOLD_POLL_INTERVAL_MS = 30000;
+let _soldPollTimer = null;
+let _soldKnownState = null;     // Map<itemRecordId, boolean>  → Sold-Status den wir zuletzt kannten
+let _soldPollInFlight = false;
+
+function startSoldPolling() {
+  stopSoldPolling();
+  if (!state.loggedIn || !APP_KEYS.user?.api_key) return;
+  // Initial-Snapshot aus aktueller Inventory aufbauen — keine Notifications für vorhandene "sold"
+  _soldKnownState = new Map();
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (it._recordId) _soldKnownState.set(it._recordId, !!it.sold);
+    }
+  }
+  _soldPollTimer = setInterval(pollSoldUpdates, SOLD_POLL_INTERVAL_MS);
+  // Visibility: bei Sichtbarkeitswechsel sofort einmal pollen (frische Daten)
+  document.addEventListener('visibilitychange', _onVisibilityForPoll);
+}
+function stopSoldPolling() {
+  if (_soldPollTimer) { clearInterval(_soldPollTimer); _soldPollTimer = null; }
+  document.removeEventListener('visibilitychange', _onVisibilityForPoll);
+}
+function _onVisibilityForPoll() { if (!document.hidden) pollSoldUpdates(); }
+
+async function pollSoldUpdates() {
+  if (document.hidden) return;            // Spar Bandbreite: nur wenn Tab sichtbar
+  if (_soldPollInFlight) return;
+  if (!state.loggedIn || !APP_KEYS.user?.api_key) return;
+  _soldPollInFlight = true;
+  try {
+    const apiKey = APP_KEYS.user.api_key;
+    const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
+    const itemRecs = await airRead(TBL_ITEMS, filter);
+    const items = itemRecs.map(recordToItem);
+
+    // Inventory in den Companies frisch aufbauen — neue Items von anderen Usern tauchen so auch auf
+    const byCompany = {};
+    items.forEach(it => { (byCompany[it.company_id] = byCompany[it.company_id] || []).push(it); });
+    let changed = false;
+    (state.companies || []).forEach(c => {
+      const fresh = byCompany[c.id] || [];
+      // Schneller Diff via Length + irgendeine Property — bei Mismatch übernehmen
+      if (fresh.length !== (c.inventory || []).length) changed = true;
+      c.inventory = fresh;
+    });
+
+    // state.item aktualisieren (falls Detail offen) — aber NICHT wenn gerade editiert wird
+    if (state.item && state.view !== 'edit') {
+      const fresh = items.find(i => i._recordId === state.item._recordId);
+      if (fresh) {
+        const oldSold = !!state.item.sold;
+        Object.assign(state.item, fresh);
+        if (oldSold !== !!fresh.sold) changed = true;
+      }
+    }
+
+    // Sold-Übergänge erkennen
+    const newSold = [];
+    for (const it of items) {
+      if (!it._recordId) continue;
+      const prev = _soldKnownState.get(it._recordId);
+      _soldKnownState.set(it._recordId, !!it.sold);
+      // Nur wenn wir den Eintrag schon kannten UND er von false auf true gesprungen ist
+      if (prev === false && it.sold === true) newSold.push(it);
+    }
+
+    if (newSold.length > 0) {
+      const activeId = state.activeCompanyId;
+      const relevant = newSold.filter(t => t.company_id === activeId);
+      for (const t of relevant) notifyArticleSold(t);
+      changed = true;
+    }
+    if (changed) render();
+  } catch (e) {
+    // Stille Wiederholung beim nächsten Tick
+  } finally {
+    _soldPollInFlight = false;
+  }
+}
+
 // Zeigt eine Benachrichtigung wenn ein Artikel als verkauft markiert wurde.
 // In-App immer (Toast). Wenn Notification-Permission erteilt: zusätzlich native Browser-Notification.
 function notifyArticleSold(it) {
@@ -5386,6 +5474,8 @@ async function bootData() {
     await loadAllData();
     state.bootingData = false;
     render();
+    // Polling für Sold-Status starten — andere User sehen Verkaufs-Updates ~30s nach Speichern
+    startSoldPolling();
   } catch (e) {
     state.bootingData = false;
     state.loggedIn = false;
