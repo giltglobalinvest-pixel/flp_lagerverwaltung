@@ -255,6 +255,16 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .sold-stamp{position:absolute;top:8px;right:8px;background:rgba(229,72,77,.95);color:#fff;font-family:var(--f-mono);font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-pill);box-shadow:0 2px 6px rgba(0,0,0,.25);text-transform:uppercase;z-index:2}
 .price-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6;border-radius:var(--r-pill);font-family:var(--f-mono);font-size:11.5px;font-weight:700;letter-spacing:.02em;line-height:1}
 .price-chip--sm{padding:2px 7px;font-size:10px}
+
+/* Dashboard-KPIs */
+.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.dash-kpi{padding:12px 14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);display:flex;flex-direction:column;gap:4px;min-width:0}
+.dash-kpi--blue{border-color:rgba(36,86,229,0.25);background:linear-gradient(135deg,#fff 0%,var(--c-blue-soft) 100%)}
+.dash-kpi--red{border-color:rgba(229,72,77,0.25);background:linear-gradient(135deg,#fff 0%,var(--c-red-soft) 100%)}
+.dash-kpi--green{border-color:#8FD4A6;background:linear-gradient(135deg,#fff 0%,#E6F4EA 100%)}
+.dash-kpi__label{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em}
+.dash-kpi__val{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--c-ink);font-variant-numeric:tabular-nums}
+.dash-kpi__sub{font-size:10.5px;font-weight:500;color:var(--c-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -455,7 +465,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.12.2';
+const APP_VERSION = 'v1.13';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1372,6 +1382,9 @@ const state = {
   voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
+  dashRange: '30d',           // Dashboard-Zeitfilter: 'today' | '7d' | '30d' | 'all'
+  dashCat: 'all',             // Dashboard-Kategorienfilter
+  dashMaker: 'all',           // Dashboard-Herstellerfilter
   voiceLocDraft: { hall: '', shelf: '', pos: '', box: '' },
   voicePhotoFiles: [], voicePhotoPreviews: [],
   cameraDenied: false,       // true wenn User Kamera-Permission verweigert hat
@@ -1498,6 +1511,7 @@ const ITEM_FIELDS = [
   { name: 'in_shop', type: 'singleLineText' },   // "1" oder leer
   { name: 'sold', type: 'singleLineText' },      // "1" oder leer
   { name: 'sold_at', type: 'singleLineText' },   // ISO-Zeitstempel
+  { name: 'created', type: 'singleLineText' },   // ISO-Zeitstempel der Erstanlage (nur einmal gesetzt)
   { name: 'updated', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -1603,6 +1617,8 @@ function recordToItem(rec) {
     inShop: f.in_shop === '1' || f.in_shop === 'true',
     sold: f.sold === '1' || f.sold === 'true',
     soldAt: f.sold_at || null,
+    // Bei Bestandsdaten ohne created-Feld auf updated zurückfallen, damit Filter funktionieren
+    created: f.created || f.updated || nowIso(),
     updated: f.updated || nowIso(),
     upd: relTime(f.updated),
   };
@@ -1627,6 +1643,7 @@ function itemToFields(it, apiKey) {
     in_shop: it.inShop ? '1' : '',
     sold: it.sold ? '1' : '',
     sold_at: it.soldAt || '',
+    created: it.created || it.updated || nowIso(),
     updated: it.updated || nowIso(),
     api_key: apiKey,
   };
@@ -2037,6 +2054,7 @@ async function saveNewItemFromVoice() {
     photoUrl: null,
     tracker: (f.tracker || '').trim(),
     trackerUrl: (f.trackerUrl || '').trim(),
+    created: nowIso(),
     updated: nowIso(),
   };
   newItem.upd = 'gerade eben';
@@ -2702,6 +2720,7 @@ function renderHome() {
       ${[
         { icon: 'plus', title: 'Neuer Artikel', sub: 'Foto, Stimme oder manuell', action: 'go-camera' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
+        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
       ].map(a => `
         <button class="action-tile ${a.warn ? 'action-tile--warn' : ''}" data-action="${a.action}">
           <div class="action-tile__icon">${svg(a.icon, 17, 2.4)}</div>
@@ -3563,6 +3582,248 @@ function renderEdit() {
   <div class="action-bar" style="grid-template-columns:1fr 2fr">
     <button class="action-bar__btn" data-action="cancel-edit">Abbrechen</button>
     <button class="action-bar__btn action-bar__btn--primary" data-action="save-edit">${svg('check', 14, 2.8)} Änderungen sichern</button>
+  </div>
+</div>`;
+}
+
+/* ============================================================
+   ADMIN-DASHBOARD
+   Übersicht: Bestand, Verkäufe, Eingänge, Filter nach Kategorie/Hersteller.
+   Nur für Admins.
+   ============================================================ */
+function renderDashboard() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">Dashboard</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:40px 24px">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('alert-triangle', 28, 2.2)}</div>
+    <div style="text-align:center">
+      <div style="font-size:14px;font-weight:600">Kein Zugriff</div>
+      <div style="font-size:12px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Das Dashboard ist nur für Admins.</div>
+    </div>
+  </div>
+</div>`;
+  }
+
+  const items = inventory || [];
+  const range = state.dashRange || '30d';     // 'today' | '7d' | '30d' | 'all'
+  const catFilter = state.dashCat || 'all';
+  const makerFilter = state.dashMaker || 'all';
+
+  // Zeit-Range bestimmen
+  const now = Date.now();
+  const ms = { today: 24*3600e3, '7d': 7*24*3600e3, '30d': 30*24*3600e3, all: Infinity }[range];
+  const inRange = (iso) => {
+    if (!iso) return false;
+    if (ms === Infinity) return true;
+    const t = Date.parse(iso); if (isNaN(t)) return false;
+    return (now - t) <= ms;
+  };
+
+  // Filter-Pipeline (Kategorie / Hersteller)
+  const matchesFilters = (it) => {
+    if (catFilter !== 'all' && it.cat !== catFilter) return false;
+    if (makerFilter !== 'all' && it.maker !== makerFilter) return false;
+    return true;
+  };
+  const visible = items.filter(matchesFilters);
+
+  // KPIs
+  const totalCount = visible.length;
+  const inShopCount = visible.filter(it => it.inShop && !it.sold).length;
+  const soldAll = visible.filter(it => it.sold);
+  const soldInRange = visible.filter(it => it.sold && inRange(it.soldAt));
+  const addedInRange = visible.filter(it => inRange(it.created));
+  const inShopValue = visible.filter(it => it.inShop && !it.sold && it.vp != null).reduce((s, it) => s + it.vp, 0);
+  const soldValueInRange = soldInRange.filter(it => it.vp != null).reduce((s, it) => s + it.vp, 0);
+  const soldValueAll = soldAll.filter(it => it.vp != null).reduce((s, it) => s + it.vp, 0);
+
+  // Kategorie-Verteilung (nur visible, nicht-verkauft, im Lager)
+  const inStock = visible.filter(it => !it.sold);
+  const catDist = {};
+  inStock.forEach(it => { const k = it.cat || '—'; catDist[k] = (catDist[k] || 0) + 1; });
+  const catRows = Object.entries(catDist).sort((a,b) => b[1] - a[1]);
+  const catMax = Math.max(1, ...catRows.map(r => r[1]));
+
+  // Hersteller-Verteilung (Top 5)
+  const makerDist = {};
+  inStock.forEach(it => { if (it.maker) makerDist[it.maker] = (makerDist[it.maker] || 0) + 1; });
+  const makerTop = Object.entries(makerDist).sort((a,b) => b[1] - a[1]).slice(0, 5);
+
+  // Aktivitätslisten — sortiert nach Datum desc
+  const recentSold = visible.filter(it => it.sold).sort((a,b) => Date.parse(b.soldAt || 0) - Date.parse(a.soldAt || 0)).slice(0, 6);
+  const recentAdded = [...visible].sort((a,b) => Date.parse(b.created || 0) - Date.parse(a.created || 0)).slice(0, 6);
+
+  const allCats = state.categories || [];
+  const allMakers = [...new Set(items.map(it => it.maker).filter(Boolean))].sort();
+
+  const rangeLabel = { today: 'Heute', '7d': '7 Tage', '30d': '30 Tage', all: 'Alle Zeit' }[range];
+
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--ink">Dashboard</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+
+    <!-- Zeitraum-Filter -->
+    <div>
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Zeitraum</div>
+      <div class="chip-row">
+        ${[['today','Heute'],['7d','7 Tage'],['30d','30 Tage'],['all','Alle Zeit']].map(([k,l]) => `
+          <button class="chip ${range === k ? 'chip--active' : ''}" data-action="dash-set-range" data-range="${k}">${l}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- KPI-Kacheln -->
+    <div class="dash-grid">
+      <div class="dash-kpi">
+        <div class="dash-kpi__label">${svg('boxes', 11, 2.4)} Bestand</div>
+        <div class="dash-kpi__val">${totalCount - soldAll.length}</div>
+        <div class="dash-kpi__sub">aktuell im Lager</div>
+      </div>
+      <div class="dash-kpi dash-kpi--blue">
+        <div class="dash-kpi__label">${svg('arrow-down-left', 11, 2.4)} Eingang</div>
+        <div class="dash-kpi__val">${addedInRange.length}</div>
+        <div class="dash-kpi__sub">neu · ${rangeLabel}</div>
+      </div>
+      <div class="dash-kpi dash-kpi--red">
+        <div class="dash-kpi__label">${svg('arrow-up-right', 11, 2.4)} Verkauft</div>
+        <div class="dash-kpi__val">${soldInRange.length}</div>
+        <div class="dash-kpi__sub">${rangeLabel} · ${formatVp(soldValueInRange) || '— €'}</div>
+      </div>
+      <div class="dash-kpi dash-kpi--green">
+        <div class="dash-kpi__label">${svg('sparkles', 11, 2.4)} Im Shop</div>
+        <div class="dash-kpi__val">${inShopCount}</div>
+        <div class="dash-kpi__sub">Wert ${formatVp(inShopValue) || '— €'}</div>
+      </div>
+    </div>
+
+    <!-- Filter Kategorie / Hersteller -->
+    <div>
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Kategorie</div>
+      <div class="chip-row">
+        <button class="chip ${catFilter === 'all' ? 'chip--active' : ''}" data-action="dash-set-cat" data-cat="all">Alle <span class="chip__count">${items.length}</span></button>
+        ${allCats.map(c => {
+          const n = items.filter(it => it.cat === c).length;
+          return `<button class="chip ${catFilter === c ? 'chip--active' : ''}" data-action="dash-set-cat" data-cat="${c.replace(/"/g,'&quot;')}">${c} <span class="chip__count">${n}</span></button>`;
+        }).join('')}
+      </div>
+    </div>
+    ${allMakers.length > 0 ? `
+      <div>
+        <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Hersteller</div>
+        <div class="chip-row">
+          <button class="chip ${makerFilter === 'all' ? 'chip--active' : ''}" data-action="dash-set-maker" data-maker="all">Alle</button>
+          ${allMakers.map(m => {
+            const n = items.filter(it => it.maker === m).length;
+            return `<button class="chip ${makerFilter === m ? 'chip--active' : ''}" data-action="dash-set-maker" data-maker="${m.replace(/"/g,'&quot;')}">${m} <span class="chip__count">${n}</span></button>`;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Kategorie-Verteilung im Lager -->
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Bestand nach Kategorie</h2>
+        <span class="pill pill--neutral" style="font-family:var(--f-mono)">${inStock.length}</span>
+      </div>
+      ${catRows.length === 0 ? `
+        <div class="tile" style="padding:18px;text-align:center;font-size:12px;font-weight:500;color:var(--c-ink-mute)">Keine Daten im Filter</div>
+      ` : `
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          ${catRows.map(([cat, n]) => `
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;margin-bottom:4px">
+                <span>${cat}</span>
+                <span style="font-family:var(--f-mono);color:var(--c-ink-soft)">${n} · ${Math.round(n / inStock.length * 100)}%</span>
+              </div>
+              <div style="height:6px;background:var(--c-bg-soft);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(n / catMax * 100).toFixed(1)}%;background:var(--c-blue);border-radius:3px;transition:width .3s"></div></div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
+    <!-- Hersteller Top-5 -->
+    ${makerTop.length > 0 ? `
+      <div>
+        <div class="section-head"><h2 class="section-head__title">Top-Hersteller im Bestand</h2></div>
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          ${makerTop.map(([m, n], i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 0;${i > 0 ? 'border-top:1px solid var(--c-divider)' : ''}">
+              <div style="width:24px;height:24px;border-radius:6px;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
+              <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m}</div>
+              <div style="font-family:var(--f-mono);font-size:13px;font-weight:600;color:var(--c-ink-soft)">${n}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Verkäufe -->
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Verkäufe gesamt</h2>
+        <span class="pill pill--neutral" style="font-family:var(--f-mono)">${soldAll.length} · ${formatVp(soldValueAll) || '— €'}</span>
+      </div>
+      ${recentSold.length === 0 ? `
+        <div class="tile" style="padding:18px;text-align:center;font-size:12px;font-weight:500;color:var(--c-ink-mute)">Noch nichts verkauft</div>
+      ` : `
+        <div class="compact-list">
+          ${recentSold.map(it => `
+            <button class="compact-item" data-action="select-item" data-id="${it.id}">
+              <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+                ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;opacity:.5;filter:grayscale(.6)">` : svg('package', 19, 2.2)}
+                <span class="sold-stamp" style="font-size:8.5px;padding:2px 6px;top:4px;right:4px">Verk.</span>
+              </div>
+              <div class="compact-item__body">
+                <div class="compact-item__id">#${it.id}</div>
+                <div class="compact-item__name">${it.title}</div>
+                <div class="compact-item__meta">${it.cat || '—'} · ${it.maker || '—'}</div>
+              </div>
+              <div style="text-align:right;padding-right:4px;flex-shrink:0">
+                <div style="font-family:var(--f-mono);font-size:13px;font-weight:700;color:var(--c-ink)">${it.vp != null ? formatVp(it.vp) : '—'}</div>
+                <div style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">${it.soldAt ? new Date(it.soldAt).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit'}) : ''}</div>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
+    <!-- Eingänge -->
+    <div>
+      <div class="section-head">
+        <h2 class="section-head__title">Letzte Eingänge</h2>
+        <span class="pill pill--neutral" style="font-family:var(--f-mono)">${addedInRange.length} · ${rangeLabel}</span>
+      </div>
+      ${recentAdded.length === 0 ? `
+        <div class="tile" style="padding:18px;text-align:center;font-size:12px;font-weight:500;color:var(--c-ink-mute)">Keine neuen Artikel im Filter</div>
+      ` : `
+        <div class="compact-list">
+          ${recentAdded.map(it => `
+            <button class="compact-item" data-action="select-item" data-id="${it.id}">
+              <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+                ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 19, 2.2)}
+              </div>
+              <div class="compact-item__body">
+                <div class="compact-item__id">#${it.id}</div>
+                <div class="compact-item__name">${it.title}</div>
+                <div class="compact-item__meta">${it.cat || '—'} · ${it.maker || '—'}</div>
+              </div>
+              <div style="text-align:right;padding-right:4px;flex-shrink:0">
+                <div style="font-size:10px;font-weight:500;color:var(--c-ink-mute)">${it.created ? new Date(it.created).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit'}) : ''}</div>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
   </div>
 </div>`;
 }
@@ -4548,7 +4809,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -4846,6 +5107,10 @@ document.addEventListener('click', (e) => {
     case 'go-camera': go('camera'); break;
     case 'go-issues': go('issues'); break;
     case 'go-bestand': go('bestand'); break;
+    case 'go-dashboard': go('dashboard'); break;
+    case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
+    case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
+    case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
     case 'go-photo-search': go('photoSearch'); break;
     case 'go-test-start': go('testStart'); break;
     case 'go-test-result': go('testResult'); break;
