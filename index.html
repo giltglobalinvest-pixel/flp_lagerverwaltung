@@ -404,7 +404,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.8';
+const APP_VERSION = 'v1.8.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -691,16 +691,25 @@ async function _scanLabelViaAI(file) {
   try {
     const base64 = await fileToBase64(file);
     const mediaType = file.type || 'image/jpeg';
-    const sys = 'Du extrahierst Etiketten-Daten von Aufzugs-Ersatzteil-Fotos. Antworte AUSSCHLIESSLICH als JSON-Objekt, ohne Markdown-Codeblock.';
-    const prompt = 'Schaue auf das Etikett/Label auf dem Foto. Extrahiere:\n- "tracker": die Tracker-Nummer / Seriennummer / Artikel-ID, die als Text auf dem Etikett steht. Nur die Zeichenfolge selbst, ohne Beschriftung wie "Tracker:" oder "Nr.:".\n- "url": die Ziel-URL des QR-Codes auf dem Etikett, falls aus dem QR ablesbar.\n\nWenn etwas nicht erkennbar ist, gib einen leeren String zurück. Antwortformat exakt: {"tracker":"...","url":"..."}';
-    const txt = await askAI(prompt, { system: sys, imageBase64: base64, imageMediaType: mediaType, maxTokens: 220 });
+    const sys = 'Du extrahierst Etiketten-Daten von Aufzugs-Ersatzteil-Fotos. Antworte AUSSCHLIESSLICH als JSON-Objekt, ohne Markdown-Codeblock und ohne erklärenden Text.';
+    const prompt = `Schaue auf das/die Etikett/en auf dem Foto (z.B. "FLP", "Lift Parts Repair" Sticker mit QR-Code). Extrahiere:
+
+- "tracker": die Tracker-Nummer / Seriennummer / Artikel-ID, die als Text auf dem Etikett steht. Falls die Nummer mit einem Präfix wie "#" oder "Nr." dargestellt ist (z.B. "#12696"), gib NUR die Ziffern/Buchstaben ZURÜCK ohne dieses Präfix (also "12696"). Wenn mehrere Nummern sichtbar sind, nimm die, die zum QR-Code gehört (i.d.R. direkt daneben oder darunter).
+- "url": die Ziel-URL des QR-Codes auf dem Etikett, exakt wie im QR codiert (komplett mit https://). Wenn der QR nicht klar lesbar ist aber eine URL als Text steht (z.B. "aufzug-umrichter.de"), gib diese als Fallback zurück mit "https://" davor.
+
+Wenn etwas nicht erkennbar ist, gib einen leeren String "" zurück.
+
+Antwortformat exakt (kein anderer Text):
+{"tracker":"...","url":"..."}`;
+    const txt = await askAI(prompt, { system: sys, imageBase64: base64, imageMediaType: mediaType, maxTokens: 280 });
     const parsed = parseAIJson(txt);
     return {
       tracker: (parsed?.tracker ? String(parsed.tracker).trim() : '') || null,
       url: (parsed?.url ? String(parsed.url).trim() : '') || null,
+      raw: txt, // für Debug
     };
   } catch (e) {
-    return { tracker: null, url: null };
+    return { tracker: null, url: null, error: e.message };
   }
 }
 
@@ -718,6 +727,7 @@ async function scanLabelFromFile(file) {
 
 // Scannt das gegebene File und füllt voiceFields.tracker / .trackerUrl, wenn dort noch nichts steht.
 // Läuft im Hintergrund — re-rendert nur, falls sich etwas ändert.
+// opts.force = überschreibt vorhandene Werte und zeigt mehr Toasts
 async function autoScanFirstPhotoForTracker(file, opts = {}) {
   if (!file) return;
   const force = !!opts.force;
@@ -725,8 +735,9 @@ async function autoScanFirstPhotoForTracker(file, opts = {}) {
   if (!force && (f.tracker || f.trackerUrl)) return; // schon vorhanden, nicht überschreiben
   if (state.voiceScanRunning) return;
   state.voiceScanRunning = true;
-  // Optional UI-Hint: kein Loader, läuft im Hintergrund. Nur wenn force=true zeigen wir Toast.
-  if (force) showToast('Etikett wird gescannt …', 'info', 1800);
+  // Hint: bei jedem Scan wenigstens ein dezenter Toast, damit User weiß dass was läuft
+  showToast(force ? 'Etikett wird gescannt …' : 'Foto wird auf Etikett geprüft …', 'info', 1800);
+  render(); // damit der "Scannt …"-Text im Tracker-Section erscheint
   try {
     const { tracker, trackerUrl } = await scanLabelFromFile(file);
     let changed = false;
@@ -739,15 +750,20 @@ async function autoScanFirstPhotoForTracker(file, opts = {}) {
       changed = true;
     }
     if (changed) {
-      showToast(tracker ? 'Tracker erkannt: ' + (tracker || '—') : 'QR-Link erkannt', 'success', 2400);
-      render();
-    } else if (force) {
-      showToast('Kein Etikett erkannt', 'info', 2200);
+      const parts = [];
+      if (tracker) parts.push('#' + tracker);
+      if (trackerUrl) parts.push('QR-Link');
+      showToast('Erkannt: ' + parts.join(' · '), 'success', 2800);
+    } else {
+      // Auch im Auto-Modus: dezenter Hinweis, sonst denkt User es passiert nichts
+      showToast('Kein Etikett im Foto gefunden — ggf. manuell eintragen oder neu fotografieren', 'info', 3500);
     }
+    render();
   } catch (e) {
-    if (force) showToast('Scan fehlgeschlagen: ' + e.message, 'error', 3000);
+    showToast('Scan fehlgeschlagen: ' + e.message, 'error', 3000);
   } finally {
     state.voiceScanRunning = false;
+    render();
   }
 }
 
@@ -3411,11 +3427,13 @@ async function cropperConfirm() {
     state.galleryIndex = state.voicePhotoFiles.length - 1;
     state.cameraShowLive = false; // User soll das frisch zugeschnittene Foto sehen
 
+    // Original-Datei für Scan vor URL-Revoke merken — Original hat höhere Auflösung als der Crop
+    const scanFile = c.file || file;
     try { URL.revokeObjectURL(c.imageUrl); } catch (_) {}
     state.cropper = null;
     go(ret);
-    // Erstes Foto: im Hintergrund nach Etikett/QR scannen
-    if (wasFirst) autoScanFirstPhotoForTracker(file);
+    // Erstes Foto: im Hintergrund nach Etikett/QR scannen — Original-Foto, da QR im gecroppten Bild oft zu klein ist
+    if (wasFirst) autoScanFirstPhotoForTracker(scanFile);
   } catch (e) {
     showToast('Foto konnte nicht zugeschnitten werden: ' + e.message, 'error', 3500);
   } finally {
