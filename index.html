@@ -246,6 +246,15 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .tracker-tile__link{display:inline-flex;align-items:center;gap:6px;color:#3F2C00;text-decoration:none;min-width:0;font-family:var(--f-mono);font-size:12px;font-weight:600}
 .tracker-tile__url{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;text-decoration:underline;text-decoration-color:rgba(63,44,0,.4);text-underline-offset:2px}
 .tracker-tile__link:active{opacity:.7}
+
+/* Webshop · Verkauft-Banner und VP-Anzeige */
+.sold-banner{display:flex;align-items:center;gap:10px;padding:14px 16px;background:linear-gradient(135deg,#E5484D 0%,#C42126 100%);color:#fff;border-radius:var(--r-tile);box-shadow:0 6px 20px rgba(229,72,77,.35);position:relative;overflow:hidden}
+.sold-banner__icon{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center}
+.sold-banner__title{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1.1}
+.sold-banner__sub{font-size:11.5px;font-weight:500;opacity:.9;margin-top:2px}
+.sold-stamp{position:absolute;top:8px;right:8px;background:rgba(229,72,77,.95);color:#fff;font-family:var(--f-mono);font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-pill);box-shadow:0 2px 6px rgba(0,0,0,.25);text-transform:uppercase;z-index:2}
+.price-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6;border-radius:var(--r-pill);font-family:var(--f-mono);font-size:11.5px;font-weight:700;letter-spacing:.02em;line-height:1}
+.price-chip--sm{padding:2px 7px;font-size:10px}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -446,7 +455,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.11.1';
+const APP_VERSION = 'v1.12';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1109,6 +1118,27 @@ function logout() {
 /* ============================================================
    TOAST + LOADING
    ============================================================ */
+// Zeigt eine Benachrichtigung wenn ein Artikel als verkauft markiert wurde.
+// In-App immer (Toast). Wenn Notification-Permission erteilt: zusätzlich native Browser-Notification.
+function notifyArticleSold(it) {
+  const title = it?.title || 'Artikel';
+  const id = it?.id ? '#' + it.id : '';
+  const msg = `Verkauft: ${title} ${id}`.trim();
+  showToast(msg, 'success', 4000);
+  try {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification('Artikel verkauft', { body: `${title} ${id}`.trim(), tag: 'sold-' + (it?.id || '') });
+      } else if (Notification.permission === 'default') {
+        // Erlaubnis erst beim ersten Sold-Event anfragen — nicht beim App-Start
+        Notification.requestPermission().then(p => {
+          if (p === 'granted') new Notification('Artikel verkauft', { body: `${title} ${id}`.trim(), tag: 'sold-' + (it?.id || '') });
+        }).catch(() => {});
+      }
+    }
+  } catch (_) { /* ignore */ }
+}
+
 // Kopiert Text ins Clipboard. Fallback via temporäres <textarea> falls Clipboard-API blockt (z.B. iOS in nicht-https oder älter).
 async function copyTextToClipboard(text) {
   if (!text) return false;
@@ -1375,6 +1405,11 @@ const ITEM_FIELDS = [
   { name: 'photo', type: 'multipleAttachments' },
   { name: 'tracker', type: 'singleLineText' },
   { name: 'tracker_url', type: 'singleLineText' },
+  // Webshop-Felder
+  { name: 'vp', type: 'singleLineText' },        // Verkaufspreis € (als Text gespeichert, parse als Number)
+  { name: 'in_shop', type: 'singleLineText' },   // "1" oder leer
+  { name: 'sold', type: 'singleLineText' },      // "1" oder leer
+  { name: 'sold_at', type: 'singleLineText' },   // ISO-Zeitstempel
   { name: 'updated', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -1475,6 +1510,11 @@ function recordToItem(rec) {
     photoUrl: photoArr[0]?.url || null,
     tracker: f.tracker || '',
     trackerUrl: f.tracker_url || '',
+    // Webshop
+    vp: (f.vp !== '' && f.vp != null) ? parseFloat(String(f.vp).replace(',', '.')) : null,
+    inShop: f.in_shop === '1' || f.in_shop === 'true',
+    sold: f.sold === '1' || f.sold === 'true',
+    soldAt: f.sold_at || null,
     updated: f.updated || nowIso(),
     upd: relTime(f.updated),
   };
@@ -1494,6 +1534,11 @@ function itemToFields(it, apiKey) {
     specs: JSON.stringify(it.specs || []),
     tracker: it.tracker || '',
     tracker_url: it.trackerUrl || '',
+    // Webshop
+    vp: (it.vp != null && !isNaN(it.vp)) ? String(it.vp) : '',
+    in_shop: it.inShop ? '1' : '',
+    sold: it.sold ? '1' : '',
+    sold_at: it.soldAt || '',
     updated: it.updated || nowIso(),
     api_key: apiKey,
   };
@@ -2300,6 +2345,25 @@ const photoSrc = (p, size = 'small') => {
   return p.thumbnails?.[size]?.url || p.url || null;
 };
 
+// Format VP als €-String (deutsche Lokalisierung).
+const formatVp = (v) => {
+  if (v == null || isNaN(v)) return '';
+  return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+};
+
+// Liefert ein kleines Badge für item-card / compact-item: VP-Chip wenn im Shop, "VERKAUFT"-Stamp wenn sold.
+const shopBadges = (it, opts = {}) => {
+  const sm = opts.size === 'sm';
+  const cls = sm ? 'price-chip price-chip--sm' : 'price-chip';
+  const parts = [];
+  if (it?.sold) {
+    parts.push(`<span class="price-chip ${sm ? 'price-chip--sm' : ''}" style="background:#FDE2E2;color:#9B1C1F;border-color:#F4A6A8">VERKAUFT</span>`);
+  } else if (it?.inShop && it?.vp != null) {
+    parts.push(`<span class="${cls}">${formatVp(it.vp)}</span>`);
+  }
+  return parts.join('');
+};
+
 // Tracker-Badge: zeigt #-Nummer prominent. Wenn URL vorhanden → klickbar (öffnet im neuen Tab).
 const trackerChip = (it, opts = {}) => {
   if (!it?.tracker && !it?.trackerUrl) return '';
@@ -2317,11 +2381,12 @@ const trackerChip = (it, opts = {}) => {
 const itemCard = (it, opts = {}) => `
 <button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-    ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">` : svg('package', 22, 2.2)}
+    ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
     <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+    ${it.sold ? `<span class="sold-stamp">Verkauft</span>` : ''}
   </div>
   <div class="item-card__body">
-    <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}</div>
+    <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}</div>
     <h3 class="item-card__name">${it.title}</h3>
     <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
     <div class="item-card__row" style="margin-top:8px">${condPill(it.cond)}${funcPill(it.func)}</div>
@@ -2560,11 +2625,12 @@ function renderHome() {
         [...inventory].sort((a,b) => Date.parse(b.updated || 0) - Date.parse(a.updated || 0)).slice(0, 3).map(it => `
           <button class="compact-item" data-action="select-item" data-id="${it.id}">
             <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-              ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">` : svg('package', 19, 2.2)}
+              ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 19, 2.2)}
               <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+              ${it.sold ? `<span class="sold-stamp" style="font-size:8.5px;padding:2px 6px;top:4px;right:4px">Verk.</span>` : ''}
             </div>
             <div class="compact-item__body">
-              <div class="compact-item__id" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">#${it.id}${trackerChip(it, { size: 'sm' })}</div>
+              <div class="compact-item__id" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">#${it.id}${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}</div>
               <div class="compact-item__name">${it.title}</div>
               <div class="compact-item__meta">${CONDITION[it.cond]?.label || '\u2014'} \u00b7 ${FUNCTION_STATUS[it.func]?.short || '\u2014'}</div>
             </div>
@@ -2915,6 +2981,22 @@ function renderDetail() {
       <h1>${it.title}</h1>
       <p class="title-block__by">von <strong>${it.maker}</strong></p>
     </div>
+    ${it.sold ? `
+      <div class="sold-banner">
+        <div class="sold-banner__icon">${svg('alert-triangle', 18, 2.4)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="sold-banner__title">Verkauft · nicht mehr verfügbar</div>
+          <div class="sold-banner__sub">${it.soldAt ? 'Verkauft am ' + new Date(it.soldAt).toLocaleDateString('de-DE') : ''}</div>
+        </div>
+      </div>` : ''}
+    ${(it.inShop && it.vp != null && !it.sold) ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#E6F4EA;border:1px solid #8FD4A6;border-radius:var(--r-tile);gap:10px">
+        <div style="display:flex;align-items:center;gap:8px;color:#0A6B2C">
+          ${svg('boxes', 16, 2.4)}
+          <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Im Webshop</span>
+        </div>
+        <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:#0A6B2C;letter-spacing:.02em">${formatVp(it.vp)}</div>
+      </div>` : ''}
     ${(it.tracker || it.trackerUrl) ? `
       <div class="tracker-tile">
         ${it.tracker ? `
@@ -3211,6 +3293,56 @@ function renderEdit() {
           </div>` : ''}
       </div>
     </div>
+
+    <!-- Webshop (nur für Admins) -->
+    ${isAdmin() ? `
+      <div>
+        <div class="section-head">
+          <h2 class="section-head__title">Webshop</h2>
+          <span class="pill ${f.inShop ? 'pill--blue' : 'pill--neutral'}" style="font-family:var(--f-mono)">${f.inShop ? (f.sold ? 'Verkauft' : 'Im Shop') : 'Nicht im Shop'}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="field">
+            <label class="field__label">VERKAUFSPREIS · €</label>
+            <div style="position:relative">
+              <input class="field__input" data-action="edit-field" data-key="vp" inputmode="decimal" value="${(f.vp === '' || f.vp == null) ? '' : String(f.vp).replace(/"/g, '&quot;')}" placeholder="0,00" style="font-family:var(--f-mono);font-size:15px;padding-right:32px">
+              <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:13px;font-weight:600;color:var(--c-ink-mute);pointer-events:none">€</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label">ARTIKELNUMMER</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <code style="flex:1;padding:9px 12px;background:var(--c-bg-soft);border-radius:var(--r-md);font-family:var(--f-mono);font-size:14px;font-weight:600;color:var(--c-ink)">#${state.item.id}</code>
+              <button data-action="copy-text" data-text="#${state.item.id}" style="padding:9px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:11.5px;font-weight:600;color:var(--c-ink-soft);display:inline-flex;align-items:center;gap:5px">${svg('copy', 12, 2.5)} Kopieren</button>
+            </div>
+          </div>
+          <button data-action="edit-toggle-inshop" class="tile" style="width:100%;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:${f.inShop ? 'var(--c-blue-soft)' : 'var(--c-surface-alt)'};color:${f.inShop ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex;align-items:center;justify-content:center">${svg('boxes', 16, 2.4)}</div>
+              <div style="min-width:0">
+                <div style="font-size:13px;font-weight:600">Im Shop anzeigen</div>
+                <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">Sichtbar für Kunden im Webshop</div>
+              </div>
+            </div>
+            <div style="flex-shrink:0;width:42px;height:24px;border-radius:12px;background:${f.inShop ? 'var(--c-blue)' : 'var(--c-border-strong)'};position:relative;transition:background .15s">
+              <div style="position:absolute;top:2px;left:${f.inShop ? '20px' : '2px'};width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+            </div>
+          </button>
+          <button data-action="edit-toggle-sold" class="tile" style="width:100%;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer;${f.sold ? 'border-color:rgba(229,72,77,0.35);background:var(--c-red-soft)' : ''}">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:${f.sold ? '#fff' : 'var(--c-surface-alt)'};color:${f.sold ? 'var(--c-red)' : 'var(--c-ink-mute)'};display:flex;align-items:center;justify-content:center">${svg('check', 18, 3)}</div>
+              <div style="min-width:0">
+                <div style="font-size:13px;font-weight:600;${f.sold ? 'color:var(--c-red)' : ''}">Verkauft</div>
+                <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">${f.sold && f.soldAt ? 'am ' + new Date(f.soldAt).toLocaleDateString('de-DE') : 'Markieren wenn nicht mehr verfügbar'}</div>
+              </div>
+            </div>
+            <div style="flex-shrink:0;width:42px;height:24px;border-radius:12px;background:${f.sold ? 'var(--c-red)' : 'var(--c-border-strong)'};position:relative;transition:background .15s">
+              <div style="position:absolute;top:2px;left:${f.sold ? '20px' : '2px'};width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+            </div>
+          </button>
+        </div>
+      </div>
+    ` : ''}
 
     <!-- Kategorie -->
     <div>
@@ -4633,6 +4765,12 @@ document.addEventListener('click', (e) => {
         func: it.func || 'unknown',
         tracker: it.tracker || '',
         trackerUrl: it.trackerUrl || '',
+        // Webshop
+        vp: it.vp != null ? it.vp : '',
+        inShop: !!it.inShop,
+        sold: !!it.sold,
+        soldAt: it.soldAt || '',
+        _wasSold: !!it.sold, // Merker für Sold-Trigger beim Speichern
         // Tiefe Kopie der Specs damit Cancel ohne Nebenwirkungen geht
         specs: Array.isArray(it.specs) ? it.specs.map(p => [String(p[0] ?? ''), String(p[1] ?? '')]) : [],
       };
@@ -4653,14 +4791,26 @@ document.addEventListener('click', (e) => {
           .map(p => [String(p[0] ?? '').trim(), String(p[1] ?? '').trim()])
           .filter(p => p[0] || p[1]);
       }
-      const { locDraft, ...saveData } = f;
+      // VP normalisieren: leerer String → null, Komma → Punkt, parseFloat
+      if (f.vp === '' || f.vp == null) {
+        f.vp = null;
+      } else {
+        const n = parseFloat(String(f.vp).replace(',', '.'));
+        f.vp = isNaN(n) ? null : Math.max(0, n);
+      }
+      // Sold-Trigger: erst beim Speichern feuern (nicht beim Toggle, damit Cancel keinen falschen Push auslöst)
+      const justSold = f.sold && !f._wasSold;
+      const { locDraft, _wasSold, ...saveData } = f;
       const it = state.item;
       Object.assign(it, saveData);
       it.updated = nowIso();
       it.upd = 'gerade eben';
       setLoading(true, 'Speichere \u2026');
       airUpdate(TBL_ITEMS, it._recordId, itemToFields(it, APP_KEYS.user.api_key))
-        .then(() => { showToast('Artikel gespeichert', 'success'); })
+        .then(() => {
+          showToast('Artikel gespeichert', 'success');
+          if (justSold) notifyArticleSold(it);
+        })
         .catch(err => showToast('Speichern fehlgeschlagen: ' + err.message, 'error', 3500))
         .finally(() => { setLoading(false); render(); });
       state.editForm = null;
@@ -4668,6 +4818,22 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'edit-cat': if (state.editForm) { state.editForm.cat = btn.dataset.cat; render(); } break;
+
+    /* Webshop-Toggles im Edit-Form (admin) */
+    case 'edit-toggle-inshop': if (state.editForm && isAdmin()) { state.editForm.inShop = !state.editForm.inShop; render(); } break;
+    case 'edit-toggle-sold': {
+      if (!state.editForm || !isAdmin()) break;
+      const wasSold = !!state.editForm.sold;
+      state.editForm.sold = !wasSold;
+      // Verkauft-Datum setzen wenn frisch markiert, leeren wenn rückgängig
+      if (state.editForm.sold) {
+        if (!state.editForm.soldAt) state.editForm.soldAt = nowIso();
+      } else {
+        state.editForm.soldAt = '';
+      }
+      render();
+      break;
+    }
 
     /* Hauptfoto freistellen (Hintergrund entfernen via KI) */
     case 'bg-remove-first': bgRemoveFirstPhoto(); break;
