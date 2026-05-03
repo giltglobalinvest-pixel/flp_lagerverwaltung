@@ -206,6 +206,22 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 a.tracker-chip{cursor:pointer}
 a.tracker-chip:hover{filter:brightness(.97)}
 
+/* Hallen-Picker mit Foto-Karten */
+.hall-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.hall-card{position:relative;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-md);overflow:hidden;display:flex;flex-direction:column;transition:all .15s;text-align:left;padding:0;cursor:pointer}
+.hall-card:active{transform:scale(.97)}
+.hall-card--active{border-color:var(--c-blue);box-shadow:var(--elev-blue);background:var(--c-blue-soft)}
+.hall-card--manage{border-style:dashed}
+.hall-card--add{background:transparent;border-style:dashed;border-color:var(--c-blue-light)}
+.hall-card__photo{width:100%;aspect-ratio:1/1;background:#0F1830;border:0;padding:0;position:relative;display:block;cursor:pointer;overflow:hidden}
+.hall-card__photo img{width:100%;height:100%;object-fit:cover;display:block}
+.hall-card__placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--c-surface-alt);color:var(--c-ink-mute)}
+.hall-card__placeholder--add{background:transparent;color:var(--c-blue)}
+.hall-card__edit-badge{position:absolute;bottom:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(36,86,229,0.95);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.hall-card__name{padding:6px 8px;font-size:11.5px;font-weight:600;color:var(--c-ink);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.hall-card__remove{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--c-red);color:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:2}
+.hall-card__remove:active{filter:brightness(.92)}
+
 /* Tracker-Tile im Detail-Screen — prominente Anzeige von Nummer + QR-Link */
 .tracker-tile{padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-tile);box-shadow:0 1px 2px rgba(140,90,0,.06);display:flex;flex-direction:column;gap:10px}
 .tracker-tile__row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
@@ -414,7 +430,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.8.7';
+const APP_VERSION = 'v1.9';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1131,6 +1147,11 @@ Object.defineProperty(state, 'categories', {
   get() { return state.company?.categories || []; },
   set(v) { if (state.company) state.company.categories = v; },
 });
+// Map: { hallName → { _recordId, photo: {url, thumbnails, ...} } } für die aktive Company
+Object.defineProperty(state, 'hallPhotos', {
+  get() { return state.company?.hallPhotos || {}; },
+  set(v) { if (state.company) state.company.hallPhotos = v; },
+});
 
 /* ============================================================
    DATA
@@ -1182,6 +1203,7 @@ Object.defineProperty(globalThis, 'inventory', { get() { return state.company?.i
    ============================================================ */
 const TBL_COMPANIES = 'Firmen';
 const TBL_ITEMS = 'Artikel';
+const TBL_HALLS = 'Halls';
 
 const COMPANY_FIELDS = [
   { name: 'company_id', type: 'singleLineText' },
@@ -1212,12 +1234,22 @@ const ITEM_FIELDS = [
   { name: 'api_key', type: 'singleLineText' },
 ];
 
+const HALL_FIELDS = [
+  { name: 'hall_id', type: 'singleLineText' },
+  { name: 'company_id', type: 'singleLineText' },
+  { name: 'name', type: 'singleLineText' },
+  { name: 'photo', type: 'multipleAttachments' },
+  { name: 'api_key', type: 'singleLineText' },
+];
+
 async function ensureAllTables() {
   await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureTable(TBL_ITEMS, ITEM_FIELDS);
+  await ensureTable(TBL_HALLS, HALL_FIELDS);
   // Nachträglich fehlende Felder ergänzen (Migration alter Tabellen)
   await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
+  await ensureFieldsExist(TBL_HALLS, HALL_FIELDS);
 }
 
 async function ensureFieldsExist(tableName, expectedFields) {
@@ -1330,16 +1362,83 @@ function companyToFields(c, apiKey) {
   };
 }
 
+// Lädt ein Foto für eine Halle hoch — legt den Halls-Record bei Bedarf an, optimiert das Bild vorher.
+async function uploadHallPhoto(hallName, file) {
+  const c = state.company;
+  if (!c) { showToast('Keine Firma aktiv', 'error'); return; }
+  setLoading(true, 'Halle-Foto wird optimiert …');
+  try {
+    // Bild auf 5:4 + 1600 px reduzieren (gleiche Pipeline wie Item-Fotos)
+    const processed = await processImage(file);
+    // Record sicherstellen
+    let rec = state.hallPhotos[hallName];
+    if (!rec?._recordId) {
+      setLoading(true, 'Halle wird angelegt …');
+      const created = await airWrite(TBL_HALLS, {
+        hall_id: 'h_' + Math.random().toString(36).slice(2, 10),
+        company_id: c.id,
+        name: hallName,
+        api_key: APP_KEYS.user.api_key,
+      });
+      rec = { _recordId: created.id, id: created.fields?.hall_id, company_id: c.id, name: hallName, photo: null };
+      state.hallPhotos[hallName] = rec;
+    }
+    setLoading(true, 'Foto wird hochgeladen …');
+    await uploadFileToRecord(TBL_HALLS, rec._recordId, 'photo', processed);
+    // Frisch nachladen — Airtable liefert Foto + Thumbnails asynchron
+    setLoading(true, 'Foto wird verarbeitet …');
+    let attempts = 0, freshPhoto = null;
+    while (attempts < 6 && !freshPhoto) {
+      await new Promise(r => setTimeout(r, 600 + attempts * 400));
+      try {
+        const fresh = await airReadOne(TBL_HALLS, rec._recordId);
+        const arr = Array.isArray(fresh.fields?.photo) ? fresh.fields.photo : [];
+        if (arr[0]?.url) freshPhoto = arr[0];
+      } catch (e) { /* retry */ }
+      attempts++;
+    }
+    if (freshPhoto) rec.photo = freshPhoto;
+    showToast('Foto für „' + hallName + '" gespeichert', 'success', 2400);
+  } catch (e) {
+    showToast('Hall-Foto fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+function recordToHall(rec) {
+  const f = rec.fields || {};
+  const photoArr = Array.isArray(f.photo) ? f.photo : [];
+  return {
+    _recordId: rec.id,
+    id: f.hall_id,
+    company_id: f.company_id,
+    name: f.name || '',
+    photo: photoArr[0] || null, // wir nutzen nur das erste Foto pro Halle
+  };
+}
+
 async function loadAllData() {
   const apiKey = APP_KEYS.user.api_key;
   const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
 
-  const [companyRecs, itemRecs] = await Promise.all([
+  const [companyRecs, itemRecs, hallRecs] = await Promise.all([
     airRead(TBL_COMPANIES, filter),
     airRead(TBL_ITEMS, filter),
+    airRead(TBL_HALLS, filter).catch(() => []), // Tabelle könnte beim ersten Mal noch fehlen
   ]);
 
   let companies = companyRecs.map(recordToCompany).filter(c => c.id);
+
+  // Hallen-Foto-Records pro Company als Map { hallName → hallRecord }
+  const hallsByCompany = {};
+  hallRecs.forEach(r => {
+    const h = recordToHall(r);
+    if (!h.company_id || !h.name) return;
+    (hallsByCompany[h.company_id] = hallsByCompany[h.company_id] || {})[h.name] = h;
+  });
+  companies.forEach(c => { c.hallPhotos = hallsByCompany[c.id] || {}; });
 
   // Seed bei erstem Start: FLP Lift Parts mit Beispiel-Bestand
   if (companies.length === 0) {
@@ -2126,6 +2225,10 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
   const noneStyle = `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${noneActive ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
   const setAction = `${scope}-loc-${target}`;
   const clearAction = `${scope}-loc-clear`;
+
+  // Hallen bekommen Foto-Karten statt Text-Chips. Regale bleiben kompakte Chips.
+  const isHall = target === 'hall';
+
   return `
     <div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px;gap:10px">
@@ -2137,18 +2240,60 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
           </button>
         </div>
       </div>
-      <div class="chip-row">
-        ${!isManaging ? renderLocAddRow(target) : ''}
-        ${options.map(o => {
-          const active = !isManaging && selectedValue === o;
-          const ev = String(o).replace(/"/g, '&quot;');
-          if (isManaging) {
-            const removeAction = target === 'hall' ? 'loc-remove-hall' : 'loc-remove-shelf';
-            return `<button class="chip" data-action="${removeAction}" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${o} ${svg('x', 11, 2.8)}</button>`;
-          }
-          return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${setAction}" data-val="${ev}">${o}</button>`;
-        }).join('')}
-      </div>
+      ${isHall ? `
+        <!-- Hallen: Karten-Grid mit Foto -->
+        <div class="hall-grid">
+          ${options.map(o => {
+            const active = !isManaging && selectedValue === o;
+            const ev = String(o).replace(/"/g, '&quot;');
+            const hp = state.hallPhotos?.[o];
+            const thumbUrl = hp?.photo ? (hp.photo.thumbnails?.small?.url || hp.photo.url) : null;
+            const removeAction = 'loc-remove-hall';
+            return `
+              <div class="hall-card ${active ? 'hall-card--active' : ''} ${isManaging ? 'hall-card--manage' : ''}">
+                <button class="hall-card__photo" data-action="${isManaging ? 'hall-photo-pick' : setAction}" data-val="${ev}" data-hall="${ev}" title="${isManaging ? 'Foto setzen / ändern' : ev}">
+                  ${thumbUrl
+                    ? `<img src="${thumbUrl}" alt="" loading="lazy" decoding="async">`
+                    : `<div class="hall-card__placeholder">${svg(isManaging ? 'camera' : 'image', 22, 2)}</div>`}
+                  ${isManaging ? `<span class="hall-card__edit-badge">${svg('camera', 11, 2.5)}</span>` : ''}
+                </button>
+                <div class="hall-card__name">${o}</div>
+                ${isManaging ? `<button class="hall-card__remove" data-action="${removeAction}" data-val="${ev}" title="Halle löschen">${svg('x', 11, 2.8)}</button>` : ''}
+              </div>
+            `;
+          }).join('')}
+          ${!isManaging ? `
+            <button class="hall-card hall-card--add" data-action="loc-add-start" data-target="${target}">
+              <div class="hall-card__photo">
+                <div class="hall-card__placeholder hall-card__placeholder--add">${svg('plus', 22, 2.4)}</div>
+              </div>
+              <div class="hall-card__name" style="color:var(--c-blue)">${state.locAddingFor === target ? '' : 'Neu'}</div>
+            </button>
+          ` : ''}
+        </div>
+        ${state.locAddingFor === target ? `
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--c-surface);border:1.5px solid var(--c-blue);border-radius:var(--r-md);box-shadow:var(--elev-1)">
+            <input data-action="loc-add-input" value="${(state.locAddDraft || '').replace(/"/g, '&quot;')}" placeholder="Name der neuen Halle" style="background:transparent;border:0;padding:0;flex:1;font-size:13px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit" autofocus>
+            <button data-action="loc-add-save" style="width:28px;height:28px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center">${svg('check', 13, 3)}</button>
+            <button data-action="loc-add-cancel" style="width:28px;height:28px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('x', 13, 2.5)}</button>
+          </div>
+        ` : ''}
+        <input type="file" id="hallPhotoInput" accept="image/*" class="photo-input" data-action="hall-photo-picked">
+      ` : `
+        <!-- Regale: Original-Chip-Reihe -->
+        <div class="chip-row">
+          ${!isManaging ? renderLocAddRow(target) : ''}
+          ${options.map(o => {
+            const active = !isManaging && selectedValue === o;
+            const ev = String(o).replace(/"/g, '&quot;');
+            if (isManaging) {
+              const removeAction = 'loc-remove-shelf';
+              return `<button class="chip" data-action="${removeAction}" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${o} ${svg('x', 11, 2.8)}</button>`;
+            }
+            return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${setAction}" data-val="${ev}">${o}</button>`;
+          }).join('')}
+        </div>
+      `}
     </div>
   `;
 }
@@ -4524,7 +4669,21 @@ document.addEventListener('click', (e) => {
       const draft = getActiveLocDraft();
       if (draft && draft.hall === h) draft.hall = '';
       persistCompanyHallsShelves(state.company);
+      // Zugehörigen Foto-Record asynchron löschen, falls vorhanden
+      const photoRec = state.hallPhotos?.[h];
+      if (photoRec?._recordId) {
+        airDelete(TBL_HALLS, photoRec._recordId).catch(() => {});
+        delete state.hallPhotos[h];
+      }
       render();
+      break;
+    }
+    /* Hallen-Foto: Tap auf Karte im Verwalten-Modus → Datei-Picker öffnen */
+    case 'hall-photo-pick': {
+      const hallName = btn.dataset.hall || btn.dataset.val;
+      if (!hallName) break;
+      state._hallPhotoPickFor = hallName; // welche Halle bekommt das nächste Foto
+      document.getElementById('hallPhotoInput')?.click();
       break;
     }
     case 'loc-remove-shelf': {
@@ -4843,6 +5002,12 @@ document.addEventListener('change', (e) => {
       targetItemId: state.item._recordId,
     };
     go('cropper');
+  } else if (a === 'hall-photo-picked') {
+    t.value = '';
+    const hallName = state._hallPhotoPickFor;
+    state._hallPhotoPickFor = null;
+    if (!hallName) return;
+    uploadHallPhoto(hallName, file);
   }
 });
 
