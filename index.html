@@ -41,6 +41,21 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
   .version-badge{bottom:calc(4px + env(safe-area-inset-bottom));right:calc(6px + env(safe-area-inset-right))}
 }
 .phone__inner{position:relative;height:100%;display:flex;flex-direction:column}
+
+/* Top User-Bar: zeigt Login-Name, Rolle und Versionsnummer über jedem Screen */
+.user-bar{display:none;align-items:center;justify-content:space-between;padding:5px 14px;font-size:10.5px;font-weight:600;background:var(--c-ink);color:rgba(255,255,255,0.85);font-family:var(--f-mono);letter-spacing:.04em;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.08);gap:10px;min-height:24px}
+.user-bar--shown{display:flex}
+.user-bar__user{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;flex:1}
+.user-bar__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.user-bar__role{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.18);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;line-height:1.4}
+.user-bar__role--admin{background:#FFD45C;color:#3A2400}
+.user-bar__version{opacity:.55;flex-shrink:0;white-space:nowrap}
+@media (max-width:600px){
+  .user-bar{padding-top:max(5px, env(safe-area-inset-top));padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right))}
+  .has-user-bar .header{padding-top:12px}
+  .has-user-bar .listen-screen .header{padding-top:12px}
+  .has-user-bar .login-screen{padding-top:32px}
+}
 .app{flex:1;overflow:hidden;position:relative}
 .screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--c-bg)}
 .header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;flex-shrink:0}
@@ -422,6 +437,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 <body>
 <div class="phone">
 <div class="phone__inner">
+<div class="user-bar" id="userBar"></div>
 <div class="app" id="app"></div>
 </div>
 </div>
@@ -430,7 +446,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.9';
+const APP_VERSION = 'v1.10';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1274,6 +1290,11 @@ async function ensureFieldsExist(tableName, expectedFields) {
     }
   } catch (e) { /* offline / metadata-API nicht verfügbar */ }
 }
+
+// Rollen-Check: liest APP_KEYS.user.role aus dem User-Datensatz.
+// Erwartete Werte: 'admin' | 'user' (oder leer/undefiniert → user). Case-insensitiv.
+function userRole() { return String(APP_KEYS.user?.role || 'user').toLowerCase(); }
+function isAdmin() { return userRole() === 'admin'; }
 
 function nowIso() { return new Date().toISOString(); }
 function shortId(prefix) { return (prefix || '') + Math.random().toString(36).slice(2, 8).toUpperCase(); }
@@ -2219,7 +2240,8 @@ function renderLocAddRow(target) {
 
 // Reusable picker for hall/shelf with manage mode and add/remove. scope = 'quick' | 'edit' | 'voice'
 function renderLocPicker(scope, target, label, options, selectedValue, opts = {}) {
-  const isManaging = state.locManageMode === target;
+  const canManage = isAdmin();                         // nur Admins dürfen Lagerorte bearbeiten
+  const isManaging = canManage && state.locManageMode === target;
   const allowNone = !!opts.allowNone;
   const noneActive = allowNone && !selectedValue && !isManaging;
   const noneStyle = `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${noneActive ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
@@ -2235,9 +2257,9 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
         <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">${label}</span>
         <div style="display:flex;align-items:center;gap:8px">
           ${allowNone && !isManaging ? `<button data-action="${clearAction}" data-target="${target}" style="${noneStyle}">— Keins</button>` : ''}
-          <button data-action="loc-manage-toggle" data-target="${target}" style="font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
+          ${canManage ? `<button data-action="loc-manage-toggle" data-target="${target}" style="font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
             ${isManaging ? svg('check', 10, 3) : svg('pencil', 10, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
-          </button>
+          </button>` : ''}
         </div>
       </div>
       ${isHall ? `
@@ -2262,7 +2284,7 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
               </div>
             `;
           }).join('')}
-          ${!isManaging ? `
+          ${(!isManaging && canManage) ? `
             <button class="hall-card hall-card--add" data-action="loc-add-start" data-target="${target}">
               <div class="hall-card__photo">
                 <div class="hall-card__placeholder hall-card__placeholder--add">${svg('plus', 22, 2.4)}</div>
@@ -2282,7 +2304,7 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
       ` : `
         <!-- Regale: Original-Chip-Reihe -->
         <div class="chip-row">
-          ${!isManaging ? renderLocAddRow(target) : ''}
+          ${(!isManaging && canManage) ? renderLocAddRow(target) : ''}
           ${options.map(o => {
             const active = !isManaging && selectedValue === o;
             const ev = String(o).replace(/"/g, '&quot;');
@@ -4161,9 +4183,36 @@ const screens = { home: renderHome, listen: renderListen, results: renderResults
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
 
+// Aktualisiert die persistente Top-Statusleiste mit Name, Rolle, Version.
+// Wird bei jedem Render aufgerufen — versteckt sich automatisch wenn User nicht eingeloggt.
+function updateUserBar() {
+  const bar = document.getElementById('userBar');
+  if (!bar) return;
+  if (!state.loggedIn || !APP_KEYS.user) {
+    bar.classList.remove('user-bar--shown');
+    document.body.classList.remove('has-user-bar');
+    bar.innerHTML = '';
+    return;
+  }
+  const u = APP_KEYS.user;
+  const name = u.name || 'User';
+  const admin = isAdmin();
+  bar.classList.add('user-bar--shown');
+  document.body.classList.add('has-user-bar');
+  bar.innerHTML = `
+    <div class="user-bar__user">
+      ${svg('user', 11, 2.4)}
+      <span class="user-bar__name">${String(name).replace(/</g, '&lt;')}</span>
+      <span class="user-bar__role ${admin ? 'user-bar__role--admin' : ''}">${admin ? 'Admin' : 'User'}</span>
+    </div>
+    <span class="user-bar__version">${APP_VERSION}</span>
+  `;
+}
+
 function render() {
   const app = document.getElementById('app');
   if (!app) return;
+  updateUserBar();
 
   // Auth-Gate: vor erfolgreichem Login werden ausschlie\u00dflich Boot/Login angezeigt
   if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
@@ -4636,9 +4685,12 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'quick-loc-clear': if (state.quickLocDraft) { state.quickLocDraft[btn.dataset.target] = ''; render(); } break;
-    case 'loc-add-start': state.locAddingFor = btn.dataset.target; state.locAddDraft = ''; render(); break;
+    case 'loc-add-start':
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
+      state.locAddingFor = btn.dataset.target; state.locAddDraft = ''; render(); break;
     case 'loc-add-cancel': state.locAddingFor = null; state.locAddDraft = ''; render(); break;
     case 'loc-add-save': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
       const v = (state.locAddDraft || '').trim();
       const draft = getActiveLocDraft();
       let changed = false;
@@ -4656,6 +4708,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'loc-manage-toggle': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
       const target = btn.dataset.target;
       state.locManageMode = state.locManageMode === target ? null : target;
       state.locAddingFor = null;
@@ -4664,6 +4717,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'loc-remove-hall': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
       const h = btn.dataset.val;
       state.halls = state.halls.filter(x => x !== h);
       const draft = getActiveLocDraft();
@@ -4680,6 +4734,7 @@ document.addEventListener('click', (e) => {
     }
     /* Hallen-Foto: Tap auf Karte im Verwalten-Modus → Datei-Picker öffnen */
     case 'hall-photo-pick': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
       const hallName = btn.dataset.hall || btn.dataset.val;
       if (!hallName) break;
       state._hallPhotoPickFor = hallName; // welche Halle bekommt das nächste Foto
@@ -4687,6 +4742,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'loc-remove-shelf': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
       const s = btn.dataset.val;
       state.shelves = state.shelves.filter(x => x !== s);
       const draft = getActiveLocDraft();
