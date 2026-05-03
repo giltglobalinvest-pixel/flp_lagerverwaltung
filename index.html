@@ -414,7 +414,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.8.4';
+const APP_VERSION = 'v1.8.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -707,7 +707,13 @@ async function _scanLabelViaAI(file) {
 
 - "tracker": die Tracker-Nummer / Seriennummer / Artikel-ID, die als Text auf dem Etikett steht. Falls die Nummer mit einem Präfix wie "#" oder "Nr." dargestellt ist (z.B. "#12696"), gib NUR die Ziffern/Buchstaben zurück OHNE dieses Präfix (also "12696"). Wenn mehrere Nummern sichtbar sind, nimm die, die zum QR-Code gehört (i.d.R. direkt daneben oder darunter).
 
-- "url": NUR die URL die im QR-Code codiert ist — also der eigentliche Inhalt des QR-Codes. Du musst dafür den QR-Code selbst lesen. WICHTIG: Eine URL die als gedruckter Text auf dem Etikett steht (z.B. "aufzug-umrichter.de") zählt NICHT — die ignorierst du. Nur wenn du den QR-Code selbst dekodieren kannst und er eine URL enthält. Wenn der QR-Code nicht lesbar oder kein QR vorhanden ist, gib leeren String "" zurück.
+- "url": NUR die URL die im QR-Code codiert ist — also der eigentliche Inhalt des QR-Codes. Du musst dafür den QR-Code selbst dekodieren (die schwarz-weißen Pixel-Module lesen).
+
+  ❌ FALSCH: Eine URL die als gedruckter Text auf dem Etikett steht (z.B. "aufzug-umrichter.de", "flp-lager.de", Hotline-Nummern, Marketing-Domains) ist NIE die QR-URL. Die ignorierst du komplett. Auch wenn du keine andere URL findest — gib lieber "" zurück als die Text-URL zu nehmen.
+
+  ✅ RICHTIG: QR-Codes auf Tracker-Etiketten kodieren typischerweise URLs wie "https://trackers.litelead.xyz/flp/12696" oder "https://example.com/track/abc123" — also Domains, die in der Regel NICHT als sichtbarer Text auf dem Etikett stehen.
+
+  Wenn du den QR-Code nicht selbst dekodieren kannst (zu klein, unscharf, abgeschnitten), gib leeren String "" zurück. NIE raten und NIE die Text-URL als Fallback nehmen.
 
 Wenn etwas nicht erkennbar ist, gib einen leeren String "" zurück.
 
@@ -725,16 +731,53 @@ Antwortformat exakt (kein anderer Text):
   }
 }
 
+// Liste von Marketing-/Text-URLs die typisch als Etikett-Aufdruck vorkommen, aber NIE QR-Inhalt sind.
+// Wird genutzt um AI-Falschtreffer zu filtern.
+const _LABEL_TEXT_URL_BLOCKLIST = [
+  'aufzug-umrichter.de', 'aufzug-umrichter.com',
+  'flp-lager.de', 'flp-shop.com',
+];
+function _isProbablyLabelTextUrl(url) {
+  if (!url) return false;
+  try {
+    const host = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.toLowerCase();
+    return _LABEL_TEXT_URL_BLOCKLIST.some(b => host === b || host.endsWith('.' + b));
+  } catch (e) { return false; }
+}
+
+// Versucht eine Tracker-Nummer aus einer QR-URL zu ziehen (häufiges Muster: .../flp/12696 oder ?id=12696).
+function _extractTrackerFromUrl(url) {
+  if (!url) return null;
+  // Pfad-Ende wie /flp/12696 oder /track/abc123
+  const path = url.match(/\/([A-Za-z0-9_-]{3,})\/?(?:\?|$)/);
+  if (path && /^\d{3,}$/.test(path[1])) return path[1];
+  // Query-Parameter id, tracker, t
+  const q = url.match(/[?&](?:id|tracker|t)=([A-Za-z0-9_-]{3,})/i);
+  if (q) return q[1];
+  return null;
+}
+
 // Hauptfunktion: scannt ein File und liefert {tracker, trackerUrl}.
 async function scanLabelFromFile(file) {
   if (!file) return { tracker: null, trackerUrl: null };
   // Parallel: BarcodeDetector + AI-OCR
   const [qrUrl, ai] = await Promise.all([_decodeQRFromFile(file), _scanLabelViaAI(file)]);
-  return {
-    tracker: ai.tracker,
-    // QR vom nativen Detector hat Vorrang (zuverlässiger), AI-Fallback falls Detector leer
-    trackerUrl: qrUrl || ai.url,
-  };
+
+  // URL bestimmen: Native QR-Decoder hat absolute Priorität (zuverlässig).
+  // AI-URL nur wenn Detector leer UND es sich nicht um eine bekannte Marketing-Text-URL handelt.
+  let trackerUrl = qrUrl || null;
+  if (!trackerUrl && ai.url && !_isProbablyLabelTextUrl(ai.url)) {
+    trackerUrl = ai.url;
+  }
+
+  // Tracker bestimmen: AI-Tracker hat Vorrang. Falls leer, aus URL extrahieren.
+  let tracker = ai.tracker || null;
+  if (!tracker && trackerUrl) {
+    const extracted = _extractTrackerFromUrl(trackerUrl);
+    if (extracted) tracker = extracted;
+  }
+
+  return { tracker, trackerUrl };
 }
 
 // Holt ein bereits hochgeladenes Foto (Airtable-URL) als File zurück, damit es gescannt werden kann.
