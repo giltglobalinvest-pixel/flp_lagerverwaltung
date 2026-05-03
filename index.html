@@ -414,7 +414,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.8.6';
+const APP_VERSION = 'v1.8.7';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2038,6 +2038,19 @@ const funcPill = (k) => {
   return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${c.short}</span>`;
 };
 
+// Liefert die passende Foto-URL für ein Anzeige-Element. Airtable-Anhänge haben automatisch
+// 3 Thumbnail-Größen (small ~36px, large ~512px) — die nutzen wir für Listen + Hero, statt
+// jedesmal das volle 1600px-Bild zu laden. Spart auf Mobilfunk extrem viel Bandbreite.
+//   p     = ein Eintrag aus it.photo[] ODER ein Item-Objekt (nimmt dann photo[0])
+//   size  = 'small' | 'large' | 'full'  (default 'small')
+const photoSrc = (p, size = 'small') => {
+  if (!p) return null;
+  // Wenn ein Item übergeben wurde: erstes Foto nehmen
+  if (p.photo && Array.isArray(p.photo)) p = p.photo[0];
+  if (!p) return null;
+  return p.thumbnails?.[size]?.url || p.url || null;
+};
+
 // Tracker-Badge: zeigt #-Nummer prominent. Wenn URL vorhanden → klickbar (öffnet im neuen Tab).
 const trackerChip = (it, opts = {}) => {
   if (!it?.tracker && !it?.trackerUrl) return '';
@@ -2055,7 +2068,7 @@ const trackerChip = (it, opts = {}) => {
 const itemCard = (it, opts = {}) => `
 <button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-    ${it.photoUrl ? `<img src="${it.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 22, 2.2)}
+    ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">` : svg('package', 22, 2.2)}
     <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
   </div>
   <div class="item-card__body">
@@ -2251,7 +2264,7 @@ function renderHome() {
         [...inventory].sort((a,b) => Date.parse(b.updated || 0) - Date.parse(a.updated || 0)).slice(0, 3).map(it => `
           <button class="compact-item" data-action="select-item" data-id="${it.id}">
             <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-              ${it.photoUrl ? `<img src="${it.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 19, 2.2)}
+              ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">` : svg('package', 19, 2.2)}
               <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
             </div>
             <div class="compact-item__body">
@@ -2589,7 +2602,7 @@ function renderDetail() {
       const cur = photos[idx];
       return `
         <div class="hero-image hero-image--photo">
-          <img src="${cur.url}" alt="" class="hero-image__img">
+          <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
           ${photos.length > 1 ? `
             <button class="gallery-nav gallery-nav--prev" data-action="gallery-prev" ${idx === 0 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
             <button class="gallery-nav gallery-nav--next" data-action="gallery-next" ${idx === photos.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
@@ -2822,7 +2835,7 @@ function renderEdit() {
       return `
         <div class="hero-image ${cur ? 'hero-image--photo' : ''}">
           ${cur
-            ? `<img src="${cur.url}" alt="" class="hero-image__img">`
+            ? `<img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">`
             : `<div class="hero-image__circle">${svg('package', 48, 1.8)}</div>`}
           <input type="file" id="editPhotoInput" accept="image/*" capture="environment" class="photo-input" data-action="edit-photo-picked">
           <input type="file" id="editPhotoGallery" accept="image/*" class="photo-input" data-action="edit-photo-picked">
@@ -2832,7 +2845,7 @@ function renderEdit() {
         <div class="photo-strip">
           ${photos.map((p, i) => `
             <div class="photo-strip__item ${i === idx ? 'photo-strip__item--active' : ''}">
-              <button class="photo-strip__thumb" data-action="gallery-goto" data-idx="${i}" style="background-image:url('${p.url}')">
+              <button class="photo-strip__thumb" data-action="gallery-goto" data-idx="${i}" style="background-image:url('${photoSrc(p, 'small')}')">
                 ${i === 0 ? `<span class="photo-strip__primary">${svg('check', 9, 3)} Haupt</span>` : ''}
               </button>
               <div class="photo-strip__actions">
