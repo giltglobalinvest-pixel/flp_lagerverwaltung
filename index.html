@@ -241,6 +241,15 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .hall-card__name{padding:6px 8px;font-size:11.5px;font-weight:600;color:var(--c-ink);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 .hall-card__remove{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--c-red);color:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:2}
 .hall-card__remove:active{filter:brightness(.92)}
+.hall-card__rename-btn{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:rgba(36,86,229,0.95);color:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:2}
+.hall-card__rename-btn:active{filter:brightness(.92)}
+.hall-card--renaming{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.hall-card__rename{padding:6px 6px 8px;display:flex;flex-direction:column;gap:5px}
+.hall-card__rename input{width:100%;padding:6px 8px;background:var(--c-surface);border:1.5px solid var(--c-blue);border-radius:8px;font-size:11.5px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit;text-align:center}
+.hall-card__rename-actions{display:flex;gap:5px}
+.hall-card__rename-actions>button{flex:1;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;border:0}
+.hall-card__rename-actions>button[data-action="hall-rename-save"]{background:var(--c-blue);color:#fff}
+.hall-card__rename-actions>button[data-action="hall-rename-cancel"]{background:var(--c-surface-alt);color:var(--c-ink-mute)}
 
 /* Tracker-Tile im Detail-Screen — prominente Anzeige von Nummer + QR-Link */
 .tracker-tile{padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-tile);box-shadow:0 1px 2px rgba(140,90,0,.06);display:flex;flex-direction:column;gap:10px}
@@ -470,7 +479,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.15.1';
+const APP_VERSION = 'v1.15.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1399,6 +1408,7 @@ const state = {
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
+  locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
   catAdding: false, catAddDraft: '', catManageMode: false,
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
@@ -1675,6 +1685,61 @@ function companyToFields(c, apiKey) {
     created: c._created || nowIso(),
     api_key: apiKey,
   };
+}
+
+// Benennt eine Halle um: aktualisiert state.halls, den Halls-Foto-Record (falls vorhanden),
+// die Company-Tabelle (halls JSON), und alle Items in dieser Firma deren loc auf die alte Halle zeigt.
+async function renameHallEverywhere(oldName, newName) {
+  oldName = String(oldName).trim();
+  newName = String(newName).trim();
+  if (!oldName || !newName || oldName === newName) return;
+  if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); return; }
+  const c = state.company;
+  if (!c) { showToast('Keine Firma aktiv', 'error'); return; }
+  if ((state.halls || []).includes(newName)) {
+    showToast('Halle „' + newName + '" existiert bereits', 'error', 2800);
+    return;
+  }
+  setLoading(true, 'Halle wird umbenannt …');
+  try {
+    // 1) state.halls Array updaten (Reihenfolge erhalten)
+    state.halls = (state.halls || []).map(h => h === oldName ? newName : h);
+
+    // 2) hallPhotos-Map umtaggen + Halls-Tabelle patchen wenn Record existiert
+    const hp = state.hallPhotos?.[oldName];
+    if (hp) {
+      delete state.hallPhotos[oldName];
+      state.hallPhotos[newName] = { ...hp, name: newName };
+      if (hp._recordId) {
+        try { await airUpdate(TBL_HALLS, hp._recordId, { name: newName }); } catch (e) { /* lokal trotzdem behalten */ }
+      }
+    }
+
+    // 3) Companies-Tabelle: halls JSON persistieren
+    setLoading(true, 'Firmen-Daten werden aktualisiert …');
+    await persistCompanyHallsShelves(c);
+
+    // 4) Items mit alter Halle in loc-String umtaggen
+    const affected = (c.inventory || []).filter(it => {
+      const p = parseLoc(it.loc);
+      return p.hall === oldName;
+    });
+    if (affected.length > 0) {
+      setLoading(true, `${affected.length} Artikel werden umgetaggt …`);
+      for (const it of affected) {
+        const p = parseLoc(it.loc);
+        p.hall = newName;
+        it.loc = buildLoc(p);
+        try { await airUpdate(TBL_ITEMS, it._recordId, { loc: it.loc }); } catch (e) { /* nächster */ }
+      }
+    }
+    showToast(`Halle umbenannt: „${oldName}" → „${newName}"${affected.length ? ` · ${affected.length} Artikel mit angepasst` : ''}`, 'success', 3000);
+  } catch (e) {
+    showToast('Umbenennen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
 }
 
 // Lädt ein Foto für eine Halle hoch — legt den Halls-Record bei Bedarf an, optimiert das Bild vorher.
@@ -2592,16 +2657,30 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
             const hp = state.hallPhotos?.[o];
             const thumbUrl = hp?.photo ? (hp.photo.thumbnails?.small?.url || hp.photo.url) : null;
             const removeAction = 'loc-remove-hall';
+            const isRenaming = isManaging && state.locRenamingHall === o;
             return `
-              <div class="hall-card ${active ? 'hall-card--active' : ''} ${isManaging ? 'hall-card--manage' : ''}">
-                <button class="hall-card__photo" data-action="${isManaging ? 'hall-photo-pick' : setAction}" data-val="${ev}" data-hall="${ev}" title="${isManaging ? 'Foto setzen / ändern' : ev}">
+              <div class="hall-card ${active ? 'hall-card--active' : ''} ${isManaging ? 'hall-card--manage' : ''} ${isRenaming ? 'hall-card--renaming' : ''}">
+                <button class="hall-card__photo" data-action="${isManaging ? 'hall-photo-pick' : setAction}" data-val="${ev}" data-hall="${ev}" ${isRenaming ? 'disabled' : ''} title="${isManaging ? 'Foto setzen / ändern' : ev}">
                   ${thumbUrl
                     ? `<img src="${thumbUrl}" alt="" loading="lazy" decoding="async">`
                     : `<div class="hall-card__placeholder">${svg(isManaging ? 'camera' : 'image', 22, 2)}</div>`}
-                  ${isManaging ? `<span class="hall-card__edit-badge">${svg('camera', 11, 2.5)}</span>` : ''}
+                  ${(isManaging && !isRenaming) ? `<span class="hall-card__edit-badge">${svg('camera', 11, 2.5)}</span>` : ''}
                 </button>
-                <div class="hall-card__name">${o}</div>
-                ${isManaging ? `<button class="hall-card__remove" data-action="${removeAction}" data-val="${ev}" title="Halle löschen">${svg('x', 11, 2.8)}</button>` : ''}
+                ${isRenaming ? `
+                  <div class="hall-card__rename">
+                    <input data-action="hall-rename-input" data-val="${ev}" value="${(state.locRenameDraft || '').replace(/"/g,'&quot;')}" placeholder="Neuer Name" autofocus>
+                    <div class="hall-card__rename-actions">
+                      <button data-action="hall-rename-save" data-val="${ev}" title="Speichern">${svg('check', 12, 3)}</button>
+                      <button data-action="hall-rename-cancel" title="Abbrechen">${svg('x', 12, 2.5)}</button>
+                    </div>
+                  </div>
+                ` : `
+                  <div class="hall-card__name">${o}</div>
+                `}
+                ${(isManaging && !isRenaming) ? `
+                  <button class="hall-card__rename-btn" data-action="hall-rename-start" data-val="${ev}" title="Halle umbenennen">${svg('pencil', 10, 2.5)}</button>
+                  <button class="hall-card__remove" data-action="${removeAction}" data-val="${ev}" title="Halle löschen">${svg('x', 11, 2.8)}</button>
+                ` : ''}
               </div>
             `;
           }).join('')}
@@ -5425,6 +5504,30 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    /* Halle umbenennen */
+    case 'hall-rename-start': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
+      state.locRenamingHall = btn.dataset.val;
+      state.locRenameDraft = btn.dataset.val;
+      render();
+      break;
+    }
+    case 'hall-rename-cancel': {
+      state.locRenamingHall = null;
+      state.locRenameDraft = '';
+      render();
+      break;
+    }
+    case 'hall-rename-save': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
+      const oldName = btn.dataset.val;
+      const newName = (state.locRenameDraft || '').trim();
+      state.locRenamingHall = null;
+      state.locRenameDraft = '';
+      if (!newName || newName === oldName) { render(); break; }
+      renameHallEverywhere(oldName, newName);
+      break;
+    }
     /* Hallen-Foto: Tap auf Karte im Verwalten-Modus → Datei-Picker öffnen */
     case 'hall-photo-pick': {
       if (!isAdmin()) { showToast('Nur Admins dürfen Lagerorte ändern', 'info', 2400); break; }
@@ -5663,6 +5766,7 @@ document.addEventListener('input', (e) => {
   else if (a === 'voice-loc-box') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.box = t.value; }
   else if (a === 'bestand-query') { state.bestandQuery = t.value; render(); }
   else if (a === 'loc-add-input') state.locAddDraft = t.value;
+  else if (a === 'hall-rename-input') state.locRenameDraft = t.value;
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
@@ -5686,6 +5790,12 @@ document.addEventListener('keydown', (e) => {
   if (e.target.dataset?.action === 'manual-search-input' && e.key === 'Enter' && state.query) go('results');
   else if (e.target.dataset?.action === 'loc-add-input' && e.key === 'Enter') {
     document.querySelector('[data-action="loc-add-save"]')?.click();
+  }
+  else if (e.target.dataset?.action === 'hall-rename-input' && e.key === 'Enter') {
+    document.querySelector('[data-action="hall-rename-save"]')?.click();
+  }
+  else if (e.target.dataset?.action === 'hall-rename-input' && e.key === 'Escape') {
+    document.querySelector('[data-action="hall-rename-cancel"]')?.click();
   }
   else if (e.target.dataset?.action === 'cat-add-input' && e.key === 'Enter') {
     document.querySelector('[data-action="cat-add-save"]')?.click();
