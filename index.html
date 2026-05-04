@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.18';
+const APP_VERSION = 'v1.18.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1622,7 +1622,7 @@ const state = {
   testNotes: '', testHasPhoto: false, testChosen: null,
   voicePhase: 'idle', voiceTranscript: '',
   voiceCond: 'neu', voiceFunc: 'untested',
-  voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false },
+  voiceFields: { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
@@ -2358,7 +2358,8 @@ async function saveNewItemFromVoice() {
     company_id: company.id,
     title: name,
     description: state.voiceTranscript || '',
-    maker: (f.maker || '').trim(),
+    // Hersteller dedupen — wenn ähnlicher Name bereits existiert, kanonische Schreibweise nutzen
+    maker: normalizeMakerForSave(f.maker),
     cat: (f.cat || '').trim() || 'Mechanik',
     loc: buildLoc(state.voiceLocDraft || {}),
     cond: state.voiceCond || 'neu',
@@ -2902,7 +2903,8 @@ function renderLocPicker(scope, target, label, options, selectedValue, opts = {}
             const active = !isManaging && selectedValue === o;
             const ev = String(o).replace(/"/g, '&quot;');
             const hp = state.hallPhotos?.[o];
-            const thumbUrl = hp?.photo ? (hp.photo.thumbnails?.small?.url || hp.photo.url) : null;
+            // Halle-Karten brauchen die größere Thumbnail-Variante — small ist nur ~36px hoch und wirkt unscharf
+            const thumbUrl = hp?.photo ? (hp.photo.thumbnails?.large?.url || hp.photo.url) : null;
             const removeAction = 'loc-remove-hall';
             const isRenaming = isManaging && state.locRenamingHall === o;
             return `
@@ -3124,6 +3126,67 @@ function capitalizeFirst(s) {
   return s[0].toUpperCase() + s.slice(1);
 }
 
+// Entfernt Rechtsform-Suffixe (GmbH, AG, Inc, …) am Wortende eines Hersteller-Namens.
+function _stripMakerSuffix(s) {
+  return String(s || '')
+    .replace(/\s+(GmbH(\s*&\s*Co\.?\s*KG)?|AG|Inc\.?|Incorporated|Ltd\.?|Limited|Co\.?|Corp\.?|Corporation|S\.?p\.?A\.?|S\.?A\.?|S\.?L\.?|S\.?r\.?l\.?|N\.?V\.?|B\.?V\.?|LLC|LLP|KG|OHG|UG|e\.?V\.?)\b\.?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Normalisiert einen Hersteller-Namen für Vergleichszwecke:
+// "Ziehl-Abegg" / "ZiehlAbegg" / "Ziehl Abegg GmbH" → alle "ziehlabegg".
+function normalizeMaker(s) {
+  return _stripMakerSuffix(s).toLowerCase().replace(/[\s\-_.,&/]+/g, '');
+}
+
+// Sammelt alle bisher in der Inventory genutzten Hersteller (über alle Firmen) als Strings.
+function getAllKnownMakers() {
+  const all = new Set();
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (it.maker) all.add(it.maker);
+    }
+  }
+  return [...all];
+}
+
+// Sucht im bestehenden Bestand einen Hersteller, dessen Normalisierung mit dem Input übereinstimmt.
+// Liefert die kanonische Schreibweise (= das was bereits in der DB steht) oder null wenn nichts gefunden.
+function findCanonicalMaker(input) {
+  const norm = normalizeMaker(input);
+  if (!norm) return null;
+  for (const m of getAllKnownMakers()) {
+    if (normalizeMaker(m) === norm) return m;
+  }
+  return null;
+}
+
+// Eindeutige Liste bekannter Hersteller — Doppelte (mit unterschiedlicher Schreibung) werden zusammengefasst.
+// Erste gefundene Schreibung gewinnt als Anzeige-Form.
+function getDedupedMakerList() {
+  const map = new Map();
+  for (const m of getAllKnownMakers()) {
+    const k = normalizeMaker(m);
+    if (!k) continue;
+    if (!map.has(k)) map.set(k, m);
+  }
+  return [...map.values()].sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+// Maker normalisieren + kanonisieren beim Speichern eines Items.
+// - Suffixe weg
+// - Match gegen bestehende → bestehende Schreibweise nutzen
+// - Sonst capitalizeFirst
+function normalizeMakerForSave(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const stripped = _stripMakerSuffix(raw);
+  const canonical = findCanonicalMaker(stripped);
+  if (canonical) return canonical;
+  return capitalizeFirst(stripped);
+}
+
 // KI-Vision: liest Bezeichnung, Hersteller und Typenschild-Inhalte aus den Step-2-Fotos.
 // Output für "description" ist eine LISTE (jede Zeile = ein Wert vom Etikett), kein Fließtext.
 // QR-/Tracker-Fotos werden vorab ausgefiltert — die sind für Step 4 zuständig.
@@ -3172,7 +3235,11 @@ Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
     const parsed = parseAIJson(txt);
     let changed = 0;
     if (parsed?.name) { state.voiceFields.name = capitalizeFirst(String(parsed.name).trim()); changed++; }
-    if (parsed?.maker) { state.voiceFields.maker = capitalizeFirst(String(parsed.maker).trim()); changed++; }
+    if (parsed?.maker) {
+      // Dedup gegen bestehende Hersteller — wenn schon eine Variante existiert, übernehmen wir die kanonische Schreibweise
+      state.voiceFields.maker = normalizeMakerForSave(parsed.maker);
+      changed++;
+    }
     if (parsed?.description) {
       // Cleanup: jede Zeile muss "Label: Wert" sein. Bullet-Prefixe weg, leere/inhaltslose Zeilen raus,
       // Wiederholungen vom Modellnamen oder Hersteller filtern.
@@ -3295,6 +3362,19 @@ function renderWizardDesc() {
       <div class="field">
         <label class="field__label">HERSTELLER</label>
         <input class="field__input" data-action="voice-field" data-key="maker" value="${(f.maker || '').replace(/"/g, '&quot;')}" placeholder="z.B. Ziehl-Abegg">
+        ${(() => {
+          const list = getDedupedMakerList();
+          if (list.length === 0) return '';
+          const cur = (f.maker || '').trim();
+          const curNorm = normalizeMaker(cur);
+          return `
+            <div class="chip-row" style="margin-top:6px">
+              ${list.map(m => `
+                <button class="chip ${normalizeMaker(m) === curNorm ? 'chip--active' : ''}" data-action="wiz-pick-maker" data-maker="${m.replace(/"/g, '&quot;')}">${m}</button>
+              `).join('')}
+            </div>
+          `;
+        })()}
       </div>
       <div class="field">
         <label class="field__label">BESCHREIBUNG</label>
@@ -3814,9 +3894,17 @@ function renderBestand() {
   const categories = Object.keys(catCounts).sort();
   const totalHalls = new Set(inventory.map(it => parseLoc(it.loc).hall).filter(Boolean)).size;
 
-  // Aggregate manufacturers
+  // Aggregate manufacturers — Schreibweisen-Varianten werden zusammengefasst (kanonische Form gewinnt)
   const makerCounts = {};
-  inventory.forEach(it => { makerCounts[it.maker] = (makerCounts[it.maker] || 0) + 1; });
+  const makerCanon = {}; // norm -> erste-Schreibweise (kanonisch)
+  inventory.forEach(it => {
+    if (!it.maker) return;
+    const norm = normalizeMaker(it.maker);
+    if (!norm) return;
+    if (!makerCanon[norm]) makerCanon[norm] = it.maker;
+    const canon = makerCanon[norm];
+    makerCounts[canon] = (makerCounts[canon] || 0) + 1;
+  });
   const makers = Object.keys(makerCounts).sort((a, b) => makerCounts[b] - makerCounts[a] || a.localeCompare(b));
 
   // Aggregate conditions
@@ -3832,7 +3920,9 @@ function renderBestand() {
 
   // Apply manufacturer filter
   if (state.bestandMaker && state.bestandMaker !== 'all') {
-    items = items.filter(it => it.maker === state.bestandMaker);
+    // Normalize-Vergleich: matched auch unterschiedliche Schreibweisen ("Ziehl-Abegg" / "ZiehlAbegg" / …)
+    const targetNorm = normalizeMaker(state.bestandMaker);
+    items = items.filter(it => normalizeMaker(it.maker) === targetNorm);
   }
 
   // Apply condition filter
@@ -4369,6 +4459,19 @@ function renderEdit() {
         <div class="field">
           <label class="field__label">HERSTELLER</label>
           <input class="field__input" data-action="edit-field" data-key="maker" value="${f.maker.replace(/"/g, '&quot;')}" style="font-size:14px">
+          ${(() => {
+            const list = getDedupedMakerList();
+            if (list.length === 0) return '';
+            const cur = (f.maker || '').trim();
+            const curNorm = normalizeMaker(cur);
+            return `
+              <div class="chip-row" style="margin-top:6px">
+                ${list.map(m => `
+                  <button class="chip ${normalizeMaker(m) === curNorm ? 'chip--active' : ''}" data-action="edit-pick-maker" data-maker="${m.replace(/"/g, '&quot;')}">${m}</button>
+                `).join('')}
+              </div>
+            `;
+          })()}
         </div>
       </div>
     </div>
@@ -4608,7 +4711,7 @@ function renderDashboard() {
   // Filter-Pipeline (Kategorie / Hersteller)
   const matchesFilters = (it) => {
     if (catFilter !== 'all' && it.cat !== catFilter) return false;
-    if (makerFilter !== 'all' && it.maker !== makerFilter) return false;
+    if (makerFilter !== 'all' && normalizeMaker(it.maker) !== normalizeMaker(makerFilter)) return false;
     return true;
   };
   const visible = items.filter(matchesFilters);
@@ -4640,7 +4743,17 @@ function renderDashboard() {
   const recentAdded = [...visible].sort((a,b) => Date.parse(b.created || 0) - Date.parse(a.created || 0)).slice(0, 6);
 
   const allCats = state.categories || [];
-  const allMakers = [...new Set(items.map(it => it.maker).filter(Boolean))].sort();
+  // Hersteller dedupen — gleiche Marken in unterschiedlicher Schreibweise zählen als eine
+  const allMakers = (() => {
+    const map = new Map();
+    for (const it of items) {
+      if (!it.maker) continue;
+      const norm = normalizeMaker(it.maker);
+      if (!norm || map.has(norm)) continue;
+      map.set(norm, it.maker);
+    }
+    return [...map.values()].sort((a, b) => a.localeCompare(b, 'de'));
+  })();
 
   const rangeLabel = { today: 'Heute', '7d': '7 Tage', '30d': '30 Tage', all: 'Alle Zeit' }[range];
 
@@ -5964,7 +6077,7 @@ function go(view) {
     // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
     state.voicePhase = 'idle';
     state.voiceTranscript = '';
-    state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false };
+    state.voiceFields = { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
     state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
     (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
     state.voicePhotoFiles = [];
@@ -6122,7 +6235,7 @@ document.addEventListener('click', (e) => {
     /* ====== Wizard ====== */
     case 'wizard-start': {
       // Anlege-State sauber resetten (analog zu go() für Schritt 1)
-      state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false };
+      state.voiceFields = { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
       state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
       state.voiceCond = 'neu';
       state.voiceFunc = 'untested';
@@ -6215,6 +6328,17 @@ document.addEventListener('click', (e) => {
     }
     /* Step 3 — KI extrahiert Beschreibung aus Fotos */
     case 'wiz-extract-desc': extractDescriptionFromPhotos(); break;
+    /* Maker-Vorschlag in Step 3 oder Edit-Screen anwenden */
+    case 'wiz-pick-maker': {
+      state.voiceFields.maker = btn.dataset.maker || '';
+      render();
+      break;
+    }
+    case 'edit-pick-maker': {
+      if (state.editForm) state.editForm.maker = btn.dataset.maker || '';
+      render();
+      break;
+    }
     /* Step 3 — Foto-Vorschau (Lightbox) */
     case 'wiz-preview-photo': {
       const i = +btn.dataset.idx;
@@ -6325,6 +6449,8 @@ document.addEventListener('click', (e) => {
         const n = parseFloat(String(f.vp).replace(',', '.'));
         f.vp = isNaN(n) ? null : Math.max(0, n);
       }
+      // Hersteller dedupen — wenn schon eine ähnliche Schreibweise im Bestand, übernehmen
+      if (f.maker) f.maker = normalizeMakerForSave(f.maker);
       // Sold-Trigger: erst beim Speichern feuern (nicht beim Toggle, damit Cancel keinen falschen Push auslöst)
       const justSold = f.sold && !f._wasSold;
       const { locDraft, _wasSold, ...saveData } = f;
