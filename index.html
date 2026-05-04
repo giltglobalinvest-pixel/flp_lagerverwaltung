@@ -580,7 +580,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.21';
+const APP_VERSION = 'v1.22';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3393,6 +3393,140 @@ function findCanonicalTitle(input, maker) {
   return null;
 }
 
+// ===== Stammdaten-Cleanup =====
+// Findet Hersteller-Doubletten in der Inventory: gleiche Normalisierung, mehrere Schreibweisen.
+// Liefert Array von { norm, canonical, variants: [{name, count}] }, sortiert nach Größe.
+function findMakerDuplicates() {
+  const groups = {};
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (!it.maker) continue;
+      const norm = normalizeMaker(it.maker);
+      if (!norm) continue;
+      groups[norm] = groups[norm] || {};
+      groups[norm][it.maker] = (groups[norm][it.maker] || 0) + 1;
+    }
+  }
+  const dupes = [];
+  for (const [norm, variants] of Object.entries(groups)) {
+    const names = Object.keys(variants);
+    if (names.length < 2) continue;
+    // Kanonisch = die meist-genutzte Schreibweise
+    const sorted = names.sort((a, b) => variants[b] - variants[a] || a.localeCompare(b));
+    dupes.push({
+      norm,
+      canonical: sorted[0],
+      variants: sorted.map(n => ({ name: n, count: variants[n] })),
+      totalAffected: sorted.slice(1).reduce((s, n) => s + variants[n], 0),
+    });
+  }
+  return dupes.sort((a, b) => b.totalAffected - a.totalAffected);
+}
+
+// Findet Modell-/Title-Doubletten innerhalb desselben (normalisierten) Herstellers.
+function findModelDuplicates() {
+  const groups = {};
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (!it.title) continue;
+      const tNorm = normalizeTitle(it.title);
+      if (!tNorm) continue;
+      const mNorm = normalizeMaker(it.maker || '');
+      const key = mNorm + '||' + tNorm;
+      if (!groups[key]) groups[key] = { mNorm, tNorm, makerSample: it.maker || '', titles: {} };
+      groups[key].titles[it.title] = (groups[key].titles[it.title] || 0) + 1;
+    }
+  }
+  const dupes = [];
+  for (const [key, info] of Object.entries(groups)) {
+    const names = Object.keys(info.titles);
+    if (names.length < 2) continue;
+    const sorted = names.sort((a, b) => info.titles[b] - info.titles[a] || a.localeCompare(b));
+    dupes.push({
+      mNorm: info.mNorm,
+      tNorm: info.tNorm,
+      maker: info.makerSample,
+      canonical: sorted[0],
+      variants: sorted.map(n => ({ name: n, count: info.titles[n] })),
+      totalAffected: sorted.slice(1).reduce((s, n) => s + info.titles[n], 0),
+    });
+  }
+  return dupes.sort((a, b) => b.totalAffected - a.totalAffected);
+}
+
+// Merge: alle Items mit Hersteller-Variante außer canonical → canonical.
+async function mergeMakerDuplicates(norm, canonical) {
+  const targets = [];
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (normalizeMaker(it.maker) === norm && it.maker !== canonical) {
+        targets.push(it);
+      }
+    }
+  }
+  if (targets.length === 0) { showToast('Nichts zu vereinigen', 'info', 2000); return; }
+  setLoading(true, `${targets.length} Artikel werden auf „${canonical}" umgetaggt …`);
+  let ok = 0, fail = 0;
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      setLoading(true, `Aktualisiere ${i + 1} / ${targets.length} …`);
+      const it = targets[i];
+      const oldMaker = it.maker;
+      it.maker = canonical;
+      try {
+        await airUpdate(TBL_ITEMS, it._recordId, { maker: canonical });
+        ok++;
+      } catch (e) {
+        // Bei Fehler lokal zurückrollen
+        it.maker = oldMaker;
+        fail++;
+      }
+    }
+    if (fail === 0) showToast(`${ok} Artikel auf „${canonical}" vereinigt`, 'success', 2800);
+    else showToast(`${ok} aktualisiert, ${fail} fehlgeschlagen`, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Merge: alle Items mit Title-Variante (im selben Hersteller-Scope) außer canonical → canonical.
+async function mergeModelDuplicates(mNorm, tNorm, canonical) {
+  const targets = [];
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (normalizeMaker(it.maker || '') === mNorm
+          && normalizeTitle(it.title) === tNorm
+          && it.title !== canonical) {
+        targets.push(it);
+      }
+    }
+  }
+  if (targets.length === 0) { showToast('Nichts zu vereinigen', 'info', 2000); return; }
+  setLoading(true, `${targets.length} Artikel werden auf „${canonical}" umgetaggt …`);
+  let ok = 0, fail = 0;
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      setLoading(true, `Aktualisiere ${i + 1} / ${targets.length} …`);
+      const it = targets[i];
+      const oldTitle = it.title;
+      it.title = canonical;
+      try {
+        await airUpdate(TBL_ITEMS, it._recordId, { title: canonical });
+        ok++;
+      } catch (e) {
+        it.title = oldTitle;
+        fail++;
+      }
+    }
+    if (fail === 0) showToast(`${ok} Artikel auf „${canonical}" vereinigt`, 'success', 2800);
+    else showToast(`${ok} aktualisiert, ${fail} fehlgeschlagen`, 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
 // Title-Save-Helper: kanonische Schreibung verwenden falls existent.
 function normalizeTitleForSave(input, maker) {
   const raw = String(input || '').trim();
@@ -5288,6 +5422,72 @@ function renderDashboard() {
       </div>
     ` : ''}
 
+    <!-- Stammdaten-Cleanup: nur sichtbar wenn Doubletten erkannt -->
+    ${(() => {
+      const makerDupes = findMakerDuplicates();
+      const modelDupes = findModelDuplicates();
+      const totalDupes = makerDupes.length + modelDupes.length;
+      if (totalDupes === 0) return '';
+      return `
+        <div>
+          <div class="section-head">
+            <h2 class="section-head__title">${svg('sparkles', 13, 2.5)} Stammdaten bereinigen</h2>
+            <span class="pill pill--amber">${totalDupes} ${totalDupes === 1 ? 'Verdacht' : 'Verdachtsfälle'}</span>
+          </div>
+          <div class="hint-banner" style="background:rgba(245,158,11,0.10);color:#7C4A06;margin-bottom:8px;font-size:11.5px">
+            ${svg('alert-triangle', 12, 2.4)} Gleicher Eintrag in unterschiedlicher Schreibweise gefunden. Mit einem Klick zusammenführen — alle betroffenen Artikel werden aktualisiert.
+          </div>
+          <div class="tile" style="padding:0;overflow:hidden">
+            ${makerDupes.length > 0 ? `
+              <div style="padding:12px 14px;border-bottom:1px solid var(--c-divider)">
+                <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Hersteller · ${makerDupes.length}</div>
+                <div style="display:flex;flex-direction:column;gap:14px">
+                  ${makerDupes.map(g => `
+                    <div>
+                      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+                        ${g.variants.map(v => `
+                          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px">
+                            <span style="${v.name === g.canonical ? 'font-weight:700;color:var(--c-blue-deep)' : 'color:var(--c-ink-soft)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.name === g.canonical ? svg('badge-check', 10, 2.5) + ' ' : ''}${v.name}</span>
+                            <span style="font-family:var(--f-mono);font-size:11px;font-weight:600;color:var(--c-ink-mute);flex-shrink:0">${v.count} ${v.count === 1 ? 'Art.' : 'Art.'}</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                      <button data-action="cleanup-merge-maker" data-norm="${g.norm.replace(/"/g, '&quot;')}" data-canonical="${g.canonical.replace(/"/g, '&quot;')}" style="width:100%;padding:9px;background:var(--c-blue);color:#fff;border-radius:10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px">
+                        ${svg('check', 11, 2.8)} Vereinigen unter „${g.canonical}" (${g.totalAffected} Artikel)
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+            ${modelDupes.length > 0 ? `
+              <div style="padding:12px 14px">
+                <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Modelle · ${modelDupes.length}</div>
+                <div style="display:flex;flex-direction:column;gap:14px">
+                  ${modelDupes.map(g => `
+                    <div>
+                      <div style="font-size:10.5px;color:var(--c-ink-mute);margin-bottom:4px">${g.maker || '— ohne Hersteller —'}</div>
+                      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+                        ${g.variants.map(v => `
+                          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px">
+                            <span style="${v.name === g.canonical ? 'font-weight:700;color:var(--c-blue-deep)' : 'color:var(--c-ink-soft)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.name === g.canonical ? svg('badge-check', 10, 2.5) + ' ' : ''}${v.name}</span>
+                            <span style="font-family:var(--f-mono);font-size:11px;font-weight:600;color:var(--c-ink-mute);flex-shrink:0">${v.count} ${v.count === 1 ? 'Art.' : 'Art.'}</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                      <button data-action="cleanup-merge-model" data-mnorm="${g.mNorm.replace(/"/g, '&quot;')}" data-tnorm="${g.tNorm.replace(/"/g, '&quot;')}" data-canonical="${g.canonical.replace(/"/g, '&quot;')}" style="width:100%;padding:9px;background:var(--c-blue);color:#fff;border-radius:10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px">
+                        ${svg('check', 11, 2.8)} Vereinigen unter „${g.canonical}" (${g.totalAffected} Artikel)
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    })()}
+
     <!-- Kategorie-Verteilung im Lager -->
     <div>
       <div class="section-head">
@@ -7054,6 +7254,23 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
+    case 'cleanup-merge-maker': {
+      if (!isAdmin()) { showToast('Nur Admins', 'info', 2200); break; }
+      const norm = btn.dataset.norm;
+      const canonical = btn.dataset.canonical;
+      if (!norm || !canonical) break;
+      mergeMakerDuplicates(norm, canonical);
+      break;
+    }
+    case 'cleanup-merge-model': {
+      if (!isAdmin()) { showToast('Nur Admins', 'info', 2200); break; }
+      const mNorm = btn.dataset.mnorm || '';
+      const tNorm = btn.dataset.tnorm;
+      const canonical = btn.dataset.canonical;
+      if (!tNorm || !canonical) break;
+      mergeModelDuplicates(mNorm, tNorm, canonical);
+      break;
+    }
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
     case 'go-photo-search': go('photoSearch'); break;
