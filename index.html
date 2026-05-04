@@ -119,14 +119,23 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .search-input input{width:100%;padding:14px 16px 14px 44px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:16px;box-shadow:var(--elev-1);font-size:14px;font-weight:500;color:var(--c-ink)}
 .search-input__icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center}
 
-/* Großes Such-Input + Live-Ergebnisse auf Home */
-.home-search{position:relative;margin-bottom:14px}
-.home-search__input{width:100%;padding:16px 44px 16px 50px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-1);font-size:15.5px;font-weight:500;color:var(--c-ink);outline:none;transition:border-color .15s, box-shadow .15s}
-.home-search__input:focus{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
-.home-search__input::placeholder{color:var(--c-ink-subtle);font-weight:500}
-.home-search__icon{position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center;pointer-events:none}
-.home-search__clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;border:0;cursor:pointer}
-.home-search__clear:active{filter:brightness(.95)}
+/* Such-Hero: blaue Kachel mit eingebautem Such-Input */
+.hero--search{cursor:default}
+.hero--search:active{transform:none}
+.hero__search{position:relative;margin-top:14px}
+.hero__search-input{width:100%;padding:13px 40px 13px 42px;background:rgba(255,255,255,0.96);border:0;border-radius:14px;box-shadow:0 4px 12px rgba(15,24,48,0.18);font-size:14.5px;font-weight:500;color:var(--c-ink);outline:none}
+.hero__search-input::placeholder{color:var(--c-ink-subtle);font-weight:500}
+.hero__search-input:focus{box-shadow:0 6px 18px rgba(15,24,48,0.28)}
+.hero__search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center;pointer-events:none;z-index:1}
+.hero__search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;border:0;cursor:pointer;z-index:1}
+.hero__search-clear:active{filter:brightness(.95)}
+
+/* Home-Filter (Zustand + Funktion) — kompakte Chip-Reihen */
+.home-filters{display:flex;flex-direction:column;gap:8px;margin-top:14px;margin-bottom:14px}
+.home-filters__row{display:flex;flex-direction:column;gap:5px}
+.home-filters__label{font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px}
+
+/* Live-Ergebnisliste */
 .home-results{margin-bottom:14px}
 .home-results__head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px;gap:10px}
 .home-results__count{font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--c-ink-soft);text-transform:uppercase;letter-spacing:.05em}
@@ -561,7 +570,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.20';
+const APP_VERSION = 'v1.20.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1656,6 +1665,7 @@ const state = {
   photoSearchRanked: null,         // Cache der gescorten Items für Schwellen-Anpassung ohne neuen API-Call
   photoSearchRelaxed: false,       // true = lockere Schwellen aktiv
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandModel: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
+  homeFilterCond: 'all', homeFilterFunc: 'all',     // Filter im Home-Such-Bereich
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
   locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
@@ -3971,17 +3981,25 @@ async function snapTrackerFromCamera() {
 
 function renderHome() {
   const q = (state.query || '').trim();
-  // Live-Suche: nur evaluieren wenn Eingabe da ist, dann tolerant filtern
+  const condF = state.homeFilterCond || 'all';
+  const funcF = state.homeFilterFunc || 'all';
+  const hasFilter = condF !== 'all' || funcF !== 'all';
+  const isSearching = q.length > 0 || hasFilter;
+  // Live-Suche: nur evaluieren wenn Eingabe / Filter aktiv
   let liveResults = [];
-  if (q) {
+  if (isSearching) {
     liveResults = inventory.filter(it => {
-      const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
-      return searchMatch(q, hay);
+      if (q) {
+        const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
+        if (!searchMatch(q, hay)) return false;
+      }
+      if (condF !== 'all' && it.cond !== condF) return false;
+      if (funcF !== 'all' && it.func !== funcF) return false;
+      return true;
     });
   }
   const totalLive = liveResults.length;
   const topLive = liveResults.slice(0, 5);
-  const isSearching = q.length > 0;
   return `
 <div class="screen">
   <div class="header">
@@ -3995,21 +4013,53 @@ function renderHome() {
     <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
   </div>
   <div class="scroll">
-    <!-- Großes Such-Input — autofokus, tolerante Live-Suche -->
-    <div class="home-search">
-      <span class="home-search__icon">${svg('search', 18, 2.4)}</span>
-      <input
-        type="text"
-        class="home-search__input"
-        placeholder="Suchen — Modell, Hersteller, Tracker, Lagerort …"
-        data-action="manual-search-input"
-        value="${q.replace(/"/g, '&quot;')}"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false">
-      ${q ? `<button class="home-search__clear" data-action="search-clear" title="Suche leeren">${svg('x', 14, 2.6)}</button>` : ''}
+    <!-- Blaue Such-Kachel — enthält das Suchfeld direkt -->
+    <div class="hero hero--search">
+      <div class="hero__head">
+        <div class="pill pill--ghost">${svg('search', 11, 2.5)} Suche</div>
+      </div>
+      <h1 class="hero__title">Was suchst<br>du heute?</h1>
+      <div class="hero__search">
+        <span class="hero__search-icon">${svg('search', 16, 2.4)}</span>
+        <input
+          type="text"
+          class="hero__search-input"
+          placeholder="Modell, Hersteller, Tracker, Lagerort …"
+          data-action="manual-search-input"
+          value="${q.replace(/"/g, '&quot;')}"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false">
+        ${q ? `<button class="hero__search-clear" data-action="search-clear" title="Suche leeren">${svg('x', 13, 2.6)}</button>` : ''}
+      </div>
     </div>
+
+    ${isSearching ? `
+      <!-- Filter-Chips: Zustand + Funktion -->
+      <div class="home-filters">
+        <div class="home-filters__row">
+          <span class="home-filters__label">Zustand</span>
+          <div class="chip-row">
+            <button class="chip ${condF === 'all' ? 'chip--active' : ''}" data-action="home-filter-cond" data-cond="all">Alle</button>
+            ${CONDITION_KEYS.map(k => {
+              const cfg = CONDITION[k];
+              return `<button class="chip ${condF === k ? 'chip--active' : ''}" data-action="home-filter-cond" data-cond="${k}">${svg(cfg.icon, 10, 2.5)} ${cfg.label}</button>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="home-filters__row">
+          <span class="home-filters__label">Funktion</span>
+          <div class="chip-row">
+            <button class="chip ${funcF === 'all' ? 'chip--active' : ''}" data-action="home-filter-func" data-func="all">Alle</button>
+            ${FUNCTION_KEYS.map(k => {
+              const cfg = FUNCTION_STATUS[k];
+              return `<button class="chip ${funcF === k ? 'chip--active' : ''}" data-action="home-filter-func" data-func="${k}">${svg(cfg.icon, 10, 2.5)} ${cfg.short || cfg.label}</button>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    ` : ''}
 
     ${isSearching ? `
       <!-- Live-Suchergebnisse -->
@@ -6563,7 +6613,7 @@ function go(view) {
   if (view !== 'detail') state.detailTab = 'overview';
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
-  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; }
+  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; state.homeFilterCond = 'all'; state.homeFilterFunc = 'all'; }
   if (view === 'camera') { state.cameraShowLive = true; }
   // Cropper-Cleanup: bei Verlassen des Cropper-Flows Object-URL freigeben
   if (view !== 'cropper' && state.cropper) {
@@ -6728,6 +6778,8 @@ document.addEventListener('click', (e) => {
     case 'go-bestand': go('bestand'); break;
     case 'go-results': if ((state.query || '').trim()) go('results'); break;
     case 'search-clear': state.query = ''; render(); break;
+    case 'home-filter-cond': state.homeFilterCond = btn.dataset.cond || 'all'; render(); break;
+    case 'home-filter-func': state.homeFilterFunc = btn.dataset.func || 'all'; render(); break;
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
 
