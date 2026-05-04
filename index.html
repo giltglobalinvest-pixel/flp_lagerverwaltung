@@ -309,6 +309,9 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .dash-kpi--blue{border-color:rgba(36,86,229,0.25);background:linear-gradient(135deg,#fff 0%,var(--c-blue-soft) 100%)}
 .dash-kpi--red{border-color:rgba(229,72,77,0.25);background:linear-gradient(135deg,#fff 0%,var(--c-red-soft) 100%)}
 .dash-kpi--green{border-color:#8FD4A6;background:linear-gradient(135deg,#fff 0%,#E6F4EA 100%)}
+.dash-kpi--orange{border-color:#FB923C;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%)}
+.dash-kpi--orange .dash-kpi__label{color:#9A3412}
+.dash-kpi--orange .dash-kpi__val{color:#9A3412}
 .dash-kpi__label{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em}
 .dash-kpi__val{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--c-ink);font-variant-numeric:tabular-nums}
 .dash-kpi__sub{font-size:10.5px;font-weight:500;color:var(--c-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -580,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.23';
+const APP_VERSION = 'v1.24';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2945,6 +2948,11 @@ const formatVp = (v) => {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 };
 
+// Service-Tausch: Wartet der Artikel auf eine Rücksendung?
+const isPendingReturn = (it) => !!(it && it.sold && it.saleType === 'service-exchange' && !it.returnedAt);
+// Liste aller offenen Rücksendungen im aktuellen Bestand
+const getPendingReturns = () => (inventory || []).filter(isPendingReturn);
+
 // Liefert kleine Badges für item-card / compact-item:
 //  - Preis-Chip wenn vp gesetzt und (im Shop oder verkauft) — bleibt auch nach Verkauf sichtbar
 //  - "VERKAUFT"-Chip rot wenn sold
@@ -2960,6 +2968,11 @@ const shopBadges = (it, opts = {}) => {
   }
   if (it?.sold) {
     parts.push(`<span class="price-chip ${sm ? 'price-chip--sm' : ''}" style="background:#FDE2E2;color:#9B1C1F;border-color:#F4A6A8">VERKAUFT</span>`);
+  }
+  // Service-Tausch: Rücksendung steht noch aus → oranger Hinweis
+  if (isPendingReturn(it)) {
+    const lbl = sm ? 'RÜCKS.' : 'RÜCKSENDUNG ERWARTET';
+    parts.push(`<span class="price-chip ${sm ? 'price-chip--sm' : ''}" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Service-Tausch: Rücksendung erwartet">${svg('rotate-ccw', sm ? 9 : 10, 2.6)} ${lbl}</span>`);
   }
   return parts.join('');
 };
@@ -4292,10 +4305,21 @@ function renderHome() {
         { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
+        ...((() => {
+          const pr = getPendingReturns();
+          if (pr.length === 0) return [];
+          return [{
+            icon: 'rotate-ccw',
+            title: 'Offene Rücksendungen',
+            sub: `${pr.length} ${pr.length === 1 ? 'Artikel wartet' : 'Artikel warten'} auf Eingang`,
+            action: 'go-pending-returns',
+            orange: true,
+          }];
+        })()),
       ].map(a => `
-        <button class="action-tile ${a.warn ? 'action-tile--warn' : ''}" data-action="${a.action}">
-          <div class="action-tile__icon">${svg(a.icon, 17, 2.4)}</div>
-          <div><h3 class="action-tile__title">${a.title}</h3><div class="action-tile__sub">${a.sub}</div></div>
+        <button class="action-tile ${a.warn ? 'action-tile--warn' : ''}" data-action="${a.action}" ${a.orange ? 'style="background:linear-gradient(135deg,#FFEDD5 0%,#FED7AA 100%);border-color:#FB923C"' : ''}>
+          <div class="action-tile__icon" ${a.orange ? 'style="background:#FB923C;color:#fff"' : ''}>${svg(a.icon, 17, 2.4)}</div>
+          <div><h3 class="action-tile__title" ${a.orange ? 'style="color:#9A3412"' : ''}>${a.title}</h3><div class="action-tile__sub" ${a.orange ? 'style="color:#9A3412"' : ''}>${a.sub}</div></div>
         </button>`).join('')}
     </div>
     <div>
@@ -5366,6 +5390,8 @@ function renderDashboard() {
   const soldAll = visible.filter(it => it.sold);
   const soldInRange = visible.filter(it => it.sold && inRange(it.soldAt));
   const addedInRange = visible.filter(it => inRange(it.created));
+  // Service-Tausch: offene Rücksendungen (gefiltert nach Kat/Maker)
+  const pendingReturnsAll = visible.filter(isPendingReturn);
   const inShopValue = visible.filter(it => it.inShop && !it.sold && it.vp != null).reduce((s, it) => s + it.vp, 0);
   const soldValueInRange = soldInRange.filter(it => it.vp != null).reduce((s, it) => s + it.vp, 0);
   const soldValueAll = soldAll.filter(it => it.vp != null).reduce((s, it) => s + it.vp, 0);
@@ -5485,6 +5511,13 @@ function renderDashboard() {
         <div class="dash-kpi__val">${inShopCount}</div>
         <div class="dash-kpi__sub">Wert ${formatVp(inShopValue) || '— €'}</div>
       </div>
+      ${pendingReturnsAll.length > 0 ? `
+        <button class="dash-kpi dash-kpi--orange" data-action="dash-scroll-pending-returns" style="text-align:left;cursor:pointer;grid-column:span 2">
+          <div class="dash-kpi__label">${svg('rotate-ccw', 11, 2.4)} Offene Rücksendungen</div>
+          <div class="dash-kpi__val">${pendingReturnsAll.length}</div>
+          <div class="dash-kpi__sub">Service-Tausch · warten auf Eingang</div>
+        </button>
+      ` : ''}
     </div>
 
     <!-- Filter Kategorie / Hersteller -->
@@ -5506,6 +5539,45 @@ function renderDashboard() {
           ${allMakers.map(m => {
             const n = items.filter(it => it.maker === m).length;
             return `<button class="chip ${makerFilter === m ? 'chip--active' : ''}" data-action="dash-set-maker" data-maker="${m.replace(/"/g,'&quot;')}">${m} <span class="chip__count">${n}</span></button>`;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Service-Tausch: Offene Rücksendungen -->
+    ${pendingReturnsAll.length > 0 ? `
+      <div id="dashPendingReturnsAnchor">
+        <div class="section-head">
+          <h2 class="section-head__title">${svg('rotate-ccw', 13, 2.5)} Offene Rücksendungen</h2>
+          <span class="pill" style="background:#FFEDD5;color:#9A3412;border:1px solid #FDBA74">${pendingReturnsAll.length} ${pendingReturnsAll.length === 1 ? 'Artikel' : 'Artikel'}</span>
+        </div>
+        <div class="hint-banner" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;margin-bottom:8px;font-size:11.5px">
+          ${svg('alert-triangle', 12, 2.4)} Diese Artikel wurden als Service-Tausch verkauft — die defekten Rücksendungen werden noch erwartet.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${[...pendingReturnsAll].sort((a,b) => Date.parse(b.soldAt || 0) - Date.parse(a.soldAt || 0)).map(it => {
+            const days = it.soldAt ? Math.floor((Date.now() - Date.parse(it.soldAt)) / 86400000) : null;
+            const ageBadge = days != null ? `<span style="font-family:var(--f-mono);font-size:10px;font-weight:600;color:#9A3412;background:#FFEDD5;border:1px solid #FDBA74;padding:2px 7px;border-radius:var(--r-pill)">${days === 0 ? 'heute' : days === 1 ? '1 Tag' : days + ' Tage'}</span>` : '';
+            return `
+              <button class="item-card" data-action="select-item" data-id="${it.id}" style="border-color:#FDBA74;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%)">
+                <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+                  ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;opacity:.65;filter:grayscale(.4)">` : svg('package', 22, 2.2)}
+                  <span class="item-card__dot" style="background:#FB923C"></span>
+                </div>
+                <div class="item-card__body">
+                  <div class="item-card__row" style="gap:6px;flex-wrap:wrap">
+                    <span class="code-chip">#${it.id}</span>
+                    ${it.orderNumber ? `<span class="code-chip" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74" title="Auftragsnummer">${svg('hash', 9, 2.5)} ${it.orderNumber}</span>` : ''}
+                    ${ageBadge}
+                  </div>
+                  <h3 class="item-card__name">${it.title}</h3>
+                  <div class="item-card__sub">${it.maker || '—'} · ${it.cat || '—'}</div>
+                  <div class="item-card__divider">
+                    <span class="item-card__loc" style="color:#9A3412">${svg('rotate-ccw', 11, 2.4)} Verkauft am ${it.soldAt ? new Date(it.soldAt).toLocaleDateString('de-DE') : '—'} · Rücksendung erwartet</span>
+                  </div>
+                </div>
+              </button>
+            `;
           }).join('')}
         </div>
       </div>
@@ -6876,6 +6948,19 @@ function render() {
     }
   }
 
+  // Auto-Scroll: zum Pending-Returns-Block springen wenn Flag gesetzt (von go-pending-returns oder dash-scroll-pending-returns)
+  if (state._scrollToPendingReturns && state.view === 'dashboard') {
+    state._scrollToPendingReturns = false;
+    setTimeout(() => {
+      const anchor = document.getElementById('dashPendingReturnsAnchor');
+      const scroll = anchor?.closest('.scroll');
+      if (anchor && scroll) {
+        const top = anchor.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop - 12;
+        scroll.scrollTo({ top, behavior: 'smooth' });
+      }
+    }, 60);
+  }
+
   triggerEffects();
 }
 
@@ -7121,6 +7206,12 @@ document.addEventListener('click', (e) => {
       state.homeFilterOpen = null;
       render(); break;
     case 'go-dashboard': go('dashboard'); break;
+    case 'go-pending-returns': {
+      // Aus Home-Tile: zum Dashboard, nach Render zum Pending-Returns-Block scrollen
+      state._scrollToPendingReturns = true;
+      go('dashboard');
+      break;
+    }
     case 'reload-all-data': reloadAllData(); break;
 
     /* Foto-Suche → Schwellen lockern und neu auswerten (kein neuer API-Call) */
@@ -7362,6 +7453,16 @@ document.addEventListener('click', (e) => {
     }
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
+    case 'dash-scroll-pending-returns': {
+      // KPI-Tile angeklickt → smooth-scroll zum Pending-Returns-Block
+      const anchor = document.getElementById('dashPendingReturnsAnchor');
+      const scroll = anchor?.closest('.scroll');
+      if (anchor && scroll) {
+        const top = anchor.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop - 12;
+        scroll.scrollTo({ top, behavior: 'smooth' });
+      }
+      break;
+    }
     case 'go-photo-search': go('photoSearch'); break;
     case 'go-test-start': go('testStart'); break;
     case 'go-test-result': go('testResult'); break;
