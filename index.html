@@ -580,7 +580,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.20.2';
+const APP_VERSION = 'v1.21';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -6636,7 +6636,15 @@ function triggerEffects() {
   // aiAnalyze wird jetzt von runPhotoSearch() gesteuert (echte AI), keine Mock-Animation mehr
 }
 
-function go(view) {
+function go(view, opts = {}) {
+  // Navigations-Historie für Swipe-Back: aktueller View wird gepusht bevor wir wechseln,
+  // außer wenn wir explizit zurücknavigieren oder zur Home springen.
+  const pushHistory = opts.pushHistory !== false;
+  if (pushHistory && state.view && state.view !== view) {
+    state.navHistory = state.navHistory || [];
+    state.navHistory.push(state.view);
+    if (state.navHistory.length > 30) state.navHistory.shift();
+  }
   state.view = view;
   if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; }
   state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
@@ -6644,7 +6652,7 @@ function go(view) {
   if (view !== 'detail') state.detailTab = 'overview';
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
-  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; state.homeFilterCond = 'all'; state.homeFilterFunc = 'all'; state.homeFilterOpen = null; }
+  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; state.homeFilterCond = 'all'; state.homeFilterFunc = 'all'; state.homeFilterOpen = null; state.navHistory = []; }
   if (view === 'camera') { state.cameraShowLive = true; }
   // Cropper-Cleanup: bei Verlassen des Cropper-Flows Object-URL freigeben
   if (view !== 'cropper' && state.cropper) {
@@ -7790,6 +7798,44 @@ async function reloadAllData() {
   }
 }
 
+// Springt zum vorherigen View aus der Navigations-Historie. Fallback: Home.
+function goBack() {
+  // In bestimmten Modi keinen Back-Swipe akzeptieren (eigene Gesten / Modal-Layer)
+  if (state.cropper) return;                         // Cropper hat eigene Gesten
+  if (state.wizPhotoPreviewIdx != null) {            // Lightbox offen → erst Lightbox schließen
+    state.wizPhotoPreviewIdx = null;
+    render();
+    return;
+  }
+  if (state.locManageMode || state.locAddingFor) {   // Verwaltungs-Modi schließen
+    state.locManageMode = null; state.locAddingFor = null; state.locAddDraft = '';
+    render();
+    return;
+  }
+  if (state.homeFilterOpen) {                        // Home-Filter-Dropdown schließen
+    state.homeFilterOpen = null; render(); return;
+  }
+  // Wizard-spezifische Back-Navigation hat eigene Logik (mehr Steps)
+  if (state.wizardStep && state.wizardStep > 1) {
+    // wiz-back Logik replizieren — schritt-weise zurück
+    if (state.wizardStep === 8) { if (isAdmin()) { state.wizardStep = 7; go('wizardShop', { pushHistory: false }); } else { state.wizardStep = 6; go('wizardStock', { pushHistory: false }); } return; }
+    if (state.wizardStep === 7) { state.wizardStep = 6; go('wizardStock', { pushHistory: false }); return; }
+    if (state.wizardStep === 6) { state.wizardStep = 5; go('wizardLoc', { pushHistory: false }); return; }
+    if (state.wizardStep === 5) { state.wizardStep = 4; go('wizardTracker', { pushHistory: false }); return; }
+    if (state.wizardStep === 4) { state.wizardStep = 3; go('wizardDesc', { pushHistory: false }); return; }
+    if (state.wizardStep === 3) { state.wizardStep = 2; go('camera', { pushHistory: false }); return; }
+    if (state.wizardStep === 2) { state.wizardStep = 1; go('wizardCat', { pushHistory: false }); return; }
+  }
+  // Standard: aus Historie zurück
+  const hist = state.navHistory || [];
+  if (hist.length === 0) {
+    if (state.view !== 'home') go('home', { pushHistory: false });
+    return;
+  }
+  const prev = hist.pop();
+  go(prev, { pushHistory: false });
+}
+
 async function bootData() {
   state.bootingData = true; render();
   try {
@@ -7807,6 +7853,35 @@ async function bootData() {
     render();
   }
 }
+
+// Edge-Swipe-Back-Geste: Swipe vom linken Rand nach rechts → goBack()
+// Funktioniert iOS-typisch — startet im linken 30px-Bereich, mind. 80px Auslauf,
+// max. 600 ms, dominant horizontal.
+let _backSwipeStart = null;
+document.addEventListener('pointerdown', (e) => {
+  _backSwipeStart = null;
+  // Nur Edge-Swipes vom linken Bildschirmrand
+  if (e.clientX > 30) return;
+  // Nicht auf Eingabefeldern starten — die haben eigene Selektions-Gesten
+  if (e.target.closest && e.target.closest('input, textarea, select, .cropper-frame, .live-cam, .hero-image--photo, .wiz-keypad')) return;
+  // Auf Login/Boot/Home keinen Back-Swipe
+  if (!state.view || state.view === 'home') return;
+  _backSwipeStart = { x: e.clientX, y: e.clientY, t: Date.now() };
+}, { passive: true });
+
+document.addEventListener('pointerup', (e) => {
+  if (!_backSwipeStart) return;
+  const dx = e.clientX - _backSwipeStart.x;
+  const dy = e.clientY - _backSwipeStart.y;
+  const dt = Date.now() - _backSwipeStart.t;
+  _backSwipeStart = null;
+  // Swipe nach rechts: dx ausreichend, vertikal nicht zu stark, nicht zu langsam
+  if (dx >= 80 && Math.abs(dy) < 60 && dt < 700) {
+    goBack();
+  }
+}, { passive: true });
+
+document.addEventListener('pointercancel', () => { _backSwipeStart = null; }, { passive: true });
 
 async function init() {
   const vb = document.getElementById('versionBadge');
