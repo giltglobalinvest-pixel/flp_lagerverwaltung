@@ -50,6 +50,11 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .user-bar__role{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.18);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;line-height:1.4}
 .user-bar__role--admin{background:#FFD45C;color:#3A2400}
 .user-bar__version{opacity:.55;flex-shrink:0;white-space:nowrap}
+.user-bar__reload{flex-shrink:0;width:24px;height:20px;border-radius:6px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,opacity .15s;padding:0}
+.user-bar__reload:active{background:rgba(255,255,255,0.22)}
+.user-bar__reload[disabled]{opacity:.55;cursor:default}
+.user-bar__reload--spin svg{animation:user-bar-spin 1s linear infinite}
+@keyframes user-bar-spin{to{transform:rotate(-360deg)}}
 @media (max-width:600px){
   .user-bar{padding-top:max(5px, env(safe-area-inset-top));padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right))}
   .has-user-bar .header{padding-top:12px}
@@ -465,7 +470,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.15';
+const APP_VERSION = 'v1.15.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1380,6 +1385,7 @@ const state = {
   voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
+  reloadingAll: false,        // true während manueller Komplett-Reload läuft
   dashRange: '30d',           // Dashboard-Zeitfilter: 'today' | '7d' | '30d' | 'all'
   dashCat: 'all',             // Dashboard-Kategorienfilter
   dashMaker: 'all',           // Dashboard-Herstellerfilter
@@ -4839,12 +4845,16 @@ function updateUserBar() {
   const admin = isAdmin();
   bar.classList.add('user-bar--shown');
   document.body.classList.add('has-user-bar');
+  const reloading = !!state.reloadingAll;
   bar.innerHTML = `
     <div class="user-bar__user">
       ${svg('user', 11, 2.4)}
       <span class="user-bar__name">${String(name).replace(/</g, '&lt;')}</span>
       <span class="user-bar__role ${admin ? 'user-bar__role--admin' : ''}">${admin ? 'Admin' : 'User'}</span>
     </div>
+    <button class="user-bar__reload ${reloading ? 'user-bar__reload--spin' : ''}" data-action="reload-all-data" ${reloading ? 'disabled' : ''} title="Daten neu laden">
+      ${svg('rotate-ccw', 11, 2.4)}
+    </button>
     <span class="user-bar__version">${APP_VERSION}</span>
   `;
 }
@@ -5117,6 +5127,7 @@ document.addEventListener('click', (e) => {
     case 'go-issues': go('issues'); break;
     case 'go-bestand': go('bestand'); break;
     case 'go-dashboard': go('dashboard'); break;
+    case 'reload-all-data': reloadAllData(); break;
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
@@ -5752,6 +5763,36 @@ document.addEventListener('change', (e) => {
 /* ============================================================
    INIT
    ============================================================ */
+// Manueller Komplett-Reload: lädt alle Companies/Items/Halls neu von Airtable.
+// Behält die aktive Firma + Detail-Ansicht wenn möglich.
+async function reloadAllData() {
+  if (state.reloadingAll) return;
+  state.reloadingAll = true;
+  updateUserBar();
+  const prevActiveId = state.activeCompanyId;
+  const prevItemId = state.item?._recordId;
+  try {
+    await loadAllData();
+    // Aktive Firma wiederherstellen wenn sie noch existiert
+    if (prevActiveId && state.companies.some(c => c.id === prevActiveId)) {
+      state.activeCompanyId = prevActiveId;
+    }
+    // Geöffneten Artikel auffrischen wenn er noch da ist
+    if (prevItemId) {
+      const fresh = (state.companies.flatMap(c => c.inventory || [])).find(it => it._recordId === prevItemId);
+      if (fresh) state.item = fresh;
+    }
+    // Sold-Polling-State neu initialisieren, damit nicht alle existierenden "sold" als neu erkannt werden
+    startSoldPolling();
+    showToast('Daten aktualisiert', 'success', 1800);
+  } catch (e) {
+    showToast('Reload fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    state.reloadingAll = false;
+    render();
+  }
+}
+
 async function bootData() {
   state.bootingData = true; render();
   try {
