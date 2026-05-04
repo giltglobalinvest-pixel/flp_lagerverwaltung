@@ -118,6 +118,20 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .search-input{position:relative}
 .search-input input{width:100%;padding:14px 16px 14px 44px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:16px;box-shadow:var(--elev-1);font-size:14px;font-weight:500;color:var(--c-ink)}
 .search-input__icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center}
+
+/* Großes Such-Input + Live-Ergebnisse auf Home */
+.home-search{position:relative;margin-bottom:14px}
+.home-search__input{width:100%;padding:16px 44px 16px 50px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-1);font-size:15.5px;font-weight:500;color:var(--c-ink);outline:none;transition:border-color .15s, box-shadow .15s}
+.home-search__input:focus{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.home-search__input::placeholder{color:var(--c-ink-subtle);font-weight:500}
+.home-search__icon{position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center;pointer-events:none}
+.home-search__clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;border:0;cursor:pointer}
+.home-search__clear:active{filter:brightness(.95)}
+.home-results{margin-bottom:14px}
+.home-results__head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px;gap:10px}
+.home-results__count{font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--c-ink-soft);text-transform:uppercase;letter-spacing:.05em}
+.home-results__more{font-size:11.5px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:4px;background:transparent;border:0;cursor:pointer;padding:4px 6px}
+.home-results__more:active{filter:brightness(.92)}
 .bottom-bar{flex-shrink:0;margin:8px 12px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-2);display:flex;gap:6px;padding:6px;z-index:50}
 .bottom-bar__btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:12.5px;font-weight:600;color:var(--c-ink-mute);border-radius:var(--r-md)}
 .bottom-bar__btn--active{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
@@ -547,7 +561,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.8';
+const APP_VERSION = 'v1.20';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3956,6 +3970,18 @@ async function snapTrackerFromCamera() {
 }
 
 function renderHome() {
+  const q = (state.query || '').trim();
+  // Live-Suche: nur evaluieren wenn Eingabe da ist, dann tolerant filtern
+  let liveResults = [];
+  if (q) {
+    liveResults = inventory.filter(it => {
+      const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
+      return searchMatch(q, hay);
+    });
+  }
+  const totalLive = liveResults.length;
+  const topLive = liveResults.slice(0, 5);
+  const isSearching = q.length > 0;
   return `
 <div class="screen">
   <div class="header">
@@ -3969,31 +3995,69 @@ function renderHome() {
     <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
   </div>
   <div class="scroll">
-    <button class="hero" data-action="go-listen">
-      <div class="hero__head">
-        <div class="pill pill--ghost">${svg('mic', 11, 2.5)} Sprachsuche</div>
-        <div class="hero__icon-circle">${svg('mic', 16, 2.4)}</div>
-      </div>
-      <h1 class="hero__title">Was suchst<br>du heute?</h1>
-      <div class="hero__foot"><span class="hero__foot-text">Tippen & sprechen</span>${svg('arrow-right', 14, 2.4)}</div>
-    </button>
-    <button class="hero hero--ai" data-action="go-photo-search">
-      <div class="hero__head">
-        <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} AI · Foto-Suche</div>
-        <div class="hero__icon-circle">${svg('camera', 16, 2.4)}</div>
-      </div>
-      <h1 class="hero__title">Bauteil oder<br>Etikett fotografieren</h1>
-      <div class="hero__foot" style="gap:8px">
-        <div class="pill pill--blue-soft" style="font-family:var(--f-mono)">${svg('scan-text', 11, 2.5)} OCR</div>
-        <div class="pill pill--neutral" style="font-family:var(--f-mono)">${svg('eye', 11, 2.5)} Vision</div>
-        <span style="margin-left:auto;display:flex">${svg('arrow-right', 14, 2.4)}</span>
-      </div>
-    </button>
-    <div class="search-input">
-      <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
-      <input type="text" placeholder="oder Text eingeben" data-action="manual-search-input" value="${state.query}">
+    <!-- Großes Such-Input — autofokus, tolerante Live-Suche -->
+    <div class="home-search">
+      <span class="home-search__icon">${svg('search', 18, 2.4)}</span>
+      <input
+        type="text"
+        class="home-search__input"
+        placeholder="Suchen — Modell, Hersteller, Tracker, Lagerort …"
+        data-action="manual-search-input"
+        value="${q.replace(/"/g, '&quot;')}"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false">
+      ${q ? `<button class="home-search__clear" data-action="search-clear" title="Suche leeren">${svg('x', 14, 2.6)}</button>` : ''}
     </div>
-    <div class="action-grid">
+
+    ${isSearching ? `
+      <!-- Live-Suchergebnisse -->
+      <div class="home-results">
+        <div class="home-results__head">
+          <span class="home-results__count">${totalLive === 0 ? 'Keine Treffer' : totalLive === 1 ? '1 Treffer' : totalLive + ' Treffer'}</span>
+          ${totalLive > topLive.length ? `<button class="home-results__more" data-action="go-results">Alle ${totalLive} anzeigen ${svg('arrow-right', 11, 2.4)}</button>` : ''}
+        </div>
+        ${topLive.length === 0 ? `
+          <div class="tile" style="padding:18px;text-align:center;font-size:12.5px;font-weight:500;color:var(--c-ink-mute)">
+            Keine Artikel zu „${q.replace(/</g, '&lt;')}". Versuche eine andere Schreibweise oder die Foto-Suche.
+          </div>
+        ` : `
+          <div class="compact-list">
+            ${topLive.map(it => `
+              <button class="compact-item" data-action="select-item" data-id="${it.id}">
+                <div class="compact-item__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+                  ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 19, 2.2)}
+                  <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+                  ${it.sold ? `<span class="sold-stamp" style="font-size:8.5px;padding:2px 6px;top:4px;right:4px">Verk.</span>` : ''}
+                </div>
+                <div class="compact-item__body">
+                  <div class="compact-item__id" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">#${it.id}${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}</div>
+                  <div class="compact-item__name">${it.title}</div>
+                  <div class="compact-item__meta">${it.maker || '—'} · ${CONDITION[it.cond]?.label || '—'}</div>
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    ` : `
+      <!-- Foto-Suche-Hero (prominent, wenn nicht gerade getippt wird) -->
+      <button class="hero hero--ai" data-action="go-photo-search">
+        <div class="hero__head">
+          <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} KI · Foto-Suche</div>
+          <div class="hero__icon-circle">${svg('camera', 16, 2.4)}</div>
+        </div>
+        <h1 class="hero__title">Foto vom<br>Typenschild</h1>
+        <div class="hero__foot" style="gap:8px">
+          <div class="pill pill--blue-soft" style="font-family:var(--f-mono)">${svg('scan-text', 11, 2.5)} OCR</div>
+          <div class="pill pill--neutral" style="font-family:var(--f-mono)">${svg('eye', 11, 2.5)} Vision</div>
+          <span style="margin-left:auto;display:flex">${svg('arrow-right', 14, 2.4)}</span>
+        </div>
+      </button>
+    `}
+
+    ${!isSearching ? `<div class="action-grid">
       ${[
         { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
@@ -4029,11 +4093,11 @@ function renderHome() {
             </div>
           </button>`).join('')}
       </div>
-    </div>
+    </div>` : ''}
   </div>
   <div class="bottom-bar">
     <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
-    <button class="bottom-bar__btn" data-action="go-camera">${svg('plus', 15, 2.4)} Neu</button>
+    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
     <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 </div>`;
@@ -6662,6 +6726,8 @@ document.addEventListener('click', (e) => {
     case 'go-camera': go('camera'); break;
     case 'go-issues': go('issues'); break;
     case 'go-bestand': go('bestand'); break;
+    case 'go-results': if ((state.query || '').trim()) go('results'); break;
+    case 'search-clear': state.query = ''; render(); break;
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
 
@@ -7470,7 +7536,11 @@ document.addEventListener('input', (e) => {
     if (btn) btn.disabled = !t.value || state.loginPending;
     return;
   }
-  if (a === 'manual-search-input') state.query = t.value;
+  if (a === 'manual-search-input') {
+    state.query = t.value;
+    // Live-Re-Render der Home-Treffer (Fokus bleibt durch focus-restore in render() erhalten)
+    if (state.view === 'home') render();
+  }
   else if (a === 'query-input') state.query = t.value;
   else if (a === 'voice-field') {
     state.voiceFields[t.dataset.key] = t.value;
