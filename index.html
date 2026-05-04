@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.18.1';
+const APP_VERSION = 'v1.19';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4733,10 +4733,50 @@ function renderDashboard() {
   const catRows = Object.entries(catDist).sort((a,b) => b[1] - a[1]);
   const catMax = Math.max(1, ...catRows.map(r => r[1]));
 
-  // Hersteller-Verteilung (Top 5)
+  // Hersteller-Verteilung im Bestand — entdupliziert nach Schreibweise
   const makerDist = {};
-  inStock.forEach(it => { if (it.maker) makerDist[it.maker] = (makerDist[it.maker] || 0) + 1; });
-  const makerTop = Object.entries(makerDist).sort((a,b) => b[1] - a[1]).slice(0, 5);
+  const makerCanon = {};
+  inStock.forEach(it => {
+    if (!it.maker) return;
+    const norm = normalizeMaker(it.maker);
+    if (!norm) return;
+    if (!makerCanon[norm]) makerCanon[norm] = it.maker;
+    const c = makerCanon[norm];
+    makerDist[c] = (makerDist[c] || 0) + 1;
+  });
+  const makerRows = Object.entries(makerDist).sort((a, b) => b[1] - a[1]);
+  const makerMax = Math.max(1, ...makerRows.map(r => r[1]));
+
+  // Modell-/Bezeichnungs-Verteilung — gleiche Bezeichnung = gleicher Typ
+  const modelDist = {};
+  inStock.forEach(it => {
+    const t = (it.title || '').trim();
+    if (!t) return;
+    modelDist[t] = (modelDist[t] || 0) + 1;
+  });
+  const modelRows = Object.entries(modelDist).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const modelMax = Math.max(1, ...modelRows.map(r => r[1]));
+
+  // Funktion-Status-Verteilung im Bestand
+  const funcDist = {};
+  inStock.forEach(it => { const k = it.func || 'unknown'; funcDist[k] = (funcDist[k] || 0) + 1; });
+  const funcRows = FUNCTION_KEYS.map(k => [k, funcDist[k] || 0]).filter(([, n]) => n > 0);
+  const funcMax = Math.max(1, ...funcRows.map(r => r[1]));
+
+  // Verkäufe nach Hersteller (im Zeitraum) — Anzahl + Umsatz
+  const salesByMaker = {};
+  soldInRange.forEach(it => {
+    if (!it.maker) return;
+    const norm = normalizeMaker(it.maker);
+    if (!norm) return;
+    if (!makerCanon[norm]) makerCanon[norm] = it.maker;
+    const c = makerCanon[norm];
+    if (!salesByMaker[c]) salesByMaker[c] = { count: 0, value: 0 };
+    salesByMaker[c].count++;
+    if (it.vp != null) salesByMaker[c].value += it.vp;
+  });
+  const salesByMakerRows = Object.entries(salesByMaker).sort((a, b) => (b[1].value || 0) - (a[1].value || 0) || b[1].count - a[1].count);
+  const salesMaxValue = Math.max(1, ...salesByMakerRows.map(r => r[1].value));
 
   // Aktivitätslisten — sortiert nach Datum desc
   const recentSold = visible.filter(it => it.sold).sort((a,b) => Date.parse(b.soldAt || 0) - Date.parse(a.soldAt || 0)).slice(0, 6);
@@ -4845,16 +4885,86 @@ function renderDashboard() {
       `}
     </div>
 
-    <!-- Hersteller Top-5 -->
-    ${makerTop.length > 0 ? `
+    <!-- Bestand nach Hersteller — alle, mit Balken-Diagramm -->
+    ${makerRows.length > 0 ? `
       <div>
-        <div class="section-head"><h2 class="section-head__title">Top-Hersteller im Bestand</h2></div>
-        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px">
-          ${makerTop.map(([m, n], i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:6px 0;${i > 0 ? 'border-top:1px solid var(--c-divider)' : ''}">
-              <div style="width:24px;height:24px;border-radius:6px;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
-              <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m}</div>
-              <div style="font-family:var(--f-mono);font-size:13px;font-weight:600;color:var(--c-ink-soft)">${n}</div>
+        <div class="section-head">
+          <h2 class="section-head__title">Bestand nach Hersteller</h2>
+          <span class="pill pill--neutral" style="font-family:var(--f-mono)">${makerRows.length}</span>
+        </div>
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          ${makerRows.map(([m, n]) => `
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;margin-bottom:4px">
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;padding-right:8px">${m}</span>
+                <span style="font-family:var(--f-mono);color:var(--c-ink-soft);flex-shrink:0">${n} · ${Math.round(n / inStock.length * 100)}%</span>
+              </div>
+              <div style="height:6px;background:var(--c-bg-soft);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(n / makerMax * 100).toFixed(1)}%;background:var(--c-blue);border-radius:3px;transition:width .3s"></div></div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Top Modelle / Bezeichnungen -->
+    ${modelRows.length > 0 ? `
+      <div>
+        <div class="section-head">
+          <h2 class="section-head__title">Top-Modelle</h2>
+          <span class="pill pill--neutral" style="font-family:var(--f-mono)">Top ${modelRows.length}</span>
+        </div>
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          ${modelRows.map(([t, n], i) => `
+            <div style="display:flex;align-items:center;gap:10px;${i > 0 ? 'padding-top:8px;border-top:1px solid var(--c-divider)' : ''}">
+              <div style="width:22px;height:22px;border-radius:6px;background:#FFF1B0;color:#7A5400;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:10.5px;font-weight:700;flex-shrink:0">${i+1}</div>
+              <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t}</div>
+              <div style="font-family:var(--f-mono);font-size:13px;font-weight:700;color:var(--c-ink)">${n}×</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Funktions-Status-Verteilung -->
+    ${funcRows.length > 0 ? `
+      <div>
+        <div class="section-head">
+          <h2 class="section-head__title">Funktions-Status</h2>
+          <span class="pill pill--neutral" style="font-family:var(--f-mono)">${inStock.length} Stk im Lager</span>
+        </div>
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          ${funcRows.map(([k, n]) => {
+            const cfg = FUNCTION_STATUS[k] || FUNCTION_STATUS.unknown;
+            return `
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <div style="width:22px;height:22px;border-radius:6px;background:${cfg.bg};color:${cfg.fg};display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(cfg.icon, 12, 2.4)}</div>
+                  <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600">${cfg.label}</span>
+                  <span style="font-family:var(--f-mono);font-size:12.5px;color:var(--c-ink-soft);flex-shrink:0">${n} · ${Math.round(n / inStock.length * 100)}%</span>
+                </div>
+                <div style="height:5px;background:var(--c-bg-soft);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(n / funcMax * 100).toFixed(1)}%;background:${cfg.fg};border-radius:3px;transition:width .3s"></div></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Verkäufe nach Hersteller im Zeitraum -->
+    ${salesByMakerRows.length > 0 ? `
+      <div>
+        <div class="section-head">
+          <h2 class="section-head__title">Verkäufe nach Hersteller</h2>
+          <span class="pill pill--neutral" style="font-family:var(--f-mono)">${rangeLabel} · ${formatVp(soldValueInRange) || '— €'}</span>
+        </div>
+        <div class="tile" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          ${salesByMakerRows.map(([m, info], i) => `
+            <div style="${i > 0 ? 'padding-top:8px;border-top:1px solid var(--c-divider)' : ''}">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m}</span>
+                <span style="font-family:var(--f-mono);font-size:11.5px;font-weight:600;color:var(--c-ink-soft);flex-shrink:0">${info.count}× · ${formatVp(info.value) || '— €'}</span>
+              </div>
+              <div style="height:6px;background:var(--c-bg-soft);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(info.value / salesMaxValue * 100).toFixed(1)}%;background:#10B981;border-radius:3px;transition:width .3s"></div></div>
             </div>
           `).join('')}
         </div>
