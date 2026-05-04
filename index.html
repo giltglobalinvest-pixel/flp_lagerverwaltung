@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.2';
+const APP_VERSION = 'v1.19.3';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -5397,8 +5397,8 @@ function renderPhotoSearch() {
   <div class="viewfinder">
     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;text-align:center;padding:32px">
       <div style="width:88px;height:88px;border-radius:24px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin-bottom:16px">${svg('sparkles', 36, 2)}</div>
-      <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">Foto vom Bauteil</div>
-      <div style="font-size:11.5px;font-weight:500;opacity:.7;line-height:1.5">Claude erkennt Etikett & Bauteil und<br>sucht passende Artikel im Bestand</div>
+      <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">Foto vom Typenschild</div>
+      <div style="font-size:11.5px;font-weight:500;opacity:.7;line-height:1.5">KI liest Modell-Code und Hersteller<br>vom Etikett und sucht im Bestand danach</div>
     </div>
     <div class="viewfinder__corners"><div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div></div>
   </div>
@@ -5494,22 +5494,23 @@ function renderPhotoResults() {
     ${textMatches.length ? `
       <div>
         <div class="section-head">
-          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">Aus Beschriftung</h2><span class="pill pill--blue">Sicher</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">Eindeutig zugeordnet</h2><span class="pill pill--blue">${svg('badge-check', 10, 2.5)} Sicher</span></div>
         </div>
+        <div class="hint-banner" style="background:var(--c-blue-soft);color:var(--c-blue-deep);margin-bottom:8px;font-size:11.5px">${svg('scan-text', 12, 2.4)} Treffer durch Modell-Code &amp; Hersteller-Text vom Typenschild.</div>
         <div style="display:flex;flex-direction:column;gap:8px">${textMatches.map(it => itemCard(it, { highlighted: true })).join('')}</div>
       </div>` : ''}
     ${visualMatches.length ? `
       <div>
         <div class="section-head">
-          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">Visuell \u00e4hnlich</h2><span class="pill pill--amber">${svg('alert-triangle', 9, 2.5)} Pr\u00fcfen</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">M\u00f6glicher Treffer</h2><span class="pill pill--amber">${svg('alert-triangle', 9, 2.5)} Beschriftung pr\u00fcfen</span></div>
         </div>
-        <div class="hint-banner" style="background:var(--c-amber-soft);color:#7C4A06;margin-bottom:8px">${svg('alert-triangle', 13, 2.4)} Beschriftung pr\u00fcfen vor Verwendung.</div>
+        <div class="hint-banner" style="background:var(--c-amber-soft);color:#7C4A06;margin-bottom:8px;font-size:11.5px">${svg('alert-triangle', 12, 2.4)} Schw\u00e4chere Text-\u00dcbereinstimmung \u2014 Beschriftung gegen Etikett vergleichen.</div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${visualMatches.map(it => `
             <button class="item-card" data-action="select-item" data-id="${it.id}">
               <div class="item-card__icon item-card__icon--neutral">${svg('package', 22, 2.2)}<span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func].dot}"></span></div>
               <div class="item-card__body">
-                <div class="item-card__row"><span class="code-chip">#${it.id}</span><span class="pill pill--neutral">${svg('eye', 9, 2.5)} ${it.match}%</span></div>
+                <div class="item-card__row"><span class="code-chip">#${it.id}</span><span class="pill pill--neutral">${svg('scan-text', 9, 2.5)} Text-Match ${it.match}%</span></div>
                 <h3 class="item-card__name">${it.title}</h3>
                 <div class="item-card__row" style="margin-top:6px">${condPill(it.cond)}${funcPill(it.func)}</div>
                 <div class="match-bar"><div class="match-bar__fill" style="width:${it.match}%;background:${it.match > 70 ? 'var(--c-blue)' : it.match > 55 ? 'var(--c-amber)' : 'var(--c-ink-subtle)'}"></div></div>
