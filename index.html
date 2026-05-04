@@ -465,7 +465,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.13';
+const APP_VERSION = 'v1.14';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1142,7 +1142,7 @@ let _soldPollInFlight = false;
 
 function startSoldPolling() {
   stopSoldPolling();
-  if (!state.loggedIn || !APP_KEYS.user?.api_key) return;
+  if (!state.loggedIn || !teamKey()) return;
   // Initial-Snapshot aus aktueller Inventory aufbauen — keine Notifications für vorhandene "sold"
   _soldKnownState = new Map();
   for (const c of (state.companies || [])) {
@@ -1163,10 +1163,10 @@ function _onVisibilityForPoll() { if (!document.hidden) pollSoldUpdates(); }
 async function pollSoldUpdates() {
   if (document.hidden) return;            // Spar Bandbreite: nur wenn Tab sichtbar
   if (_soldPollInFlight) return;
-  if (!state.loggedIn || !APP_KEYS.user?.api_key) return;
+  if (!state.loggedIn || !teamKey()) return;
   _soldPollInFlight = true;
   try {
-    const apiKey = APP_KEYS.user.api_key;
+    const apiKey = teamKey();
     const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
     const itemRecs = await airRead(TBL_ITEMS, filter);
     const items = itemRecs.map(recordToItem);
@@ -1562,6 +1562,17 @@ async function ensureFieldsExist(tableName, expectedFields) {
 function userRole() { return String(APP_KEYS.user?.role || 'user').toLowerCase(); }
 function isAdmin() { return userRole() === 'admin'; }
 
+// Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
+// und ist gleichzeitig der Filter beim Laden. Mehrere User können sich Daten teilen,
+// indem sie in ihrem User-Record dasselbe `tenant_key` gesetzt haben.
+// Fallback: persönlicher api_key (= bisheriges Verhalten).
+function teamKey() {
+  const u = APP_KEYS.user;
+  if (!u) return '';
+  // tenant_key kann je nach Airtable-Schreibung unterschiedlich heißen
+  return (u.tenant_key || u.team_key || u.tenantKey || u.api_key || '').trim();
+}
+
 function nowIso() { return new Date().toISOString(); }
 function shortId(prefix) { return (prefix || '') + Math.random().toString(36).slice(2, 8).toUpperCase(); }
 function relTime(iso) {
@@ -1678,7 +1689,7 @@ async function uploadHallPhoto(hallName, file) {
         hall_id: 'h_' + Math.random().toString(36).slice(2, 10),
         company_id: c.id,
         name: hallName,
-        api_key: APP_KEYS.user.api_key,
+        api_key: teamKey(),
       });
       rec = { _recordId: created.id, id: created.fields?.hall_id, company_id: c.id, name: hallName, photo: null };
       state.hallPhotos[hallName] = rec;
@@ -1720,7 +1731,7 @@ function recordToHall(rec) {
 }
 
 async function loadAllData() {
-  const apiKey = APP_KEYS.user.api_key;
+  const apiKey = teamKey();
   const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
 
   const [companyRecs, itemRecs, hallRecs] = await Promise.all([
@@ -1811,7 +1822,7 @@ function persistItemPatch(it, patch) {
 }
 
 async function persistCompany(c) {
-  const fields = companyToFields(c, APP_KEYS.user.api_key);
+  const fields = companyToFields(c, teamKey());
   if (c._recordId) return await airUpdate(TBL_COMPANIES, c._recordId, fields);
   const rec = await airWrite(TBL_COMPANIES, fields);
   c._recordId = rec.id;
@@ -2061,7 +2072,7 @@ async function saveNewItemFromVoice() {
 
   setLoading(true, 'Artikel wird angelegt \u2026');
   try {
-    const rec = await airWrite(TBL_ITEMS, itemToFields(newItem, APP_KEYS.user.api_key));
+    const rec = await airWrite(TBL_ITEMS, itemToFields(newItem, teamKey()));
     newItem._recordId = rec.id;
 
     const files = state.voicePhotoFiles || [];
@@ -5170,7 +5181,7 @@ document.addEventListener('click', (e) => {
       it.updated = nowIso();
       it.upd = 'gerade eben';
       setLoading(true, 'Speichere \u2026');
-      airUpdate(TBL_ITEMS, it._recordId, itemToFields(it, APP_KEYS.user.api_key))
+      airUpdate(TBL_ITEMS, it._recordId, itemToFields(it, teamKey()))
         .then(() => {
           showToast('Artikel gespeichert', 'success');
           if (justSold) notifyArticleSold(it);
