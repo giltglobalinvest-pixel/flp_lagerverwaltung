@@ -326,15 +326,27 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .wiz-lightbox__nav--prev{left:12px;transform:translateY(-50%) scaleX(-1)}
 .wiz-lightbox__nav--next{right:12px}
 
-/* Tracker-Nummer-Eingabe in Step 4 — groß, mono, Zahlentastatur */
-.wiz-tracker-input-wrap{position:relative;margin:8px 0 14px}
-.wiz-tracker-input{width:100%;padding:18px 20px 18px 56px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);font-family:var(--f-mono);font-size:32px;font-weight:700;letter-spacing:.04em;color:var(--c-ink);outline:none;text-align:left;line-height:1}
-.wiz-tracker-input:focus{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
-.wiz-tracker-input::placeholder{color:var(--c-ink-subtle);font-weight:600}
-.wiz-tracker-input__hash{position:absolute;left:24px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:32px;font-weight:700;color:var(--c-ink-mute);pointer-events:none;line-height:1}
-.wiz-tracker-url{padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-md);display:flex;flex-direction:column;gap:6px}
+/* Tracker-Nummer-Display in Step 4 — groß, mono, mit Caret */
+.wiz-tracker-display{display:flex;align-items:center;gap:6px;padding:18px 20px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);font-family:var(--f-mono);font-size:32px;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--c-ink-subtle);min-height:32px}
+.wiz-tracker-display--filled{color:var(--c-ink);border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.wiz-tracker-display__hash{color:var(--c-ink-mute);flex-shrink:0}
+.wiz-tracker-display__num{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wiz-tracker-display__caret{display:inline-block;width:2px;height:30px;background:var(--c-blue);animation:wiz-caret-blink 1s infinite;flex-shrink:0;border-radius:1px}
+@keyframes wiz-caret-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.wiz-tracker-url{padding:12px 14px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-md);display:flex;flex-direction:column;gap:5px}
 .wiz-tracker-url__label{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em}
-.wiz-tracker-url__value{font-family:var(--f-mono);font-size:12px;font-weight:600;color:#3F2C00;word-break:break-all;line-height:1.35}
+.wiz-tracker-url__value{font-family:var(--f-mono);font-size:11.5px;font-weight:600;color:#3F2C00;word-break:break-all;line-height:1.35}
+
+/* Ziffernblock (Step 4) */
+.wiz-keypad{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;padding:8px 14px 0;flex-shrink:0}
+.wiz-keypad__btn{height:60px;border-radius:14px;background:var(--c-surface);box-shadow:var(--elev-1);font-family:var(--f-display);font-size:24px;font-weight:600;color:var(--c-ink);border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .07s, background .12s}
+.wiz-keypad__btn:active{transform:scale(.95);background:var(--c-bg-soft)}
+.wiz-keypad__btn--del{color:var(--c-ink-mute)}
+.wiz-keypad__btn--del:active{background:var(--c-red-soft);color:var(--c-red)}
+.wiz-keypad__btn--ok{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
+.wiz-keypad__btn--ok:active{filter:brightness(.93);transform:scale(.95)}
+.wiz-keypad__btn--ok[disabled]{background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none;cursor:default}
+.wiz-keypad__btn--ok[disabled]:active{transform:none;filter:none}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -535,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.4';
+const APP_VERSION = 'v1.17.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3267,47 +3279,63 @@ function renderWizardDesc() {
 </div>`;
 }
 
-// Step 4 — Tracker (manuelle Eingabe der Nummer; QR-Link wird automatisch zusammengebaut)
+// Aktualisiert die Tracker-Anzeige + URL-Vorschau + OK-Button-State live ohne Full-Render.
+function _updateWizTrackerDisplay() {
+  const cur = String(state.voiceFields.tracker || '');
+  const num = document.getElementById('wizTrackerNum');
+  const display = num?.parentElement;
+  const urlPreview = document.getElementById('wizTrackerUrlPreview');
+  const okBtn = document.getElementById('wizKpNext');
+  if (num) num.textContent = cur || '0';
+  if (display) display.classList.toggle('wiz-tracker-display--filled', !!cur);
+  if (urlPreview) urlPreview.textContent = cur ? (TRACKER_URL_BASE + cur) : '— wird automatisch erzeugt —';
+  if (okBtn) {
+    if (cur) okBtn.removeAttribute('disabled');
+    else okBtn.setAttribute('disabled', '');
+    okBtn.title = cur ? 'Weiter' : 'Überspringen';
+  }
+}
+
+// Step 4 — Tracker (eigener Ziffernblock; QR-Link wird automatisch zusammengebaut)
 function renderWizardTracker() {
   const f = state.voiceFields || {};
   const tracker = (f.tracker || '').trim();
-  // Live-Vorschau der URL: aus aktueller Eingabe oder aus gespeichertem trackerUrl
-  const previewUrl = tracker ? TRACKER_URL_BASE + tracker : (f.trackerUrl || '');
+  const previewUrl = tracker ? TRACKER_URL_BASE + tracker : '';
+  const hasTracker = !!tracker;
   return `
 <div class="screen">
   ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
     `<div class="pill pill--ink">Neuer Artikel</div>`,
     `<div class="header__slot"></div>`)}
-  <div class="scroll" style="padding-bottom:24px">
+  <div class="scroll" style="padding-bottom:8px">
     ${wizProgress()}
-    <div style="margin-top:14px">
-      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Tracker-Nummer</h1>
-      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Die Zahl steht auf dem FLP-Etikett deines Artikels (z.B. <strong style="font-family:var(--f-mono);color:var(--c-ink)">#12696</strong>). Wenn der Artikel kein Etikett hat, einfach überspringen.</p>
+    <div style="margin-top:12px">
+      <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Tracker-Nummer</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 12px">Die Zahl steht auf dem FLP-Etikett. Eintippen → Weiter mit dem grünen Pfeil.</p>
     </div>
-    <div class="wiz-tracker-input-wrap">
-      <input
-        class="wiz-tracker-input"
-        data-action="voice-field"
-        data-key="tracker"
-        inputmode="numeric"
-        pattern="[0-9]*"
-        autocomplete="off"
-        autocapitalize="off"
-        spellcheck="false"
-        placeholder="12696"
-        value="${tracker.replace(/"/g, '&quot;')}"
-        autofocus>
-      <span class="wiz-tracker-input__hash">#</span>
+    <div class="wiz-tracker-display ${hasTracker ? 'wiz-tracker-display--filled' : ''}">
+      <span class="wiz-tracker-display__hash">#</span>
+      <span class="wiz-tracker-display__num" id="wizTrackerNum">${tracker || '0'}</span>
+      <span class="wiz-tracker-display__caret"></span>
     </div>
-    <div class="wiz-tracker-url">
+    <div class="wiz-tracker-url" style="margin-top:10px">
       <div class="wiz-tracker-url__label">${svg('qr-code', 11, 2.5)} QR-Link · automatisch</div>
       <div class="wiz-tracker-url__value" id="wizTrackerUrlPreview">${previewUrl || '— wird automatisch erzeugt —'}</div>
     </div>
   </div>
-  <div class="wiz-actions">
-    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
-    <button class="wiz-actions__next" data-action="wiz-next">
-      ${tracker ? 'Weiter' : 'Überspringen'} ${svg('arrow-right', 14, 2.4)}
+  <div class="wiz-keypad">
+    ${[1,2,3,4,5,6,7,8,9].map(d => `
+      <button class="wiz-keypad__btn" data-action="wiz-kp-digit" data-d="${d}">${d}</button>
+    `).join('')}
+    <button class="wiz-keypad__btn wiz-keypad__btn--del" data-action="wiz-kp-back" title="Letzte Ziffer löschen">${svg('arrow-left', 22, 2.5)}</button>
+    <button class="wiz-keypad__btn" data-action="wiz-kp-digit" data-d="0">0</button>
+    <button class="wiz-keypad__btn wiz-keypad__btn--ok" data-action="wiz-kp-next" id="wizKpNext" ${hasTracker ? '' : 'disabled'} title="${hasTracker ? 'Weiter' : 'Überspringen'}">
+      ${svg('arrow-right', 22, 2.7)}
+    </button>
+  </div>
+  <div style="display:flex;justify-content:center;padding:6px 16px calc(10px + env(safe-area-inset-bottom))">
+    <button data-action="wiz-back" style="font-size:12px;font-weight:600;color:var(--c-ink-mute);padding:8px 14px;display:inline-flex;align-items:center;gap:5px">
+      ${svg('arrow-left', 12, 2.4)} Zurück
     </button>
   </div>
 </div>`;
@@ -5954,6 +5982,36 @@ document.addEventListener('click', (e) => {
     case 'wiz-tracker-live': go('wizardTrackerScan'); break;
     case 'wiz-tracker-scan-stop': go('wizardTracker'); break;
     case 'wiz-tracker-snap': snapTrackerFromCamera(); break;
+
+    /* Step 4 — Eigener Ziffernblock */
+    case 'wiz-kp-digit': {
+      const d = btn.dataset.d || '';
+      let cur = String(state.voiceFields.tracker || '');
+      // Max 12 Stellen — sonst kann man immer noch löschen
+      if (cur.length >= 12) break;
+      cur = cur + d;
+      state.voiceFields.tracker = cur;
+      state.voiceFields.trackerUrl = TRACKER_URL_BASE + cur;
+      _updateWizTrackerDisplay();
+      break;
+    }
+    case 'wiz-kp-back': {
+      let cur = String(state.voiceFields.tracker || '');
+      if (!cur) break;
+      cur = cur.slice(0, -1);
+      state.voiceFields.tracker = cur;
+      state.voiceFields.trackerUrl = cur ? TRACKER_URL_BASE + cur : '';
+      _updateWizTrackerDisplay();
+      break;
+    }
+    case 'wiz-kp-next': {
+      // Bei leerer Nummer disabled — kommt nur durch wenn was drin steht
+      if (!(state.voiceFields.tracker || '').trim()) break;
+      // Direkt weiter zu Step 5
+      state.wizardStep = 5;
+      go('voice');
+      break;
+    }
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
