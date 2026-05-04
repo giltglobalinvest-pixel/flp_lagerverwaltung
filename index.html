@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.7';
+const APP_VERSION = 'v1.19.8';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1639,6 +1639,8 @@ const state = {
   aiStep: 0,
   photoSearchPhase: 'idle', photoSearchFile: null, photoSearchPreview: null,
   photoSearchTextMatches: [], photoSearchVisualMatches: [], photoSearchAIInfo: null,
+  photoSearchRanked: null,         // Cache der gescorten Items für Schwellen-Anpassung ohne neuen API-Call
+  photoSearchRelaxed: false,       // true = lockere Schwellen aktiv
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandModel: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
@@ -2298,6 +2300,22 @@ async function handleItemPhotoSetPrimary(idx) {
   }
 }
 
+// Wendet die aktuelle Schwellen-Konfiguration auf die gecachte Rangliste an.
+// Strikt (default): Sicher ≥ 70 + strong, Möglicher Treffer ≥ 40
+// Lockerer:        Sicher ≥ 60 + strong, Möglicher Treffer ≥ 20, mehr Items
+function applyPhotoSearchThresholds() {
+  const ranked = state.photoSearchRanked || [];
+  const relaxed = !!state.photoSearchRelaxed;
+  const textThr = relaxed ? 60 : 70;
+  const visThr  = relaxed ? 20 : 40;
+  const visMax  = relaxed ? 8 : 4;
+  const text = ranked.filter(r => r.score >= textThr && r.strong).slice(0, 3).map(r => r.it);
+  const textIds = new Set(text.map(it => it.id));
+  const visual = ranked.filter(r => !textIds.has(r.it.id) && r.score >= visThr).slice(0, visMax).map(r => ({ ...r.it, match: r.score }));
+  state.photoSearchTextMatches = text;
+  state.photoSearchVisualMatches = visual;
+}
+
 async function runPhotoSearch() {
   state.photoSearchPhase = 'analyze';
   state.aiStep = 0;
@@ -2424,14 +2442,10 @@ Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":[
       const r = scoreItem(it);
       return { it, score: r.score, strong: r.strongModelMatch };
     }).sort((a, b) => b.score - a.score);
-    // "Sicher" verlangt sowohl hohen Score ALS AUCH einen starken Modell-Match
-    // (verhindert False-Positives wie "ZETADYN 3CS050" wenn nach "ZETADYN 3BF040" gesucht wird)
-    const text = ranked.filter(r => r.score >= 70 && r.strong).slice(0, 3).map(r => r.it);
-    const textIds = new Set(text.map(it => it.id));
-    const visual = ranked.filter(r => !textIds.has(r.it.id) && r.score >= 40).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
-
-    state.photoSearchTextMatches = text;
-    state.photoSearchVisualMatches = visual;
+    // Ranked-Liste cachen, damit "Suche lockern" ohne neuen API-Call die Schwellen anpassen kann
+    state.photoSearchRanked = ranked;
+    state.photoSearchRelaxed = false;
+    applyPhotoSearchThresholds();
     state.photoSearchPhase = 'results';
     go('photoResults');
   } catch (e) {
@@ -5533,12 +5547,21 @@ function renderPhotoResults() {
           ${detectedCat ? `<div><strong>Kategorie:</strong> ${detectedCat}</div>` : ''}
         </div>
       </div>` : ''}
+    ${state.photoSearchRelaxed ? `
+      <div class="hint-banner" style="background:rgba(245,158,11,0.12);color:#7C4A06;margin-bottom:12px;font-size:11.5px;display:flex;align-items:center;gap:8px">
+        ${svg('sparkles', 12, 2.4)} <span><strong>Lockerere Suche aktiv</strong> — mehr Treffer zugelassen, dafür weniger genau.</span>
+      </div>` : ''}
     ${total === 0 ? `
       <div class="tile" style="padding:24px;text-align:center">
         <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 12px">${svg('search', 22, 2)}</div>
-        <div style="font-size:14px;font-weight:600">Kein Treffer im Bestand</div>
+        <div style="font-size:14px;font-weight:600">${state.photoSearchRelaxed ? 'Auch lockerere Suche fand nichts' : 'Kein Treffer im Bestand'}</div>
         <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px;line-height:1.4">${detectedModel ? 'Versuche manuell zu suchen — die Schreibweise im Bestand könnte abweichen — oder probier ein klareres Foto vom Typenschild.' : 'Konnte aus dem Foto keine eindeutigen Daten lesen. Versuche ein klareres Bild vom Typenschild oder eine manuelle Suche.'}</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+          ${(!state.photoSearchRelaxed && state.photoSearchRanked && state.photoSearchRanked.length > 0) ? `
+            <button data-action="photo-search-relax" style="padding:13px;background:var(--c-amber);color:#fff;border-radius:14px;font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 14px rgba(245,158,11,.35)">
+              ${svg('sparkles', 13, 2.5)} Suche lockern (mehr Treffer zulassen)
+            </button>
+          ` : ''}
           ${detectedModel ? `
             <button data-action="photo-search-as-text" data-q="${detectedModel.replace(/"/g, '&quot;')}" style="padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:var(--elev-blue)">
               ${svg('search', 13, 2.5)} Manuell suchen mit „${detectedModel}"
@@ -6642,6 +6665,13 @@ document.addEventListener('click', (e) => {
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
 
+    /* Foto-Suche → Schwellen lockern und neu auswerten (kein neuer API-Call) */
+    case 'photo-search-relax': {
+      state.photoSearchRelaxed = true;
+      applyPhotoSearchThresholds();
+      render();
+      break;
+    }
     /* Foto-Suche → Manuelle Text-Suche mit Vorbelegung */
     case 'photo-search-as-text': {
       const q = (btn.dataset.q || '').trim();
