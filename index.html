@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.5';
+const APP_VERSION = 'v1.19.6';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2350,20 +2350,44 @@ Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":[
     const makerStr = String(info.probable_maker || '').trim();
     const makerNormAI = makerStr ? normalizeMaker(makerStr) : '';
 
+    // Modell-Code in Tokens splitten (per Whitespace/Bindestriche/Punkte/Slashes)
+    // Beispiel: "ZETADYN 3BF040-E110T0" \u2192 ["zetadyn", "3bf040", "e110t0"]
+    // So matchen wir auch wenn die OCR ein einzelnes Zeichen falsch liest.
+    const modelTokens = modelCode ? lc(modelCode).split(/[\s\-_./,]+/).filter(t => t.length >= 2) : [];
+
     function scoreItem(it) {
       const titleLow = lc(it.title);
       const titleClean = stripPunct(it.title);
+      const titleTokens = titleLow.split(/[\s\-_./,]+/).filter(t => t.length >= 2);
+      const titleSet = new Set(titleTokens);
       const makerLow = lc(it.maker);
       const idLow = lc(it.id);
       const descLow = lc(it.description || '');
       const allHay = `${titleLow} ${makerLow} ${idLow} ${descLow}`;
       let score = 0;
 
-      // 1) EXAKTER MODELL-MATCH \u2014 h\u00f6chste Priorit\u00e4t (60 Punkte)
-      // Modell-Code wird im Title oder umgekehrt erkannt (Whitespace/Bindestriche normalisiert)
+      // 1) MODELL-MATCH \u2014 drei Stufen, h\u00f6chster Wert gewinnt
       if (modelClean && modelClean.length >= 3) {
-        if (titleClean.includes(modelClean) || modelClean === titleClean) score += 60;
-        else if (modelClean.length >= 4 && stripPunct(it.id).includes(modelClean)) score += 50;
+        // 1a) FULL-MATCH: kompletter Modell-Code (gestripped) im Title-stripped (60 Punkte)
+        if (titleClean.includes(modelClean) || modelClean === titleClean) {
+          score += 60;
+        }
+        // 1b) TOKEN-MATCH: Hauptteile des Modellcodes als ganze W\u00f6rter im Titel
+        // Sch\u00fctzt gegen OCR-Fehler in Suffix-Codes (z.B. "E110T0" vs "E1l0T0")
+        else if (modelTokens.length > 0) {
+          const matchedTokens = modelTokens.filter(t => titleSet.has(t));
+          if (matchedTokens.length === modelTokens.length) {
+            score += 60; // alle Tokens da \u2014 voller Boost
+          } else if (matchedTokens.length >= 2) {
+            score += 50; // 2+ Tokens (typisch: Serie + Modellnummer)
+          } else if (matchedTokens.length === 1 && matchedTokens[0].length >= 5) {
+            score += 25; // ein langer Token allein (z.B. "ZETADYN") \u2014 schw\u00e4cher
+          }
+        }
+        // 1c) ID-Substring (Fallback)
+        else if (modelClean.length >= 4 && stripPunct(it.id).includes(modelClean)) {
+          score += 50;
+        }
       }
 
       // 2) HERSTELLER-MATCH (30 Punkte)
