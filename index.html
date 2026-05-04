@@ -507,7 +507,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17';
+const APP_VERSION = 'v1.17.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -725,6 +725,16 @@ async function askAI(prompt, opts = {}) {
   }
   if (opts.imageUrl) {
     content.push({ type: 'image', source: { type: 'url', url: opts.imageUrl } });
+  }
+  // Multi-Image-Support: opts.images ist ein Array von { base64, mediaType } ODER { url }
+  if (Array.isArray(opts.images)) {
+    for (const im of opts.images) {
+      if (im?.base64 && im?.mediaType) {
+        content.push({ type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.base64 } });
+      } else if (im?.url) {
+        content.push({ type: 'image', source: { type: 'url', url: im.url } });
+      }
+    }
   }
   content.push({ type: 'text', text: prompt });
 
@@ -2976,6 +2986,109 @@ function wizProgress() {
   `;
 }
 
+// Live-QR-Scanner: nutzt das Camera-Modul + BarcodeDetector im 600ms-Intervall
+// Bei Treffer: Tracker + URL füllen, zum Wizard-Tracker-Screen zurück
+let _liveScanInterval = null;
+let _liveScanDetector = null;
+async function startLiveTrackerScan() {
+  if (state.view !== 'wizardTrackerScan') return;
+  if (!('BarcodeDetector' in window)) return;
+  const v = document.getElementById('liveScanVideo');
+  if (!v) return;
+  if (Camera.stream && Camera.videoEl === v) {
+    // Stream läuft schon — nur Detector-Loop sicherstellen
+  } else {
+    try { await Camera.start(v); } catch (e) {
+      showToast('Kamera-Start fehlgeschlagen: ' + e.message, 'error', 3500);
+      return;
+    }
+  }
+  if (!_liveScanDetector) {
+    try {
+      const formats = await window.BarcodeDetector.getSupportedFormats();
+      if (!formats.includes('qr_code')) return;
+      _liveScanDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+    } catch (e) { return; }
+  }
+  if (_liveScanInterval) clearInterval(_liveScanInterval);
+  _liveScanInterval = setInterval(async () => {
+    if (state.view !== 'wizardTrackerScan') { stopLiveTrackerScan(); return; }
+    const vid = document.getElementById('liveScanVideo');
+    if (!vid || vid.readyState < 2) return;
+    try {
+      const codes = await _liveScanDetector.detect(vid);
+      if (codes && codes.length > 0) {
+        const url = String(codes[0].rawValue || '').trim();
+        if (url) onLiveScanHit(url);
+      }
+    } catch (e) { /* still next tick */ }
+  }, 600);
+}
+function stopLiveTrackerScan() {
+  if (_liveScanInterval) { clearInterval(_liveScanInterval); _liveScanInterval = null; }
+  Camera.stop();
+}
+function onLiveScanHit(rawUrl) {
+  stopLiveTrackerScan();
+  // QR-Inhalt als URL übernehmen — Tracker-Nummer aus Pfad-Ende ableiten falls möglich
+  state.voiceFields.trackerUrl = rawUrl;
+  if (!state.voiceFields.tracker) {
+    const t = _extractTrackerFromUrl(rawUrl);
+    if (t) state.voiceFields.tracker = t;
+  }
+  // Vibrieren als Feedback (falls verfügbar)
+  try { navigator.vibrate?.(80); } catch (_) {}
+  showToast('QR erkannt — Tracker übernommen', 'success', 2200);
+  state.view = 'wizardTracker';
+  render();
+}
+
+// KI-Vision: liest Bezeichnung, Hersteller, Beschreibung aus den hochgeladenen Step-2-Fotos.
+// Wichtig: QR-Code-Etiketten + Tracker-Nummern werden ignoriert (separater Step 4).
+async function extractDescriptionFromPhotos() {
+  const files = (state.voicePhotoFiles || []).slice(0, 3); // max 3 Fotos pro Anfrage (Token-Sparen)
+  if (files.length === 0) { showToast('Keine Fotos zum Auslesen', 'info', 2200); return; }
+  setLoading(true, 'KI liest Datenblätter & Etiketten …');
+  try {
+    // Files in base64 wandeln
+    const images = [];
+    for (const f of files) {
+      const base64 = await fileToBase64(f);
+      images.push({ base64, mediaType: f.type || 'image/jpeg' });
+    }
+    const sys = 'Du extrahierst Daten aus Fotos von Aufzugs-Ersatzteilen für ein Lagerverwaltungs-System. Antworte AUSSCHLIESSLICH als JSON-Objekt, ohne Markdown-Codeblock und ohne erklärenden Text.';
+    const prompt = `Du bekommst ${files.length} Foto${files.length === 1 ? '' : 's'} eines Aufzugs-Ersatzteils. Auf einigen Fotos können Datenblätter, Typenschilder oder Etiketten zu sehen sein.
+
+Extrahiere folgende Felder:
+- "name": Eindeutige Bezeichnung des Bauteils, möglichst kurz (z.B. "ZAdyn4C Frequenzumrichter", "Pana 40 Lichtgitter", "V3F20 Frequenzumrichter")
+- "maker": Marken-/Herstellername (z.B. "Ziehl-Abegg", "Memco", "Wittur", "Otis"). Nur die Marke, ohne GmbH/AG.
+- "description": 2–4 Sätze Fließtext: Funktion, typische Verwendung, wichtigste technische Eigenschaften. Auf Deutsch.
+
+WICHTIG — was du IGNORIEREN sollst:
+- QR-Codes auf dem Etikett
+- Tracker-Nummern wie "#12696" oder "Nr. 12345" (das ist intern, nicht Teil der Beschreibung)
+- FLP-Klebeetiketten oder Lift-Parts-Repair-Sticker
+- Hotline-Nummern, Marketing-Domains wie "aufzug-umrichter.de"
+
+Wenn du etwas nicht erkennen kannst, gib einen leeren String "" zurück. Nie raten.
+
+Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
+    const txt = await askAI(prompt, { system: sys, images, maxTokens: 700 });
+    const parsed = parseAIJson(txt);
+    let changed = 0;
+    if (parsed?.name) { state.voiceFields.name = String(parsed.name).trim(); changed++; }
+    if (parsed?.maker) { state.voiceFields.maker = String(parsed.maker).trim(); changed++; }
+    if (parsed?.description) { state.voiceTranscript = String(parsed.description).trim(); changed++; }
+    if (changed > 0) showToast(`Erkannt: ${changed} Felder ausgefüllt`, 'success', 2400);
+    else showToast('Keine Daten erkannt — manuell ausfüllen', 'info', 3000);
+  } catch (e) {
+    showToast('KI-Auslese fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
 // Step 1 — Kategorie
 function renderWizardCat() {
   const cats = state.categories || [];
@@ -3017,6 +3130,135 @@ function renderWizardCat() {
 </div>`;
 }
 
+// Step 3 — Beschreibung & Hersteller (mit AI-Extract aus Fotos)
+function renderWizardDesc() {
+  const f = state.voiceFields || {};
+  const desc = state.voiceTranscript || '';
+  const hasName = !!(f.name || '').trim();
+  const photoCount = (state.voicePhotoFiles || []).length;
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Was für ein Artikel ist das?</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Lass die KI Bezeichnung, Hersteller und Beschreibung aus deinen Fotos auslesen — oder fülle die Felder manuell.</p>
+    </div>
+    ${photoCount > 0 ? `
+      <button data-action="wiz-extract-desc" style="width:100%;padding:14px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue);margin-bottom:16px">
+        ${svg('sparkles', 15, 2.4)} Aus ${photoCount} Foto${photoCount === 1 ? '' : 's'} auslesen (KI)
+      </button>
+    ` : `
+      <div class="tile" style="padding:14px;background:var(--c-bg-soft);font-size:12.5px;color:var(--c-ink-soft);margin-bottom:16px;display:flex;align-items:center;gap:8px">
+        ${svg('alert-triangle', 14, 2.4)} <span>Keine Fotos vorhanden — du kannst manuell ausfüllen oder zurück zu Schritt 2.</span>
+      </div>
+    `}
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="field">
+        <label class="field__label">BEZEICHNUNG</label>
+        <input class="field__input" data-action="voice-field" data-key="name" value="${(f.name || '').replace(/"/g, '&quot;')}" placeholder="z.B. ZAdyn4C Frequenzumrichter">
+      </div>
+      <div class="field">
+        <label class="field__label">HERSTELLER</label>
+        <input class="field__input" data-action="voice-field" data-key="maker" value="${(f.maker || '').replace(/"/g, '&quot;')}" placeholder="z.B. Ziehl-Abegg">
+      </div>
+      <div class="field">
+        <label class="field__label">BESCHREIBUNG</label>
+        <textarea data-action="wiz-desc-text" rows="5" style="width:100%;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-md);padding:12px 14px;font-family:var(--f-display);font-size:14px;font-weight:500;line-height:1.5;color:var(--c-ink);resize:vertical;outline:none" placeholder="Funktion, typische Verwendung, Eigenschaften …">${desc.replace(/</g, '&lt;')}</textarea>
+      </div>
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next ${hasName ? '' : 'wiz-actions__next--disabled'}" data-action="wiz-next" ${hasName ? '' : 'disabled'}>
+      Weiter ${svg('arrow-right', 14, 2.4)}
+    </button>
+  </div>
+</div>`;
+}
+
+// Step 4 — Tracker / QR-Code
+function renderWizardTracker() {
+  const f = state.voiceFields || {};
+  const tracker = (f.tracker || '').trim();
+  const trackerUrl = (f.trackerUrl || '').trim();
+  const photoCount = (state.voicePhotoFiles || []).length;
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Tracker & QR-Code</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Optional. Wenn der Artikel kein Tracker-Etikett hat, einfach überspringen.</p>
+    </div>
+    ${(tracker || trackerUrl) ? `
+      <div style="padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-tile);display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        ${tracker ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em">${svg('hash', 11, 2.5)} Tracker</div><div style="font-family:var(--f-mono);font-size:16px;font-weight:700;color:#3F2C00">${tracker}</div></div>` : ''}
+        ${trackerUrl ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em">${svg('qr-code', 11, 2.5)} URL</div><div style="font-family:var(--f-mono);font-size:11.5px;color:#3F2C00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${trackerUrl}</div></div>` : ''}
+      </div>
+    ` : ''}
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+      <button data-action="wiz-tracker-live" style="width:100%;padding:14px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
+        ${svg('camera', 15, 2.4)} Live mit Kamera scannen
+      </button>
+      ${photoCount > 0 ? `
+        <button data-action="wiz-tracker-from-photos" ${state.voiceScanRunning ? 'disabled' : ''} style="width:100%;padding:12px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:13px;font-weight:600;color:var(--c-ink-soft);display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.voiceScanRunning ? 'opacity:.6' : ''}">
+          ${svg('scan-line', 13, 2.5)} ${state.voiceScanRunning ? 'Scannt …' : `Aus ${photoCount} Foto${photoCount === 1 ? '' : 's'} auslesen`}
+        </button>
+      ` : ''}
+    </div>
+    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:8px">Manuell</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="field">
+        <label class="field__label">TRACKER-NUMMER</label>
+        <input class="field__input" data-action="voice-field" data-key="tracker" value="${tracker.replace(/"/g, '&quot;')}" placeholder="z.B. 12696" style="font-family:var(--f-mono);font-size:14px">
+      </div>
+      <div class="field">
+        <label class="field__label">QR-LINK (URL)</label>
+        <input class="field__input" data-action="voice-field" data-key="trackerUrl" value="${trackerUrl.replace(/"/g, '&quot;')}" placeholder="https://…" style="font-family:var(--f-mono);font-size:11.5px" autocomplete="off">
+      </div>
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next" data-action="wiz-next">
+      ${(tracker || trackerUrl) ? 'Weiter' : 'Überspringen'} ${svg('arrow-right', 14, 2.4)}
+    </button>
+  </div>
+</div>`;
+}
+
+// Step 4-Helper — Live-QR-Scanner (eigener Vollbild-Screen mit Video-Stream)
+function renderWizardTrackerScan() {
+  const supported = ('BarcodeDetector' in window);
+  return `
+<div class="screen cam-screen">
+  ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="wiz-tracker-scan-stop">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill">QR-Code scannen</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px;padding:16px;position:relative">
+    ${supported ? `
+      <div class="live-cam" id="liveScanFrame">
+        <video id="liveScanVideo" class="live-cam__video" autoplay playsinline muted></video>
+        <div class="live-cam__hint">QR-Code in das Bild halten …</div>
+      </div>
+    ` : `
+      <div style="text-align:center;color:#fff;padding:24px">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">${svg('alert-triangle', 28, 2.2)}</div>
+        <div style="font-size:14px;font-weight:600">Live-Scanner nicht verfügbar</div>
+        <div style="font-size:12px;font-weight:500;opacity:.6;margin-top:6px">Dein Browser unterstützt BarcodeDetector nicht. iOS Safari 17+ oder Chrome nötig.</div>
+        <button data-action="wiz-tracker-scan-stop" style="margin-top:16px;padding:10px 20px;background:rgba(255,255,255,0.15);color:#fff;border-radius:var(--r-pill);font-size:13px;font-weight:600">Zurück</button>
+      </div>
+    `}
+  </div>
+</div>`;
+}
 
 function renderHome() {
   return `
@@ -5178,7 +5420,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -5292,8 +5534,11 @@ function triggerEffects() {
   if (state.view === 'camera') {
     // Erst nach DOM-Render wirken: Stream nur starten wenn Live-Element gerade sichtbar
     setTimeout(startLiveCameraIfNeeded, 30);
+  } else if (state.view === 'wizardTrackerScan') {
+    setTimeout(startLiveTrackerScan, 30);
   } else {
     Camera.stop();
+    stopLiveTrackerScan();
   }
 
   // Cropper nach Render initialisieren
@@ -5324,7 +5569,7 @@ function go(view) {
     try { URL.revokeObjectURL(state.cropper.imageUrl); } catch(_) {}
     state.cropper = null;
   }
-  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper' && view !== 'wizardCat') {
+  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper' && view !== 'wizardCat' && view !== 'wizardDesc' && view !== 'wizardTracker' && view !== 'wizardTrackerScan') {
     // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
     state.voicePhase = 'idle';
     state.voiceTranscript = '';
@@ -5527,12 +5772,25 @@ document.addEventListener('click', (e) => {
         if (!state.voiceFields.cat) { showToast('Bitte erst eine Kategorie wählen', 'info', 2200); break; }
         state.wizardStep = 2;
         go('camera');
+      } else if (state.wizardStep === 3) {
+        if (!(state.voiceFields.name || '').trim()) { showToast('Bezeichnung fehlt', 'info', 2200); break; }
+        state.wizardStep = 4;
+        go('wizardTracker');
+      } else if (state.wizardStep === 4) {
+        // Step 5+ ist noch nicht gebaut → vorerst ins alte Voice-Formular für die Restfelder
+        state.wizardStep = 5;
+        go('voice');
       }
-      // Schritt 3+: vorerst über continue-to-voice → renderVoiceForm
       break;
     }
     case 'wiz-back': {
-      if (state.wizardStep === 2) {
+      if (state.wizardStep === 4) {
+        state.wizardStep = 3;
+        go('wizardDesc');
+      } else if (state.wizardStep === 3) {
+        state.wizardStep = 2;
+        go('camera');
+      } else if (state.wizardStep === 2) {
         state.wizardStep = 1;
         go('wizardCat');
       } else if (state.wizardStep === 1) {
@@ -5541,6 +5799,12 @@ document.addEventListener('click', (e) => {
       }
       break;
     }
+    /* Step 3 — KI extrahiert Beschreibung aus Fotos */
+    case 'wiz-extract-desc': extractDescriptionFromPhotos(); break;
+    /* Step 4 — Tracker / QR */
+    case 'wiz-tracker-from-photos': autoScanFirstPhotoForTracker((state.voicePhotoFiles || [])[0], { force: true }); break;
+    case 'wiz-tracker-live': go('wizardTrackerScan'); break;
+    case 'wiz-tracker-scan-stop': go('wizardTracker'); break;
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
@@ -5981,7 +6245,13 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'continue-to-voice':
-      go('voice');
+      // Im Wizard: weiter zu Step 3 (Beschreibung). Sonst: altes Voice-Formular.
+      if (state.wizardStep === 2) {
+        state.wizardStep = 3;
+        go('wizardDesc');
+      } else {
+        go('voice');
+      }
       break;
     case 'open-photo-search-camera': document.getElementById('photoSearchInput')?.click(); break;
 
@@ -6116,6 +6386,7 @@ document.addEventListener('input', (e) => {
   else if (a === 'bestand-query') { state.bestandQuery = t.value; render(); }
   else if (a === 'loc-add-input') state.locAddDraft = t.value;
   else if (a === 'hall-rename-input') state.locRenameDraft = t.value;
+  else if (a === 'wiz-desc-text') state.voiceTranscript = t.value;
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
