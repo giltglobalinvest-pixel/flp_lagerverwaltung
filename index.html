@@ -325,6 +325,16 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .wiz-lightbox__nav[disabled]{opacity:.3;cursor:default}
 .wiz-lightbox__nav--prev{left:12px;transform:translateY(-50%) scaleX(-1)}
 .wiz-lightbox__nav--next{right:12px}
+
+/* Tracker-Nummer-Eingabe in Step 4 — groß, mono, Zahlentastatur */
+.wiz-tracker-input-wrap{position:relative;margin:8px 0 14px}
+.wiz-tracker-input{width:100%;padding:18px 20px 18px 56px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);font-family:var(--f-mono);font-size:32px;font-weight:700;letter-spacing:.04em;color:var(--c-ink);outline:none;text-align:left;line-height:1}
+.wiz-tracker-input:focus{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.wiz-tracker-input::placeholder{color:var(--c-ink-subtle);font-weight:600}
+.wiz-tracker-input__hash{position:absolute;left:24px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:32px;font-weight:700;color:var(--c-ink-mute);pointer-events:none;line-height:1}
+.wiz-tracker-url{padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-md);display:flex;flex-direction:column;gap:6px}
+.wiz-tracker-url__label{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em}
+.wiz-tracker-url__value{font-family:var(--f-mono);font-size:12px;font-weight:600;color:#3F2C00;word-break:break-all;line-height:1.35}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -525,7 +535,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.3';
+const APP_VERSION = 'v1.17.4';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -635,6 +645,10 @@ const PHOTO_TARGET_RATIO = 5 / 4;     // Hero-Format
 const PHOTO_MAX_EDGE = 1600;           // px Längskante
 const PHOTO_JPEG_QUALITY = 0.82;
 const PHOTO_MAX_PER_ITEM = 6;
+
+// Standard-Schema für Tracker-URLs. Wenn der User in Step 4 eine Tracker-Nummer eingibt,
+// wird daraus automatisch der QR-Link gebaut: TRACKER_URL_BASE + Nummer.
+const TRACKER_URL_BASE = 'https://trackers.litelead.xyz/flp/';
 
 // Liest ein Bild-File, beschneidet zentriert auf 5:4, skaliert auf max. 1600px,
 // kodiert als JPEG. Liefert ein neues File-Objekt mit ~80–90% kleinerer Größe.
@@ -3253,12 +3267,12 @@ function renderWizardDesc() {
 </div>`;
 }
 
-// Step 4 — Tracker / QR-Code
+// Step 4 — Tracker (manuelle Eingabe der Nummer; QR-Link wird automatisch zusammengebaut)
 function renderWizardTracker() {
   const f = state.voiceFields || {};
   const tracker = (f.tracker || '').trim();
-  const trackerUrl = (f.trackerUrl || '').trim();
-  const photoCount = (state.voicePhotoFiles || []).length;
+  // Live-Vorschau der URL: aus aktueller Eingabe oder aus gespeichertem trackerUrl
+  const previewUrl = tracker ? TRACKER_URL_BASE + tracker : (f.trackerUrl || '');
   return `
 <div class="screen">
   ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
@@ -3267,41 +3281,33 @@ function renderWizardTracker() {
   <div class="scroll" style="padding-bottom:24px">
     ${wizProgress()}
     <div style="margin-top:14px">
-      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Tracker & QR-Code</h1>
-      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Optional. Wenn der Artikel kein Tracker-Etikett hat, einfach überspringen.</p>
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Tracker-Nummer</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Die Zahl steht auf dem FLP-Etikett deines Artikels (z.B. <strong style="font-family:var(--f-mono);color:var(--c-ink)">#12696</strong>). Wenn der Artikel kein Etikett hat, einfach überspringen.</p>
     </div>
-    ${(tracker || trackerUrl) ? `
-      <div style="padding:14px 16px;background:#FFF8DD;border:1px solid #F5C95B;border-radius:var(--r-tile);display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-        ${tracker ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em">${svg('hash', 11, 2.5)} Tracker</div><div style="font-family:var(--f-mono);font-size:16px;font-weight:700;color:#3F2C00">${tracker}</div></div>` : ''}
-        ${trackerUrl ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.06em">${svg('qr-code', 11, 2.5)} URL</div><div style="font-family:var(--f-mono);font-size:11.5px;color:#3F2C00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${trackerUrl}</div></div>` : ''}
-      </div>
-    ` : ''}
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
-      <button data-action="wiz-tracker-live" style="width:100%;padding:14px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
-        ${svg('camera', 15, 2.4)} Live mit Kamera scannen
-      </button>
-      ${photoCount > 0 ? `
-        <button data-action="wiz-tracker-from-photos" ${state.voiceScanRunning ? 'disabled' : ''} style="width:100%;padding:12px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:13px;font-weight:600;color:var(--c-ink-soft);display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.voiceScanRunning ? 'opacity:.6' : ''}">
-          ${svg('scan-line', 13, 2.5)} ${state.voiceScanRunning ? 'Scannt …' : `Aus ${photoCount} Foto${photoCount === 1 ? '' : 's'} auslesen`}
-        </button>
-      ` : ''}
+    <div class="wiz-tracker-input-wrap">
+      <input
+        class="wiz-tracker-input"
+        data-action="voice-field"
+        data-key="tracker"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="12696"
+        value="${tracker.replace(/"/g, '&quot;')}"
+        autofocus>
+      <span class="wiz-tracker-input__hash">#</span>
     </div>
-    <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:8px">Manuell</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="field">
-        <label class="field__label">TRACKER-NUMMER</label>
-        <input class="field__input" data-action="voice-field" data-key="tracker" value="${tracker.replace(/"/g, '&quot;')}" placeholder="z.B. 12696" style="font-family:var(--f-mono);font-size:14px">
-      </div>
-      <div class="field">
-        <label class="field__label">QR-LINK (URL)</label>
-        <input class="field__input" data-action="voice-field" data-key="trackerUrl" value="${trackerUrl.replace(/"/g, '&quot;')}" placeholder="https://…" style="font-family:var(--f-mono);font-size:11.5px" autocomplete="off">
-      </div>
+    <div class="wiz-tracker-url">
+      <div class="wiz-tracker-url__label">${svg('qr-code', 11, 2.5)} QR-Link · automatisch</div>
+      <div class="wiz-tracker-url__value" id="wizTrackerUrlPreview">${previewUrl || '— wird automatisch erzeugt —'}</div>
     </div>
   </div>
   <div class="wiz-actions">
     <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
     <button class="wiz-actions__next" data-action="wiz-next">
-      ${(tracker || trackerUrl) ? 'Weiter' : 'Überspringen'} ${svg('arrow-right', 14, 2.4)}
+      ${tracker ? 'Weiter' : 'Überspringen'} ${svg('arrow-right', 14, 2.4)}
     </button>
   </div>
 </div>`;
@@ -6523,7 +6529,17 @@ document.addEventListener('input', (e) => {
   }
   if (a === 'manual-search-input') state.query = t.value;
   else if (a === 'query-input') state.query = t.value;
-  else if (a === 'voice-field') state.voiceFields[t.dataset.key] = t.value;
+  else if (a === 'voice-field') {
+    state.voiceFields[t.dataset.key] = t.value;
+    // Auto-URL: bei Eingabe der Tracker-Nummer den QR-Link automatisch aus dem Standard-Schema bauen
+    if (t.dataset.key === 'tracker') {
+      const num = String(t.value || '').trim();
+      state.voiceFields.trackerUrl = num ? TRACKER_URL_BASE + num : '';
+      // URL-Vorschau im Wizard live mitupdaten ohne komplettes re-render
+      const preview = document.getElementById('wizTrackerUrlPreview');
+      if (preview) preview.textContent = state.voiceFields.trackerUrl || '— wird automatisch erzeugt —';
+    }
+  }
   else if (a === 'voice-loc-pos') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.pos = t.value; }
   else if (a === 'voice-loc-box') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.box = t.value; }
   else if (a === 'bestand-query') { state.bestandQuery = t.value; render(); }
