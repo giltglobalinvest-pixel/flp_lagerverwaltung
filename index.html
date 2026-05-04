@@ -479,7 +479,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.15.2';
+const APP_VERSION = 'v1.16';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -946,12 +946,17 @@ async function scanItemPhotosForTracker() {
 }
 
 // Stellt das erste Foto eines bereits gespeicherten Items frei.
-// Lädt das Foto runter, prozessiert mit KI, hängt es an Airtable an, sortiert um, löscht das alte erste.
+// Wichtig: Original wird NICHT gelöscht — landet auf Position 1, damit "Undo" möglich bleibt.
+// Bei voller Foto-Liste (PHOTO_MAX_PER_ITEM) wird abgebrochen — User muss vorher löschen.
 async function bgRemoveItemFirstPhoto() {
   const it = state.item;
   if (!it) return;
   const photos = it.photo || [];
   if (photos.length === 0) { showToast('Kein Foto vorhanden', 'info', 2200); return; }
+  if (photos.length >= PHOTO_MAX_PER_ITEM) {
+    showToast(`Foto-Liste ist voll (${PHOTO_MAX_PER_ITEM}/${PHOTO_MAX_PER_ITEM}) — bitte erst ein Foto löschen, damit das Original beim Freistellen erhalten bleibt`, 'info', 5000);
+    return;
+  }
   if (state.bgRemoving) return;
   state.bgRemoving = true;
   setLoading(true, 'Foto wird geladen …');
@@ -969,18 +974,20 @@ async function bgRemoveItemFirstPhoto() {
     setLoading(true, 'Hochladen …');
     await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', result);
 
-    // 4) Frisch nachladen, neues Foto identifizieren, an Position 0 setzen, altes erstes entfernen
+    // 4) Frisch nachladen + reordern: freigestellt = Position 0, Original = Position 1, Rest folgt unverändert
     setLoading(true, 'Bilder werden neu sortiert …');
     const oldIds = new Set(photos.map(p => p.id));
     const oldFirstId = photos[0].id;
     const fresh = await fetchPhotosWithRetry(it._recordId, photos.length + 1);
     const newPhoto = fresh.find(p => !oldIds.has(p.id));
     if (!newPhoto) {
-      // Fallback: nur neu laden, ohne Reorder
+      // Fallback: nur neu laden, kein Reorder
       it.photo = fresh;
       it.photoUrl = fresh[0]?.url || null;
     } else {
-      const reordered = [newPhoto, ...fresh.filter(p => p.id !== newPhoto.id && p.id !== oldFirstId)].map(p => ({ id: p.id }));
+      const oldFirst = fresh.find(p => p.id === oldFirstId);
+      const others = fresh.filter(p => p.id !== newPhoto.id && p.id !== oldFirstId);
+      const reordered = [newPhoto, oldFirst, ...others].filter(Boolean).map(p => ({ id: p.id }));
       await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
       const finalPhotos = await fetchPhotosWithRetry(it._recordId, reordered.length);
       it.photo = finalPhotos;
@@ -989,9 +996,116 @@ async function bgRemoveItemFirstPhoto() {
     it.updated = nowIso();
     it.upd = 'gerade eben';
     state.galleryIndex = 0;
-    showToast('Hauptfoto freigestellt', 'success', 2400);
+    showToast('Hauptfoto freigestellt — Original bleibt auf Platz 2 erhalten', 'success', 3500);
   } catch (e) {
     showToast('Freistellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 4500);
+  } finally {
+    state.bgRemoving = false;
+    setLoading(false);
+    render();
+  }
+}
+
+// Ersetzt ein einzelnes Foto eines Items: hängt das neue an, sortiert es an die Original-Position, löscht das alte.
+async function replaceItemPhoto(itemRecordId, oldPhotoId, originalIdx, newFile) {
+  const it = state.item;
+  if (!it || !it._recordId || it._recordId !== itemRecordId) {
+    showToast('Artikel nicht mehr aktiv', 'error', 3000);
+    return;
+  }
+  const photos = it.photo || [];
+  if (!photos.find(p => p.id === oldPhotoId)) {
+    showToast('Original-Foto nicht mehr vorhanden', 'error', 3000);
+    return;
+  }
+  setLoading(true, 'Foto wird optimiert & hochgeladen …');
+  try {
+    // 1) neue Datei hochladen (wird ans Ende angehängt)
+    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', newFile);
+
+    // 2) frisch nachladen
+    setLoading(true, 'Bilder werden neu sortiert …');
+    const fresh = await fetchPhotosWithRetry(it._recordId, photos.length + 1);
+    const oldIds = new Set(photos.map(p => p.id));
+    const newPhoto = fresh.find(p => !oldIds.has(p.id));
+    if (!newPhoto) {
+      // Fallback: einfach übernehmen
+      it.photo = fresh;
+      it.photoUrl = fresh[0]?.url || null;
+    } else {
+      // 3) reordern: neues an Stelle des alten, altes verschwindet
+      const others = fresh.filter(p => p.id !== newPhoto.id && p.id !== oldPhotoId);
+      const reordered = [...others.slice(0, originalIdx), newPhoto, ...others.slice(originalIdx)].map(p => ({ id: p.id }));
+      await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
+      const finalPhotos = await fetchPhotosWithRetry(it._recordId, reordered.length);
+      it.photo = finalPhotos;
+      it.photoUrl = finalPhotos[0]?.url || null;
+    }
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    state.galleryIndex = originalIdx;
+    showToast('Foto neu zugeschnitten', 'success', 2400);
+  } catch (e) {
+    showToast('Ersetzen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    setLoading(false);
+    render();
+  }
+}
+
+// Lädt das angegebene Item-Foto runter und öffnet den Cropper im "Replace"-Modus.
+// Nach Confirm wird das Foto an seiner ursprünglichen Position ersetzt (cropperConfirm-Logik).
+async function startRecropExistingPhoto(idx) {
+  const it = state.item;
+  if (!it) return;
+  const photos = it.photo || [];
+  const target = photos[idx];
+  if (!target) return;
+  setLoading(true, 'Foto wird geladen …');
+  try {
+    const file = await _fetchPhotoAsFile(target, idx);
+    if (!file) throw new Error('Foto konnte nicht heruntergeladen werden');
+    const url = URL.createObjectURL(file);
+    state.cropper = {
+      file,
+      imageUrl: url,
+      imgW: 0, imgH: 0,
+      scale: 1, offsetX: 0, offsetY: 0,
+      frameW: 0, frameH: 0, baseScale: 1,
+      returnView: state.view,
+      mode: 'replaceItemPhoto',
+      targetItemId: it._recordId,
+      targetPhotoId: target.id,
+      targetPhotoIdx: idx,
+    };
+    go('cropper');
+  } catch (e) {
+    showToast('Foto konnte nicht geladen werden: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Macht das letzte Freistellen rückgängig: löscht photo[0] (das freigestellte) → Original (Pos 1) wandert auf Pos 0
+async function undoBgRemove() {
+  const it = state.item;
+  if (!it) return;
+  const photos = it.photo || [];
+  if (photos.length < 2) { showToast('Nichts zum Wiederherstellen', 'info', 2200); return; }
+  const firstName = photos[0]?.filename || '';
+  if (!/_freigestellt\.(jpe?g|png)$/i.test(firstName)) {
+    showToast('Hauptfoto sieht nicht nach Freistellung aus — Wiederherstellen abgebrochen', 'info', 3000);
+    return;
+  }
+  if (state.bgRemoving) return;
+  state.bgRemoving = true;
+  setLoading(true, 'Original wird wiederhergestellt …');
+  render();
+  try {
+    await handleItemPhotoDelete(0);
+    showToast('Original wiederhergestellt', 'success', 2400);
+  } catch (e) {
+    showToast('Wiederherstellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
   } finally {
     state.bgRemoving = false;
     setLoading(false);
@@ -3439,6 +3553,7 @@ function renderEdit() {
                 ${i === 0 ? `<span class="photo-strip__primary">${svg('check', 9, 3)} Haupt</span>` : ''}
               </button>
               <div class="photo-strip__actions">
+                <button class="photo-strip__act" data-action="photo-recrop" data-idx="${i}" title="Neu zuschneiden">${svg('image', 11, 2.5)}</button>
                 ${i !== 0 ? `<button class="photo-strip__act" data-action="photo-set-primary" data-idx="${i}" title="Als Hauptbild">${svg('arrow-up-right', 11, 2.5)}</button>` : ''}
                 <button class="photo-strip__act photo-strip__act--del" data-action="photo-delete" data-idx="${i}" title="Foto l\u00f6schen">${svg('trash-2', 11, 2.5)}</button>
               </div>
@@ -3456,11 +3571,22 @@ function renderEdit() {
             <div class="photo-strip__hint">${PHOTO_MAX_PER_ITEM} / ${PHOTO_MAX_PER_ITEM} Fotos</div>
           `}
         </div>
-        ${photos.length > 0 ? `
-          <button data-action="edit-bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;margin-top:10px;padding:10px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px;${state.bgRemoving ? 'opacity:.6' : ''}">
-            ${svg('sparkles', 12, 2.5)} ${state.bgRemoving ? 'Wird freigestellt \u2014 bitte warten \u2026' : 'Hauptfoto freistellen (KI)'}
-          </button>
-        ` : ''}
+        ${(photos.length > 0 && isAdmin()) ? (() => {
+          const firstName = photos[0]?.filename || '';
+          const isFreigestellt = /_freigestellt\.(jpe?g|png)$/i.test(firstName);
+          const canUndo = isFreigestellt && photos.length >= 2;
+          return `
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+              <button data-action="edit-bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:10px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px;${state.bgRemoving ? 'opacity:.6' : ''}">
+                ${svg('sparkles', 12, 2.5)} ${state.bgRemoving ? 'Wird freigestellt \u2014 bitte warten \u2026' : 'Hauptfoto freistellen (KI)'}
+              </button>
+              ${canUndo ? `
+                <button data-action="edit-bg-remove-undo" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:10px;background:var(--c-surface);border:1px dashed rgba(229,72,77,0.4);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-red);display:flex;align-items:center;justify-content:center;gap:6px">
+                  ${svg('rotate-ccw', 12, 2.5)} Freistellen r\u00fcckg\u00e4ngig \u2014 Original wiederherstellen
+                </button>
+              ` : ''}
+            </div>`;
+        })() : ''}
       `;
     })()}
 
@@ -4252,11 +4378,13 @@ function renderCamera() {
       </button>
     </div>
   ` : `
-    <div style="padding:0 20px 8px">
-      <button data-action="bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:11px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:12px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.bgRemoving ? 'opacity:.6' : ''}">
-        ${svg('sparkles', 13, 2.5)} ${state.bgRemoving ? 'Wird freigestellt — bitte warten …' : 'Hauptfoto freistellen (KI)'}
-      </button>
-    </div>
+    ${isAdmin() ? `
+      <div style="padding:0 20px 8px">
+        <button data-action="bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:11px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:12px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.bgRemoving ? 'opacity:.6' : ''}">
+          ${svg('sparkles', 13, 2.5)} ${state.bgRemoving ? 'Wird freigestellt — bitte warten …' : 'Hauptfoto freistellen (KI)'}
+        </button>
+      </div>
+    ` : ''}
     <div style="padding:0 20px 16px">
       <button data-action="continue-to-voice" style="width:100%;padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
         Weiter mit ${count} Foto${count === 1 ? '' : 's'} ${svg('arrow-right', 16, 2.5)}
@@ -4484,6 +4612,19 @@ async function cropperConfirm() {
       // Upload nach Render starten (handleItemPhotoAdd setzt eigenen Loader)
       setLoading(false);
       handleItemPhotoAdd(file);
+      return;
+    }
+
+    if (mode === 'replaceItemPhoto') {
+      // Bestehendes Foto an targetPhotoIdx ersetzen — neue Datei hochladen, an Position einsortieren, altes löschen
+      const targetItemId = c.targetItemId;
+      const targetPhotoId = c.targetPhotoId;
+      const targetIdx = c.targetPhotoIdx;
+      try { URL.revokeObjectURL(c.imageUrl); } catch (_) {}
+      state.cropper = null;
+      go(ret);
+      setLoading(false);
+      replaceItemPhoto(targetItemId, targetPhotoId, targetIdx, file);
       return;
     }
 
@@ -5299,8 +5440,23 @@ document.addEventListener('click', (e) => {
     }
 
     /* Hauptfoto freistellen (Hintergrund entfernen via KI) */
-    case 'bg-remove-first': bgRemoveFirstPhoto(); break;
-    case 'edit-bg-remove-first': bgRemoveItemFirstPhoto(); break;
+    case 'bg-remove-first':
+      if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
+      bgRemoveFirstPhoto(); break;
+    case 'edit-bg-remove-first':
+      if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
+      bgRemoveItemFirstPhoto(); break;
+    case 'edit-bg-remove-undo':
+      if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
+      undoBgRemove(); break;
+    /* Bestehendes Item-Foto neu zuschneiden — öffnet Cropper mit Replace-Modus */
+    case 'photo-recrop': {
+      const idx = +btn.dataset.idx;
+      const it = state.item;
+      if (!it || !it.photo || idx < 0 || idx >= it.photo.length) break;
+      startRecropExistingPhoto(idx);
+      break;
+    }
 
     /* Tracker / QR aus dem aktuellen Foto rescannen */
     case 'rescan-tracker': {
