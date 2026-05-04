@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19';
+const APP_VERSION = 'v1.19.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1639,7 +1639,7 @@ const state = {
   aiStep: 0,
   photoSearchPhase: 'idle', photoSearchFile: null, photoSearchPreview: null,
   photoSearchTextMatches: [], photoSearchVisualMatches: [],
-  bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
+  bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandModel: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
   locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
@@ -2356,10 +2356,11 @@ async function saveNewItemFromVoice() {
   const newItem = {
     id: shortId('A'),
     company_id: company.id,
-    title: name,
-    description: state.voiceTranscript || '',
     // Hersteller dedupen — wenn ähnlicher Name bereits existiert, kanonische Schreibweise nutzen
     maker: normalizeMakerForSave(f.maker),
+    // Title dedupen gegen bestehende Bezeichnungen dieses Herstellers
+    title: normalizeTitleForSave(name, normalizeMakerForSave(f.maker)),
+    description: state.voiceTranscript || '',
     cat: (f.cat || '').trim() || 'Mechanik',
     loc: buildLoc(state.voiceLocDraft || {}),
     cond: state.voiceCond || 'neu',
@@ -3187,6 +3188,75 @@ function normalizeMakerForSave(input) {
   return capitalizeFirst(stripped);
 }
 
+// Title-Normalisierung — etwas lockerer als beim Maker, da Titel mehr Variationen erlauben.
+// Lower-case + Whitespace/Bindestriche/Interpunktion zusammenziehen.
+function normalizeTitle(s) {
+  return String(s || '').toLowerCase().replace(/[\s\-_.,/&]+/g, '').trim();
+}
+
+// Liefert die komplette deduplizierte Title-Liste, optional gefiltert auf einen Hersteller.
+// Erste gefundene Schreibweise gewinnt als kanonische Form.
+function getDedupedProductTitles(maker) {
+  const targetNorm = maker ? normalizeMaker(maker) : null;
+  const map = new Map();
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (targetNorm && normalizeMaker(it.maker) !== targetNorm) continue;
+      const title = (it.title || '').trim();
+      if (!title) continue;
+      const k = normalizeTitle(title);
+      if (!k) continue;
+      if (!map.has(k)) map.set(k, title);
+    }
+  }
+  return [...map.values()].sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+// Top-N häufigste Titel für einen gegebenen Hersteller. Gut für Chip-Vorschläge.
+function getTopProductTitles(maker, limit = 8) {
+  const targetNorm = maker ? normalizeMaker(maker) : null;
+  const counts = {};
+  const canon = {};
+  for (const c of (state.companies || [])) {
+    for (const it of (c.inventory || [])) {
+      if (targetNorm && normalizeMaker(it.maker) !== targetNorm) continue;
+      const title = (it.title || '').trim();
+      if (!title) continue;
+      const k = normalizeTitle(title);
+      if (!k) continue;
+      if (!canon[k]) canon[k] = title;
+      const c2 = canon[k];
+      counts[c2] = (counts[c2] || 0) + 1;
+    }
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([t]) => t);
+}
+
+// Sucht eine kanonische Schreibweise eines Titels. Erst innerhalb des Herstellers,
+// dann global wenn nichts gefunden.
+function findCanonicalTitle(input, maker) {
+  const norm = normalizeTitle(input);
+  if (!norm) return null;
+  const scoped = getDedupedProductTitles(maker);
+  for (const t of scoped) if (normalizeTitle(t) === norm) return t;
+  if (maker) {
+    const all = getDedupedProductTitles('');
+    for (const t of all) if (normalizeTitle(t) === norm) return t;
+  }
+  return null;
+}
+
+// Title-Save-Helper: kanonische Schreibung verwenden falls existent.
+function normalizeTitleForSave(input, maker) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const canonical = findCanonicalTitle(raw, maker);
+  return canonical || capitalizeFirst(raw);
+}
+
 // KI-Vision: liest Bezeichnung, Hersteller und Typenschild-Inhalte aus den Step-2-Fotos.
 // Output für "description" ist eine LISTE (jede Zeile = ein Wert vom Etikett), kein Fließtext.
 // QR-/Tracker-Fotos werden vorab ausgefiltert — die sind für Step 4 zuständig.
@@ -3234,10 +3304,14 @@ Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
     const txt = await askAI(prompt, { system: sys, images, maxTokens: 800 });
     const parsed = parseAIJson(txt);
     let changed = 0;
-    if (parsed?.name) { state.voiceFields.name = capitalizeFirst(String(parsed.name).trim()); changed++; }
+    // Maker zuerst dedupen (Title-Dedup nutzt den Maker als Scope)
     if (parsed?.maker) {
-      // Dedup gegen bestehende Hersteller — wenn schon eine Variante existiert, übernehmen wir die kanonische Schreibweise
       state.voiceFields.maker = normalizeMakerForSave(parsed.maker);
+      changed++;
+    }
+    if (parsed?.name) {
+      // Title gegen bekannte Modelle dieses Herstellers dedupen
+      state.voiceFields.name = normalizeTitleForSave(parsed.name, state.voiceFields.maker);
       changed++;
     }
     if (parsed?.description) {
@@ -3358,6 +3432,21 @@ function renderWizardDesc() {
       <div class="field">
         <label class="field__label">BEZEICHNUNG</label>
         <input class="field__input" data-action="voice-field" data-key="name" value="${(f.name || '').replace(/"/g, '&quot;')}" placeholder="z.B. ZAdyn4C Frequenzumrichter">
+        ${(() => {
+          const top = getTopProductTitles(f.maker, 8);
+          if (top.length === 0) return '';
+          const cur = (f.name || '').trim();
+          const curNorm = normalizeTitle(cur);
+          const lbl = f.maker ? `Häufige Modelle · ${f.maker}` : 'Häufige Modelle';
+          return `
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;margin-top:8px;padding:0 2px">${lbl}</div>
+            <div class="chip-row" style="margin-top:5px">
+              ${top.map(t => `
+                <button class="chip ${normalizeTitle(t) === curNorm ? 'chip--active' : ''}" data-action="wiz-pick-title" data-title="${t.replace(/"/g, '&quot;')}">${t}</button>
+              `).join('')}
+            </div>
+          `;
+        })()}
       </div>
       <div class="field">
         <label class="field__label">HERSTELLER</label>
@@ -3924,6 +4013,10 @@ function renderBestand() {
     const targetNorm = normalizeMaker(state.bestandMaker);
     items = items.filter(it => normalizeMaker(it.maker) === targetNorm);
   }
+  if (state.bestandModel && state.bestandModel !== 'all') {
+    const targetNorm = normalizeTitle(state.bestandModel);
+    items = items.filter(it => normalizeTitle(it.title) === targetNorm);
+  }
 
   // Apply condition filter
   if (state.bestandCond && state.bestandCond !== 'all') {
@@ -3986,6 +4079,7 @@ function renderBestand() {
     const activeCount =
       (state.bestandFilter !== 'all' ? 1 : 0) +
       (state.bestandMaker && state.bestandMaker !== 'all' ? 1 : 0) +
+      (state.bestandModel && state.bestandModel !== 'all' ? 1 : 0) +
       (state.bestandCond && state.bestandCond !== 'all' ? 1 : 0) +
       (state.bestandFunc && state.bestandFunc !== 'all' ? 1 : 0);
     const expanded = state.bestandFiltersExpanded;
@@ -4031,6 +4125,39 @@ function renderBestand() {
       `).join('')}
     </div>
   </div>
+
+  ${(() => {
+    // Modell-Filter — Liste scoped auf gewählten Hersteller (sonst zu viele)
+    const scopeMaker = (state.bestandMaker && state.bestandMaker !== 'all') ? state.bestandMaker : '';
+    const modelOptions = getDedupedProductTitles(scopeMaker);
+    if (modelOptions.length === 0) return '';
+    // Counts gegen alle inventory-items berechnen (nicht gefiltert), aber per Schreibweisen-Dedup
+    const modelCounts = {};
+    inventory.forEach(it => {
+      const k = normalizeTitle(it.title);
+      if (!k) return;
+      const m = modelOptions.find(t => normalizeTitle(t) === k);
+      if (m) modelCounts[m] = (modelCounts[m] || 0) + 1;
+    });
+    const totalForScope = Object.values(modelCounts).reduce((s, n) => s + n, 0);
+    return `
+      <div style="padding:10px 20px 0">
+        <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">
+          Modell ${scopeMaker ? `· nur ${scopeMaker}` : ''}
+        </div>
+        <div class="chip-row">
+          <button class="chip ${(state.bestandModel || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-model" data-model="all">
+            Alle <span class="chip__count">${totalForScope}</span>
+          </button>
+          ${modelOptions.map(t => `
+            <button class="chip ${normalizeTitle(state.bestandModel) === normalizeTitle(t) ? 'chip--active' : ''}" data-action="set-bestand-model" data-model="${t.replace(/"/g, '&quot;')}">
+              ${t} <span class="chip__count">${modelCounts[t] || 0}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  })()}
 
   <div style="padding:10px 20px 0">
     <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Zustand</div>
@@ -4451,6 +4578,21 @@ function renderEdit() {
         <div class="field">
           <label class="field__label">TITEL</label>
           <input class="field__input" data-action="edit-field" data-key="title" value="${f.title.replace(/"/g, '&quot;')}">
+          ${(() => {
+            const top = getTopProductTitles(f.maker, 8);
+            if (top.length === 0) return '';
+            const cur = (f.title || '').trim();
+            const curNorm = normalizeTitle(cur);
+            const lbl = f.maker ? `Häufige Modelle · ${f.maker}` : 'Häufige Modelle';
+            return `
+              <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;margin-top:8px;padding:0 2px">${lbl}</div>
+              <div class="chip-row" style="margin-top:5px">
+                ${top.map(t => `
+                  <button class="chip ${normalizeTitle(t) === curNorm ? 'chip--active' : ''}" data-action="edit-pick-title" data-title="${t.replace(/"/g, '&quot;')}">${t}</button>
+                `).join('')}
+              </div>
+            `;
+          })()}
         </div>
         <div class="tile" style="padding:12px 16px">
           <label class="field__label" style="display:block;margin-bottom:6px">BESCHREIBUNG</label>
@@ -4747,12 +4889,17 @@ function renderDashboard() {
   const makerRows = Object.entries(makerDist).sort((a, b) => b[1] - a[1]);
   const makerMax = Math.max(1, ...makerRows.map(r => r[1]));
 
-  // Modell-/Bezeichnungs-Verteilung — gleiche Bezeichnung = gleicher Typ
+  // Modell-/Bezeichnungs-Verteilung — Schreibweisen-Varianten zusammenfassen (kanonische Form gewinnt)
   const modelDist = {};
+  const modelCanon = {};
   inStock.forEach(it => {
     const t = (it.title || '').trim();
     if (!t) return;
-    modelDist[t] = (modelDist[t] || 0) + 1;
+    const k = normalizeTitle(t);
+    if (!k) return;
+    if (!modelCanon[k]) modelCanon[k] = t;
+    const c = modelCanon[k];
+    modelDist[c] = (modelDist[c] || 0) + 1;
   });
   const modelRows = Object.entries(modelDist).sort((a, b) => b[1] - a[1]).slice(0, 12);
   const modelMax = Math.max(1, ...modelRows.map(r => r[1]));
@@ -6449,6 +6596,17 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    /* Title/Modell-Vorschlag in Step 3 oder Edit-Screen anwenden */
+    case 'wiz-pick-title': {
+      state.voiceFields.name = btn.dataset.title || '';
+      render();
+      break;
+    }
+    case 'edit-pick-title': {
+      if (state.editForm) state.editForm.title = btn.dataset.title || '';
+      render();
+      break;
+    }
     /* Step 3 — Foto-Vorschau (Lightbox) */
     case 'wiz-preview-photo': {
       const i = +btn.dataset.idx;
@@ -6561,6 +6719,8 @@ document.addEventListener('click', (e) => {
       }
       // Hersteller dedupen — wenn schon eine ähnliche Schreibweise im Bestand, übernehmen
       if (f.maker) f.maker = normalizeMakerForSave(f.maker);
+      // Title dedupen gegen bestehende Modelle des Herstellers
+      if (f.title) f.title = normalizeTitleForSave(f.title, f.maker);
       // Sold-Trigger: erst beim Speichern feuern (nicht beim Toggle, damit Cancel keinen falschen Push auslöst)
       const justSold = f.sold && !f._wasSold;
       const { locDraft, _wasSold, ...saveData } = f;
@@ -6865,12 +7025,21 @@ document.addEventListener('click', (e) => {
     case 'quick-loc-hall': if (state.quickLocDraft) { state.quickLocDraft.hall = btn.dataset.val; render(); } break;
     case 'quick-loc-shelf': if (state.quickLocDraft) { state.quickLocDraft.shelf = btn.dataset.val; render(); } break;
     case 'set-bestand-filter': state.bestandFilter = btn.dataset.cat; render(); break;
-    case 'set-bestand-maker': state.bestandMaker = btn.dataset.maker; render(); break;
+    case 'set-bestand-maker':
+      state.bestandMaker = btn.dataset.maker;
+      // Wenn Hersteller geändert: Modell-Filter zurücksetzen, sonst Mismatch
+      if (state.bestandModel && state.bestandModel !== 'all') {
+        const stillVisible = getDedupedProductTitles(btn.dataset.maker === 'all' ? '' : btn.dataset.maker)
+          .some(t => normalizeTitle(t) === normalizeTitle(state.bestandModel));
+        if (!stillVisible) state.bestandModel = 'all';
+      }
+      render(); break;
+    case 'set-bestand-model': state.bestandModel = btn.dataset.model; render(); break;
     case 'set-bestand-cond': state.bestandCond = btn.dataset.cond; render(); break;
     case 'set-bestand-func': state.bestandFunc = btn.dataset.func; render(); break;
     case 'set-bestand-sort': state.bestandSort = btn.dataset.sort; render(); break;
     case 'toggle-bestand-filters': state.bestandFiltersExpanded = !state.bestandFiltersExpanded; render(); break;
-    case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; render(); break;
+    case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandModel = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; render(); break;
     case 'bestand-clear': state.bestandQuery = ''; render(); break;
     case 'select-item': {
       const it = inventory.find(i => i.id === btn.dataset.id);
