@@ -130,10 +130,20 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 .hero__search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;border:0;cursor:pointer;z-index:1}
 .hero__search-clear:active{filter:brightness(.95)}
 
-/* Home-Filter (Zustand + Funktion) — kompakte Chip-Reihen */
-.home-filters{display:flex;flex-direction:column;gap:8px;margin-top:14px;margin-bottom:14px}
-.home-filters__row{display:flex;flex-direction:column;gap:5px}
-.home-filters__label{font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px}
+/* Home-Filter — kompakte Dropdown-Pills statt langer Chip-Reihen */
+.home-filterbar{display:flex;gap:8px;margin-top:12px}
+.home-filterpill{flex:1;min-width:0;display:flex;align-items:center;gap:5px;padding:8px 10px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-pill);font-size:12px;font-weight:600;color:var(--c-ink);cursor:pointer;transition:border-color .15s, background .15s}
+.home-filterpill:active{filter:brightness(.97)}
+.home-filterpill--active{background:var(--c-blue);color:#fff;border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.home-filterpill--open{border-color:var(--c-blue);box-shadow:var(--elev-blue)}
+.home-filterpill__label{font-family:var(--f-mono);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;opacity:.65;flex-shrink:0}
+.home-filterpill--active .home-filterpill__label{opacity:.85}
+.home-filterpill__val{flex:1;min-width:0;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.home-filtermenu{margin-top:8px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-2);border-radius:var(--r-md);overflow:hidden;display:flex;flex-direction:column}
+.home-filtermenu__item{display:flex;align-items:center;gap:10px;padding:11px 14px;background:transparent;border:0;font-size:13px;font-weight:500;color:var(--c-ink);text-align:left;cursor:pointer;border-bottom:1px solid var(--c-divider)}
+.home-filtermenu__item:last-child{border-bottom:0}
+.home-filtermenu__item:active{background:var(--c-bg-soft)}
+.home-filtermenu__item--active{background:var(--c-blue-soft);font-weight:600;color:var(--c-blue-deep)}
 
 /* Live-Ergebnisliste */
 .home-results{margin-bottom:14px}
@@ -570,7 +580,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.20.1';
+const APP_VERSION = 'v1.20.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1666,6 +1676,7 @@ const state = {
   photoSearchRelaxed: false,       // true = lockere Schwellen aktiv
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandModel: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   homeFilterCond: 'all', homeFilterFunc: 'all',     // Filter im Home-Such-Bereich
+  homeFilterOpen: null,                              // welcher Filter-Dropdown offen ist: null | 'cond' | 'func'
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
   locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
@@ -4035,31 +4046,51 @@ function renderHome() {
       </div>
     </div>
 
-    ${isSearching ? `
-      <!-- Filter-Chips: Zustand + Funktion -->
-      <div class="home-filters">
-        <div class="home-filters__row">
-          <span class="home-filters__label">Zustand</span>
-          <div class="chip-row">
-            <button class="chip ${condF === 'all' ? 'chip--active' : ''}" data-action="home-filter-cond" data-cond="all">Alle</button>
-            ${CONDITION_KEYS.map(k => {
-              const cfg = CONDITION[k];
-              return `<button class="chip ${condF === k ? 'chip--active' : ''}" data-action="home-filter-cond" data-cond="${k}">${svg(cfg.icon, 10, 2.5)} ${cfg.label}</button>`;
+    ${isSearching ? (() => {
+      const condCfg = condF !== 'all' ? CONDITION[condF] : null;
+      const funcCfg = funcF !== 'all' ? FUNCTION_STATUS[funcF] : null;
+      const open = state.homeFilterOpen;
+      return `
+        <div class="home-filterbar">
+          <button class="home-filterpill ${condF !== 'all' ? 'home-filterpill--active' : ''} ${open === 'cond' ? 'home-filterpill--open' : ''}" data-action="home-filter-toggle" data-which="cond">
+            <span class="home-filterpill__label">Zustand</span>
+            <span class="home-filterpill__val">${condCfg ? `${svg(condCfg.icon, 10, 2.5)} ${condCfg.label}` : 'Alle'}</span>
+            ${svg(open === 'cond' ? 'chevron-up' : 'chevron-down', 11, 2.5)}
+          </button>
+          <button class="home-filterpill ${funcF !== 'all' ? 'home-filterpill--active' : ''} ${open === 'func' ? 'home-filterpill--open' : ''}" data-action="home-filter-toggle" data-which="func">
+            <span class="home-filterpill__label">Funktion</span>
+            <span class="home-filterpill__val">${funcCfg ? `${svg(funcCfg.icon, 10, 2.5)} ${funcCfg.short || funcCfg.label}` : 'Alle'}</span>
+            ${svg(open === 'func' ? 'chevron-up' : 'chevron-down', 11, 2.5)}
+          </button>
+        </div>
+        ${open === 'cond' ? `
+          <div class="home-filtermenu">
+            ${[['all','Alle']].concat(CONDITION_KEYS.map(k => [k, CONDITION[k].label])).map(([k, lbl]) => {
+              const cfg = k === 'all' ? null : CONDITION[k];
+              const active = condF === k;
+              return `<button class="home-filtermenu__item ${active ? 'home-filtermenu__item--active' : ''}" data-action="home-filter-cond" data-cond="${k}">
+                ${cfg ? `<span style="color:${cfg.fg};display:flex">${svg(cfg.icon, 14, 2.4)}</span>` : `<span style="width:14px;height:14px;display:inline-block"></span>`}
+                <span style="flex:1">${lbl}</span>
+                ${active ? svg('check', 14, 2.8) : ''}
+              </button>`;
             }).join('')}
           </div>
-        </div>
-        <div class="home-filters__row">
-          <span class="home-filters__label">Funktion</span>
-          <div class="chip-row">
-            <button class="chip ${funcF === 'all' ? 'chip--active' : ''}" data-action="home-filter-func" data-func="all">Alle</button>
-            ${FUNCTION_KEYS.map(k => {
-              const cfg = FUNCTION_STATUS[k];
-              return `<button class="chip ${funcF === k ? 'chip--active' : ''}" data-action="home-filter-func" data-func="${k}">${svg(cfg.icon, 10, 2.5)} ${cfg.short || cfg.label}</button>`;
+        ` : ''}
+        ${open === 'func' ? `
+          <div class="home-filtermenu">
+            ${[['all','Alle']].concat(FUNCTION_KEYS.map(k => [k, FUNCTION_STATUS[k].label])).map(([k, lbl]) => {
+              const cfg = k === 'all' ? null : FUNCTION_STATUS[k];
+              const active = funcF === k;
+              return `<button class="home-filtermenu__item ${active ? 'home-filtermenu__item--active' : ''}" data-action="home-filter-func" data-func="${k}">
+                ${cfg ? `<span style="color:${cfg.fg};display:flex">${svg(cfg.icon, 14, 2.4)}</span>` : `<span style="width:14px;height:14px;display:inline-block"></span>`}
+                <span style="flex:1">${lbl}</span>
+                ${active ? svg('check', 14, 2.8) : ''}
+              </button>`;
             }).join('')}
           </div>
-        </div>
-      </div>
-    ` : ''}
+        ` : ''}
+      `;
+    })() : ''}
 
     ${isSearching ? `
       <!-- Live-Suchergebnisse -->
@@ -6613,7 +6644,7 @@ function go(view) {
   if (view !== 'detail') state.detailTab = 'overview';
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
-  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; state.homeFilterCond = 'all'; state.homeFilterFunc = 'all'; }
+  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; state.homeFilterCond = 'all'; state.homeFilterFunc = 'all'; state.homeFilterOpen = null; }
   if (view === 'camera') { state.cameraShowLive = true; }
   // Cropper-Cleanup: bei Verlassen des Cropper-Flows Object-URL freigeben
   if (view !== 'cropper' && state.cropper) {
@@ -6778,8 +6809,20 @@ document.addEventListener('click', (e) => {
     case 'go-bestand': go('bestand'); break;
     case 'go-results': if ((state.query || '').trim()) go('results'); break;
     case 'search-clear': state.query = ''; render(); break;
-    case 'home-filter-cond': state.homeFilterCond = btn.dataset.cond || 'all'; render(); break;
-    case 'home-filter-func': state.homeFilterFunc = btn.dataset.func || 'all'; render(); break;
+    case 'home-filter-toggle': {
+      const which = btn.dataset.which;
+      state.homeFilterOpen = state.homeFilterOpen === which ? null : which;
+      render();
+      break;
+    }
+    case 'home-filter-cond':
+      state.homeFilterCond = btn.dataset.cond || 'all';
+      state.homeFilterOpen = null;
+      render(); break;
+    case 'home-filter-func':
+      state.homeFilterFunc = btn.dataset.func || 'all';
+      state.homeFilterOpen = null;
+      render(); break;
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
 
