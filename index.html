@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.6';
+const APP_VERSION = 'v1.18';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1622,7 +1622,7 @@ const state = {
   testNotes: '', testHasPhoto: false, testChosen: null,
   voicePhase: 'idle', voiceTranscript: '',
   voiceCond: 'neu', voiceFunc: 'untested',
-  voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' },
+  voiceFields: { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
@@ -2368,6 +2368,16 @@ async function saveNewItemFromVoice() {
     photoUrl: null,
     tracker: (f.tracker || '').trim(),
     trackerUrl: (f.trackerUrl || '').trim(),
+    // Webshop-Felder vom Wizard / Admin
+    vp: (() => {
+      const v = String(f.vp || '').replace(',', '.').trim();
+      if (!v) return null;
+      const n = parseFloat(v);
+      return isNaN(n) ? null : Math.max(0, n);
+    })(),
+    inShop: !!f.inShop,
+    sold: false,
+    soldAt: null,
     created: nowIso(),
     updated: nowIso(),
   };
@@ -2463,6 +2473,8 @@ Lasse andere Felder leer wenn nicht erw\u00e4hnt.`;
       stock: data.stock || state.voiceFields.stock || '',
       tracker: state.voiceFields.tracker || '',          // vom Foto-Scan, nicht vom Diktat
       trackerUrl: state.voiceFields.trackerUrl || '',
+      vp: state.voiceFields.vp || '',
+      inShop: !!state.voiceFields.inShop,
     };
     if (data.loc) {
       state.voiceLocDraft = {
@@ -3367,6 +3379,199 @@ function renderWizardTracker() {
   <div style="display:flex;justify-content:center;padding:6px 16px calc(10px + env(safe-area-inset-bottom))">
     <button data-action="wiz-back" style="font-size:12px;font-weight:600;color:var(--c-ink-mute);padding:8px 14px;display:inline-flex;align-items:center;gap:5px">
       ${svg('arrow-left', 12, 2.4)} Zurück
+    </button>
+  </div>
+</div>`;
+}
+
+// Step 5 — Lagerort (Halle + Regal + Pos + Kistennummer)
+function renderWizardLoc() {
+  const ld = state.voiceLocDraft || { hall: '', shelf: '', pos: '', box: '' };
+  const preview = buildLoc(ld);
+  const noneStyle = (active) => `font-family:var(--f-mono);font-size:10px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);transition:all .15s;${active ? 'background:var(--c-ink);color:#fff' : 'background:var(--c-surface-alt);color:var(--c-ink-mute)'}`;
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div>
+        <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Lagerort</h1>
+        <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0">Wo lagert dieser Artikel? Optional.</p>
+      </div>
+      ${preview ? `<span class="code-chip" style="font-size:11px;flex-shrink:0">${preview}</span>` : ''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">
+      ${renderLocPicker('voice', 'hall', '1 · Halle', state.halls, ld.hall)}
+      ${renderLocPicker('voice', 'shelf', '2 · Regal', state.shelves, ld.shelf, { allowNone: true })}
+      <div class="field">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <label class="field__label" style="margin:0">3 · Regalplatz</label>
+          <button data-action="voice-loc-clear" data-target="pos" style="${noneStyle(!ld.pos)}">— Keiner</button>
+        </div>
+        <input class="field__input" data-action="voice-loc-pos" value="${(ld.pos || '').replace(/"/g, '&quot;')}" placeholder="z.B. 12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+      </div>
+      <div class="field">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <label class="field__label" style="margin:0">4 · Kistennummer</label>
+          <button data-action="voice-loc-clear" data-target="box" style="${noneStyle(!ld.box)}">— Keine</button>
+        </div>
+        <input class="field__input" data-action="voice-loc-box" value="${(ld.box || '').replace(/"/g, '&quot;')}" placeholder="z.B. K-12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+      </div>
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next" data-action="wiz-next">
+      ${preview ? 'Weiter' : 'Überspringen'} ${svg('arrow-right', 14, 2.4)}
+    </button>
+  </div>
+</div>`;
+}
+
+// Step 6 — Bestand & Status (Stückzahl + Zustand + Funktion)
+function renderWizardStock() {
+  const f = state.voiceFields || {};
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Bestand & Status</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 16px">Stückzahl, Zustand und Funktion des Artikels.</p>
+    </div>
+    <div class="field">
+      <label class="field__label">STÜCKZAHL</label>
+      <input class="field__input" data-action="voice-field" data-key="stock" inputmode="numeric" pattern="[0-9]*" value="${(f.stock || '').toString().replace(/"/g, '&quot;')}" placeholder="1" style="font-family:var(--f-mono);font-size:18px">
+    </div>
+    <div style="margin-top:18px">
+      <div class="section-head"><h2 class="section-head__title">Zustand</h2></div>
+      <div class="picker-grid">
+        ${CONDITION_KEYS.map(k => {
+          const cfg = CONDITION[k]; const active = state.voiceCond === k;
+          return `
+            <button class="picker-tile" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-cond" data-id="${k}">
+              <span style="color:${active ? cfg.fg : 'var(--c-ink-mute)'};display:flex">${svg(cfg.icon, 18, 2.2)}</span>
+              <span class="picker-tile__label" style="color:${active ? cfg.fg : 'var(--c-ink-soft)'}">${cfg.label}</span>
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="margin-top:18px">
+      <div class="section-head"><h2 class="section-head__title">Funktion</h2></div>
+      <div class="picker-list">
+        ${FUNCTION_KEYS.map(k => {
+          const cfg = FUNCTION_STATUS[k]; const active = state.voiceFunc === k;
+          return `
+            <button class="picker-row" style="${active ? `background:${cfg.bg};border-color:${cfg.fg};border-width:1.5px` : ''}" data-action="set-func" data-id="${k}">
+              <div class="picker-row__icon" style="background:${active ? '#fff' : cfg.bg};color:${cfg.fg}">${svg(cfg.icon, 16, 2.4)}</div>
+              <div style="flex:1;min-width:0"><h4 class="picker-row__title" style="${active ? `color:${cfg.fg}` : ''}">${cfg.label}</h4></div>
+              ${active ? `<div class="picker-row__check" style="background:${cfg.fg}">${svg('check', 11, 3.5)}</div>` : ''}
+            </button>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next" data-action="wiz-next">Weiter ${svg('arrow-right', 14, 2.4)}</button>
+  </div>
+</div>`;
+}
+
+// Step 7 — Webshop-Daten (admin only)
+function renderWizardShop() {
+  const f = state.voiceFields || {};
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Webshop</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 16px">Verkaufspreis und Shop-Sichtbarkeit. Optional — kannst du später nachtragen.</p>
+    </div>
+    <div class="field">
+      <label class="field__label">VERKAUFSPREIS · €</label>
+      <div style="position:relative">
+        <input class="field__input" data-action="voice-field" data-key="vp" inputmode="decimal" value="${(f.vp === '' || f.vp == null) ? '' : String(f.vp).replace(/"/g, '&quot;')}" placeholder="0,00" style="font-family:var(--f-mono);font-size:16px;padding-right:32px">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:14px;font-weight:600;color:var(--c-ink-mute);pointer-events:none">€</span>
+      </div>
+    </div>
+    <button data-action="wiz-toggle-inshop" class="tile" style="width:100%;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer;margin-top:14px">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:${f.inShop ? 'var(--c-blue-soft)' : 'var(--c-surface-alt)'};color:${f.inShop ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex;align-items:center;justify-content:center">${svg('boxes', 16, 2.4)}</div>
+        <div style="min-width:0">
+          <div style="font-size:13.5px;font-weight:600">Im Shop anzeigen</div>
+          <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">Sichtbar für Kunden im Webshop</div>
+        </div>
+      </div>
+      <div style="flex-shrink:0;width:46px;height:26px;border-radius:13px;background:${f.inShop ? 'var(--c-blue)' : 'var(--c-border-strong)'};position:relative;transition:background .15s">
+        <div style="position:absolute;top:2px;left:${f.inShop ? '22px' : '2px'};width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+      </div>
+    </button>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next" data-action="wiz-next">Weiter ${svg('arrow-right', 14, 2.4)}</button>
+  </div>
+</div>`;
+}
+
+// Step 8 — Übersicht & Speichern
+function renderWizardSummary() {
+  const f = state.voiceFields || {};
+  const ld = state.voiceLocDraft || { hall: '', shelf: '', pos: '', box: '' };
+  const previewLoc = buildLoc(ld);
+  const desc = (state.voiceTranscript || '').trim();
+  const photoFirst = (state.voicePhotoPreviews || [])[0];
+  const cond = CONDITION[state.voiceCond] || CONDITION.neu;
+  const func = FUNCTION_STATUS[state.voiceFunc] || FUNCTION_STATUS.untested;
+  const canSave = !!(f.name || '').trim();
+  const row = (label, val, opts = {}) => val ? `
+    <div style="padding:10px 0;border-top:1px solid var(--c-divider);display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;padding-top:2px">${label}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--c-ink);text-align:right;${opts.mono ? 'font-family:var(--f-mono)' : ''};${opts.pre ? 'white-space:pre-line' : ''}">${val}</div>
+    </div>` : '';
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px">Übersicht</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 14px">Alles korrekt? Tippe auf „Im Lager ablegen" zum Speichern.</p>
+    </div>
+    <div class="tile" style="padding:0;overflow:hidden">
+      ${photoFirst ? `<div style="aspect-ratio:5/4;background:#0F1830;overflow:hidden"><img src="${photoFirst}" alt="" style="width:100%;height:100%;object-fit:cover"></div>` : ''}
+      <div style="padding:14px 16px">
+        <div style="font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.2">${(f.name || '').replace(/</g, '&lt;') || '— Bezeichnung fehlt —'}</div>
+        <div style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin-top:2px">${(f.maker || '—')} · ${f.cat || '—'}</div>
+        ${row('Bestand', f.stock ? f.stock + ' Stk' : '')}
+        ${row('Zustand', cond.label)}
+        ${row('Funktion', func.label)}
+        ${row('Lagerort', previewLoc, { mono: true })}
+        ${row('Tracker', f.tracker ? '#' + f.tracker : '', { mono: true })}
+        ${(isAdmin() && f.vp) ? row('Verkaufspreis', String(f.vp).replace('.', ',') + ' €', { mono: true }) : ''}
+        ${(isAdmin() && f.inShop) ? row('Webshop', '✓ Sichtbar') : ''}
+        ${desc ? row('Technische Daten', desc.replace(/</g, '&lt;'), { mono: true, pre: true }) : ''}
+        ${((state.voicePhotoFiles || []).length > 0) ? row('Fotos', (state.voicePhotoFiles || []).length + ' Stück') : ''}
+      </div>
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next ${canSave ? '' : 'wiz-actions__next--disabled'}" data-action="wiz-save" ${canSave ? '' : 'disabled'}>
+      ${svg('check', 14, 2.8)} ${canSave ? 'Im Lager ablegen' : 'Bezeichnung fehlt'}
     </button>
   </div>
 </div>`;
@@ -5606,7 +5811,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -5755,11 +5960,11 @@ function go(view) {
     try { URL.revokeObjectURL(state.cropper.imageUrl); } catch(_) {}
     state.cropper = null;
   }
-  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper' && view !== 'wizardCat' && view !== 'wizardDesc' && view !== 'wizardTracker' && view !== 'wizardTrackerScan') {
+  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper' && view !== 'wizardCat' && view !== 'wizardDesc' && view !== 'wizardTracker' && view !== 'wizardTrackerScan' && view !== 'wizardLoc' && view !== 'wizardStock' && view !== 'wizardShop' && view !== 'wizardSummary') {
     // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
     state.voicePhase = 'idle';
     state.voiceTranscript = '';
-    state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' };
+    state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false };
     state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
     (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
     state.voicePhotoFiles = [];
@@ -5917,7 +6122,7 @@ document.addEventListener('click', (e) => {
     /* ====== Wizard ====== */
     case 'wizard-start': {
       // Anlege-State sauber resetten (analog zu go() für Schritt 1)
-      state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' };
+      state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '', vp: '', inShop: false };
       state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
       state.voiceCond = 'neu';
       state.voiceFunc = 'untested';
@@ -5963,26 +6168,49 @@ document.addEventListener('click', (e) => {
         state.wizardStep = 4;
         go('wizardTracker');
       } else if (state.wizardStep === 4) {
-        // Step 5+ ist noch nicht gebaut → vorerst ins alte Voice-Formular für die Restfelder
         state.wizardStep = 5;
-        go('voice');
+        go('wizardLoc');
+      } else if (state.wizardStep === 5) {
+        state.wizardStep = 6;
+        go('wizardStock');
+      } else if (state.wizardStep === 6) {
+        // Step 7 (Webshop) nur für Admins — sonst direkt zu 8
+        if (isAdmin()) { state.wizardStep = 7; go('wizardShop'); }
+        else { state.wizardStep = 8; go('wizardSummary'); }
+      } else if (state.wizardStep === 7) {
+        state.wizardStep = 8;
+        go('wizardSummary');
       }
       break;
     }
     case 'wiz-back': {
-      if (state.wizardStep === 4) {
-        state.wizardStep = 3;
-        go('wizardDesc');
+      if (state.wizardStep === 8) {
+        // Zurück zu 7 (Admin) oder 6 (User)
+        if (isAdmin()) { state.wizardStep = 7; go('wizardShop'); }
+        else { state.wizardStep = 6; go('wizardStock'); }
+      } else if (state.wizardStep === 7) {
+        state.wizardStep = 6; go('wizardStock');
+      } else if (state.wizardStep === 6) {
+        state.wizardStep = 5; go('wizardLoc');
+      } else if (state.wizardStep === 5) {
+        state.wizardStep = 4; go('wizardTracker');
+      } else if (state.wizardStep === 4) {
+        state.wizardStep = 3; go('wizardDesc');
       } else if (state.wizardStep === 3) {
-        state.wizardStep = 2;
-        go('camera');
+        state.wizardStep = 2; go('camera');
       } else if (state.wizardStep === 2) {
-        state.wizardStep = 1;
-        go('wizardCat');
+        state.wizardStep = 1; go('wizardCat');
       } else if (state.wizardStep === 1) {
-        state.wizardStep = null;
-        go('home');
+        state.wizardStep = null; go('home');
       }
+      break;
+    }
+    /* Step 7 — In-Shop-Toggle */
+    case 'wiz-toggle-inshop': state.voiceFields.inShop = !state.voiceFields.inShop; render(); break;
+    /* Step 8 — Speichern */
+    case 'wiz-save': {
+      if (!(state.voiceFields.name || '').trim()) { showToast('Bezeichnung fehlt', 'error', 2400); break; }
+      saveNewItemFromVoice();
       break;
     }
     /* Step 3 — KI extrahiert Beschreibung aus Fotos */
@@ -6038,9 +6266,9 @@ document.addEventListener('click', (e) => {
     case 'wiz-kp-next': {
       // Bei leerer Nummer disabled — kommt nur durch wenn was drin steht
       if (!(state.voiceFields.tracker || '').trim()) break;
-      // Direkt weiter zu Step 5
+      // Direkt weiter zu Step 5 (Lagerort)
       state.wizardStep = 5;
-      go('voice');
+      go('wizardLoc');
       break;
     }
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
