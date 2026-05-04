@@ -580,7 +580,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.22';
+const APP_VERSION = 'v1.23';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1796,6 +1796,11 @@ const ITEM_FIELDS = [
   { name: 'in_shop', type: 'singleLineText' },   // "1" oder leer
   { name: 'sold', type: 'singleLineText' },      // "1" oder leer
   { name: 'sold_at', type: 'singleLineText' },   // ISO-Zeitstempel
+  // Service-Tausch (Iteration 1)
+  { name: 'sale_type', type: 'singleLineText' },     // 'sale' | 'service-exchange'
+  { name: 'order_number', type: 'singleLineText' },  // Auftragsnummer (optional)
+  { name: 'linked_item_id', type: 'singleLineText' },// Record-ID des verbundenen Items (Original ↔ Rücksendung)
+  { name: 'returned_at', type: 'singleLineText' },   // ISO-Zeitstempel wann Rücksendung eingegangen
   { name: 'created', type: 'singleLineText' },   // ISO-Zeitstempel der Erstanlage (nur einmal gesetzt)
   { name: 'updated', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
@@ -1913,6 +1918,11 @@ function recordToItem(rec) {
     inShop: f.in_shop === '1' || f.in_shop === 'true',
     sold: f.sold === '1' || f.sold === 'true',
     soldAt: f.sold_at || null,
+    // Service-Tausch (Iteration 1)
+    saleType: f.sale_type || '',           // '' | 'sale' | 'service-exchange'
+    orderNumber: f.order_number || '',
+    linkedItemId: f.linked_item_id || '',
+    returnedAt: f.returned_at || null,
     // Bei Bestandsdaten ohne created-Feld auf updated zurückfallen, damit Filter funktionieren
     created: f.created || f.updated || nowIso(),
     updated: f.updated || nowIso(),
@@ -1939,6 +1949,11 @@ function itemToFields(it, apiKey) {
     in_shop: it.inShop ? '1' : '',
     sold: it.sold ? '1' : '',
     sold_at: it.soldAt || '',
+    // Service-Tausch (Iteration 1)
+    sale_type: it.saleType || '',
+    order_number: it.orderNumber || '',
+    linked_item_id: it.linkedItemId || '',
+    returned_at: it.returnedAt || '',
     created: it.created || it.updated || nowIso(),
     updated: it.updated || nowIso(),
     api_key: apiKey,
@@ -4392,16 +4407,21 @@ function renderResults() {
 }
 
 function renderBestand() {
+  // Verkaufte Artikel werden standardmäßig ausgeblendet — Toggle "Auch verkaufte zeigen" bringt sie zurück.
+  const showSold = !!state.bestandShowSold;
+  const baseInventory = showSold ? inventory : inventory.filter(it => !it.sold);
+  const soldHiddenCount = inventory.length - baseInventory.length;
+
   // Aggregate categories
   const catCounts = {};
-  inventory.forEach(it => { catCounts[it.cat] = (catCounts[it.cat] || 0) + 1; });
+  baseInventory.forEach(it => { catCounts[it.cat] = (catCounts[it.cat] || 0) + 1; });
   const categories = Object.keys(catCounts).sort();
-  const totalHalls = new Set(inventory.map(it => parseLoc(it.loc).hall).filter(Boolean)).size;
+  const totalHalls = new Set(baseInventory.map(it => parseLoc(it.loc).hall).filter(Boolean)).size;
 
   // Aggregate manufacturers — Schreibweisen-Varianten werden zusammengefasst (kanonische Form gewinnt)
   const makerCounts = {};
   const makerCanon = {}; // norm -> erste-Schreibweise (kanonisch)
-  inventory.forEach(it => {
+  baseInventory.forEach(it => {
     if (!it.maker) return;
     const norm = normalizeMaker(it.maker);
     if (!norm) return;
@@ -4413,14 +4433,14 @@ function renderBestand() {
 
   // Aggregate conditions
   const condCounts = {};
-  inventory.forEach(it => { condCounts[it.cond] = (condCounts[it.cond] || 0) + 1; });
+  baseInventory.forEach(it => { condCounts[it.cond] = (condCounts[it.cond] || 0) + 1; });
 
   // Aggregate function statuses
   const funcCounts = {};
-  inventory.forEach(it => { funcCounts[it.func] = (funcCounts[it.func] || 0) + 1; });
+  baseInventory.forEach(it => { funcCounts[it.func] = (funcCounts[it.func] || 0) + 1; });
 
   // Apply category filter
-  let items = state.bestandFilter === 'all' ? [...inventory] : inventory.filter(it => it.cat === state.bestandFilter);
+  let items = state.bestandFilter === 'all' ? [...baseInventory] : baseInventory.filter(it => it.cat === state.bestandFilter);
 
   // Apply manufacturer filter
   if (state.bestandMaker && state.bestandMaker !== 'all') {
@@ -4477,7 +4497,7 @@ function renderBestand() {
 
   <div style="padding:0 20px 4px">
     <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">Bestand</h1>
-    <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${inventory.length} Artikel · ${categories.length} Kategorien · ${makers.length} Hersteller · ${totalHalls} ${totalHalls === 1 ? 'Halle' : 'Hallen'}</p>
+    <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${baseInventory.length} Artikel · ${categories.length} Kategorien · ${makers.length} Hersteller · ${totalHalls} ${totalHalls === 1 ? 'Halle' : 'Hallen'}${(soldHiddenCount > 0 && !showSold) ? ` <span style="color:var(--c-ink-mute)">· ${soldHiddenCount} verkauft ausgeblendet</span>` : ''}</p>
   </div>
 
   <div style="padding:14px 20px 0">
@@ -4515,7 +4535,7 @@ function renderBestand() {
     <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Kategorie</div>
     <div class="chip-row">
       <button class="chip ${state.bestandFilter === 'all' ? 'chip--active' : ''}" data-action="set-bestand-filter" data-cat="all">
-        Alle <span class="chip__count">${inventory.length}</span>
+        Alle <span class="chip__count">${baseInventory.length}</span>
       </button>
       ${categories.map(cat => `
         <button class="chip ${state.bestandFilter === cat ? 'chip--active' : ''}" data-action="set-bestand-filter" data-cat="${cat}">
@@ -4529,7 +4549,7 @@ function renderBestand() {
     <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Hersteller</div>
     <div class="chip-row">
       <button class="chip ${(state.bestandMaker || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-maker" data-maker="all">
-        Alle <span class="chip__count">${inventory.length}</span>
+        Alle <span class="chip__count">${baseInventory.length}</span>
       </button>
       ${makers.map(m => `
         <button class="chip ${state.bestandMaker === m ? 'chip--active' : ''}" data-action="set-bestand-maker" data-maker="${m.replace(/"/g, '&quot;')}">
@@ -4546,7 +4566,7 @@ function renderBestand() {
     if (modelOptions.length === 0) return '';
     // Counts gegen alle inventory-items berechnen (nicht gefiltert), aber per Schreibweisen-Dedup
     const modelCounts = {};
-    inventory.forEach(it => {
+    baseInventory.forEach(it => {
       const k = normalizeTitle(it.title);
       if (!k) return;
       const m = modelOptions.find(t => normalizeTitle(t) === k);
@@ -4576,7 +4596,7 @@ function renderBestand() {
     <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Zustand</div>
     <div class="chip-row">
       <button class="chip ${(state.bestandCond || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-cond" data-cond="all">
-        Alle <span class="chip__count">${inventory.length}</span>
+        Alle <span class="chip__count">${baseInventory.length}</span>
       </button>
       ${CONDITION_KEYS.map(k => {
         const cfg = CONDITION[k];
@@ -4593,7 +4613,7 @@ function renderBestand() {
     <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;padding:0 4px;margin-bottom:7px">Funktion</div>
     <div class="chip-row">
       <button class="chip ${(state.bestandFunc || 'all') === 'all' ? 'chip--active' : ''}" data-action="set-bestand-func" data-func="all">
-        Alle <span class="chip__count">${inventory.length}</span>
+        Alle <span class="chip__count">${baseInventory.length}</span>
       </button>
       ${FUNCTION_KEYS.map(k => {
         const cfg = FUNCTION_STATUS[k];
@@ -4605,6 +4625,13 @@ function renderBestand() {
         </button>`;
       }).join('')}
     </div>
+  </div>
+
+  <div style="padding:12px 20px 0">
+    <button data-action="toggle-bestand-show-sold" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px;background:${showSold ? 'var(--c-ink)' : 'var(--c-surface)'};color:${showSold ? '#fff' : 'var(--c-ink-soft)'};border:1px solid ${showSold ? 'var(--c-ink)' : 'var(--c-border)'};box-shadow:var(--elev-1);border-radius:var(--r-pill);font-size:11.5px;font-weight:600;transition:all .15s">
+      ${svg(showSold ? 'check' : 'eye', 12, 2.5)}
+      Auch verkaufte zeigen${(soldHiddenCount > 0 && !showSold) ? ` <span style="opacity:.6;font-weight:500">· ${soldHiddenCount} ausgeblendet</span>` : ''}
+    </button>
   </div>
 
   ${activeCount > 0 ? `
@@ -4696,19 +4723,28 @@ function renderDetail() {
       <h1>${it.title}</h1>
       <p class="title-block__by">von <strong>${it.maker}</strong></p>
     </div>
-    ${it.sold ? `
-      <div class="sold-banner">
-        <div class="sold-banner__icon">${svg('alert-triangle', 18, 2.4)}</div>
+    ${it.sold ? (() => {
+      const isExch = it.saleType === 'service-exchange';
+      const awaiting = isExch && !it.returnedAt;
+      const titleTxt = awaiting ? 'Verkauft · Rücksendung erwartet' : (isExch && it.returnedAt ? 'Verkauft · Rücksendung erfolgt' : 'Verkauft · nicht mehr verfügbar');
+      const subParts = [];
+      if (it.soldAt) subParts.push('Verkauft am ' + new Date(it.soldAt).toLocaleDateString('de-DE'));
+      if (it.orderNumber) subParts.push('Auftrag ' + it.orderNumber);
+      if (it.returnedAt) subParts.push('Rücks. ' + new Date(it.returnedAt).toLocaleDateString('de-DE'));
+      return `
+      <div class="sold-banner"${awaiting ? ' style="background:linear-gradient(135deg,#D97706 0%,#B45309 100%);box-shadow:0 6px 20px rgba(180,83,9,.35)"' : ''}>
+        <div class="sold-banner__icon">${svg(awaiting ? 'rotate-ccw' : 'alert-triangle', 18, 2.4)}</div>
         <div style="flex:1;min-width:0">
-          <div class="sold-banner__title">Verkauft · nicht mehr verfügbar</div>
-          <div class="sold-banner__sub">${it.soldAt ? 'Verkauft am ' + new Date(it.soldAt).toLocaleDateString('de-DE') : ''}</div>
+          <div class="sold-banner__title">${titleTxt}</div>
+          <div class="sold-banner__sub">${subParts.join(' · ')}</div>
         </div>
         ${it.vp != null ? `
           <div style="text-align:right;flex-shrink:0">
             <div style="font-family:var(--f-mono);font-size:9px;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.05em">Verkaufspreis</div>
             <div style="font-family:var(--f-mono);font-size:17px;font-weight:700;letter-spacing:.02em;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.55);margin-top:2px">${formatVp(it.vp)}</div>
           </div>` : ''}
-      </div>` : ''}
+      </div>`;
+    })() : ''}
     ${(it.inShop && it.vp != null && !it.sold) ? `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#E6F4EA;border:1px solid #8FD4A6;border-radius:var(--r-tile);gap:10px">
         <div style="display:flex;align-items:center;gap:8px;color:#0A6B2C">
@@ -4816,9 +4852,62 @@ function renderDetail() {
       </div>
     </div>
   </div>
-  <div class="action-bar" style="grid-template-columns:1fr;padding:6px">
-    <button class="action-bar__btn action-bar__btn--primary" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
+  <div class="action-bar" style="grid-template-columns:${(isAdmin() && !it.sold) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
+    <button class="action-bar__btn" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
+    ${(isAdmin() && !it.sold) ? `
+      <button class="action-bar__btn action-bar__btn--primary" data-action="open-sale-sheet" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 2.7)} Verkauf eintragen</button>
+    ` : ''}
   </div>
+
+  ${state.quickEdit === 'sale' ? (() => {
+    const d = state.saleDraft || { saleType: 'sale', orderNumber: '', vp: it.vp != null ? String(it.vp).replace('.', ',') : '' };
+    const isExchange = d.saleType === 'service-exchange';
+    return `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Verkauf eintragen</div>
+      <div style="padding:4px 16px 0;font-size:12px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Markiert den Artikel als verkauft. Bei <strong>Service-Tausch</strong> wird eine Rücksendung erwartet.</div>
+      <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+        <div>
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">Art des Verkaufs</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="picker-tile" data-action="set-sale-type" data-type="sale" style="${!isExchange ? 'background:#E6F4EA;border-color:#0A6B2C;border-width:1.5px' : ''}">
+              <span style="color:${!isExchange ? '#0A6B2C' : 'var(--c-ink-mute)'};display:flex">${svg('check', 18, 2.4)}</span>
+              <span class="picker-tile__label" style="color:${!isExchange ? '#0A6B2C' : 'var(--c-ink-soft)'}">Verkauf</span>
+              <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Final, keine Rücksendung</span>
+            </button>
+            <button class="picker-tile" data-action="set-sale-type" data-type="service-exchange" style="${isExchange ? 'background:#FEF3C7;border-color:#B45309;border-width:1.5px' : ''}">
+              <span style="color:${isExchange ? '#B45309' : 'var(--c-ink-mute)'};display:flex">${svg('rotate-ccw', 18, 2.4)}</span>
+              <span class="picker-tile__label" style="color:${isExchange ? '#B45309' : 'var(--c-ink-soft)'}">Service-Tausch</span>
+              <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Rücksendung erwartet</span>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">Auftragsnummer <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
+          <input class="field__input" data-action="sale-order-input" value="${(d.orderNumber || '').replace(/"/g, '&quot;')}" placeholder="z.B. AU-2026-0123" style="font-family:var(--f-mono);font-size:16px" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="field__label">Verkaufspreis <span style="color:var(--c-ink-mute);font-weight:500">(optional, €)</span></label>
+          <input class="field__input" data-action="sale-vp-input" value="${(d.vp || '').replace(/"/g, '&quot;')}" placeholder="z.B. 450,00" inputmode="decimal" style="font-family:var(--f-mono);font-size:16px" autocomplete="off">
+        </div>
+        ${isExchange ? `
+          <div style="padding:12px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--r-md);display:flex;align-items:flex-start;gap:10px">
+            <span style="color:#B45309;display:flex;flex-shrink:0;margin-top:1px">${svg('alert-triangle', 14, 2.4)}</span>
+            <div style="font-size:11.5px;color:#7A4A00;font-weight:500;line-height:1.4">
+              Der Artikel wird als verkauft markiert. Sobald die defekte Rücksendung eingeht, kannst du sie als neuen Artikel anlegen und mit diesem Original verknüpfen.
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="save-sale" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 3)} Verkauf sichern</button>
+      </div>
+    </div>
+    `;
+  })() : ''}
 
   ${state.quickEdit === 'cond' ? `
     <div class="sheet-backdrop" data-action="close-quick"></div>
@@ -6846,7 +6935,7 @@ function go(view, opts = {}) {
     if (state.navHistory.length > 30) state.navHistory.shift();
   }
   state.view = view;
-  if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; }
+  if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; state.saleDraft = null; }
   state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
   if (view !== 'results') state.editingQuery = false;
   if (view !== 'detail') state.detailTab = 'overview';
@@ -7499,7 +7588,68 @@ document.addEventListener('click', (e) => {
     case 'quick-cond': state.quickEdit = 'cond'; render(); break;
     case 'quick-func': state.quickEdit = 'func'; render(); break;
     case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
-    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
+    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; render(); break;
+
+    /* Service-Tausch / Verkauf eintragen aus Detail-Screen (Iteration 1) */
+    case 'open-sale-sheet': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Verkäufe eintragen', 'info', 2400); break; }
+      if (!state.item || state.item.sold) break;
+      state.quickEdit = 'sale';
+      state.saleDraft = {
+        saleType: 'sale',
+        orderNumber: state.item.orderNumber || '',
+        vp: state.item.vp != null ? String(state.item.vp).replace('.', ',') : '',
+      };
+      render();
+      break;
+    }
+    case 'set-sale-type': {
+      if (state.saleDraft) { state.saleDraft.saleType = btn.dataset.type || 'sale'; render(); }
+      break;
+    }
+    case 'sale-order-input': /* handled by input event */ break;
+    case 'sale-vp-input': /* handled by input event */ break;
+    case 'save-sale': {
+      if (!isAdmin() || !state.item || !state.saleDraft) break;
+      const it = state.item;
+      const d = state.saleDraft;
+      // VP normalisieren
+      let vp = it.vp;
+      const vpRaw = (d.vp || '').trim();
+      if (vpRaw === '') {
+        // leer lassen → keine Änderung am bestehenden vp? Wir setzen explizit auf null wenn leer.
+        vp = null;
+      } else {
+        const n = parseFloat(vpRaw.replace(',', '.'));
+        vp = isNaN(n) ? it.vp : Math.max(0, n);
+      }
+      const saleType = d.saleType === 'service-exchange' ? 'service-exchange' : 'sale';
+      const orderNumber = (d.orderNumber || '').trim();
+      const soldAt = nowIso();
+      // State aktualisieren
+      it.sold = true;
+      it.soldAt = soldAt;
+      it.saleType = saleType;
+      it.orderNumber = orderNumber;
+      it.vp = vp;
+      it.updated = soldAt;
+      it.upd = 'gerade eben';
+      // Persistieren — alle relevanten Felder (auch leere strings, damit Airtable überschreibt)
+      persistItemPatch(it, {
+        sold: '1',
+        sold_at: soldAt,
+        sale_type: saleType,
+        order_number: orderNumber,
+        vp: (vp != null && !isNaN(vp)) ? String(vp) : '',
+      });
+      state.quickEdit = null;
+      state.saleDraft = null;
+      const label = saleType === 'service-exchange' ? 'Service-Tausch eingetragen · Rücksendung erwartet' : 'Verkauf eingetragen';
+      showToast(label, 'success', 2600);
+      notifyArticleSold(it);
+      render();
+      break;
+    }
     case 'set-quick-cond': {
       if (state.item) {
         state.item.cond = btn.dataset.id;
@@ -7646,6 +7796,7 @@ document.addEventListener('click', (e) => {
     case 'set-bestand-func': state.bestandFunc = btn.dataset.func; render(); break;
     case 'set-bestand-sort': state.bestandSort = btn.dataset.sort; render(); break;
     case 'toggle-bestand-filters': state.bestandFiltersExpanded = !state.bestandFiltersExpanded; render(); break;
+    case 'toggle-bestand-show-sold': state.bestandShowSold = !state.bestandShowSold; render(); break;
     case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandModel = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; render(); break;
     case 'bestand-clear': state.bestandQuery = ''; render(); break;
     case 'select-item': {
@@ -7882,6 +8033,8 @@ document.addEventListener('input', (e) => {
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
+  else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
+  else if (a === 'sale-vp-input') { if (state.saleDraft) state.saleDraft.vp = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
     if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
