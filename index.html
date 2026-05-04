@@ -465,7 +465,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.14';
+const APP_VERSION = 'v1.15';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1142,7 +1142,7 @@ let _soldPollInFlight = false;
 
 function startSoldPolling() {
   stopSoldPolling();
-  if (!state.loggedIn || !teamKey()) return;
+  if (!state.loggedIn) return;
   // Initial-Snapshot aus aktueller Inventory aufbauen — keine Notifications für vorhandene "sold"
   _soldKnownState = new Map();
   for (const c of (state.companies || [])) {
@@ -1163,12 +1163,10 @@ function _onVisibilityForPoll() { if (!document.hidden) pollSoldUpdates(); }
 async function pollSoldUpdates() {
   if (document.hidden) return;            // Spar Bandbreite: nur wenn Tab sichtbar
   if (_soldPollInFlight) return;
-  if (!state.loggedIn || !teamKey()) return;
+  if (!state.loggedIn) return;
   _soldPollInFlight = true;
   try {
-    const apiKey = teamKey();
-    const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
-    const itemRecs = await airRead(TBL_ITEMS, filter);
+    const itemRecs = await airRead(TBL_ITEMS); // alle Items aller Firmen
     const items = itemRecs.map(recordToItem);
 
     // Inventory in den Companies frisch aufbauen — neue Items von anderen Usern tauchen so auch auf
@@ -1731,13 +1729,13 @@ function recordToHall(rec) {
 }
 
 async function loadAllData() {
-  const apiKey = teamKey();
-  const filter = "{api_key}='" + String(apiKey).replace(/'/g, "\\'") + "'";
-
+  // Geteilte Datenquelle: alle eingeloggten User sehen dieselben Firmen / Artikel / Hallen.
+  // Isolation passiert auf Datenbank-Ebene (separate Project-Base pro Kunde) — nicht pro User.
+  const apiKey = teamKey(); // wird beim Schreiben weiterhin als "angelegt von" mitgegeben
   const [companyRecs, itemRecs, hallRecs] = await Promise.all([
-    airRead(TBL_COMPANIES, filter),
-    airRead(TBL_ITEMS, filter),
-    airRead(TBL_HALLS, filter).catch(() => []), // Tabelle könnte beim ersten Mal noch fehlen
+    airRead(TBL_COMPANIES),
+    airRead(TBL_ITEMS),
+    airRead(TBL_HALLS).catch(() => []), // Tabelle könnte beim ersten Mal noch fehlen
   ]);
 
   let companies = companyRecs.map(recordToCompany).filter(c => c.id);
