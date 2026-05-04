@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.4';
+const APP_VERSION = 'v1.19.5';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -5480,12 +5480,12 @@ function renderPhotoResults() {
   const detectedModel = (info.model_code || '').trim();
   const detectedMaker = (info.probable_maker || '').trim();
   const detectedCat = (info.category || '').trim();
-  // Wenn AI mindestens Modell oder Hersteller erkannt hat → "Anlegen mit diesen Werten" anbieten
-  const canCreateFromInfo = !!(detectedModel || detectedMaker);
   return `
 <div class="screen">
   ${headerBar(backBtn('go-home'),
-    `<div class="pill pill--blue" style="box-shadow:var(--elev-blue)">${svg('sparkles', 11, 2.5)} ${total} AI-Treffer</div>`,
+    total > 0
+      ? `<div class="pill pill--blue" style="box-shadow:var(--elev-blue)">${svg('sparkles', 11, 2.5)} ${total} Treffer</div>`
+      : `<div class="pill pill--neutral">${svg('search', 11, 2.5)} Foto-Suche</div>`,
     `<button class="icon-btn" data-action="go-photo-search">${svg('camera', 15, 2.5)}</button>`)}
   <div class="scroll" style="padding-bottom:24px">
     ${(detectedModel || detectedMaker || detectedCat) ? `
@@ -5501,15 +5501,20 @@ function renderPhotoResults() {
       <div class="tile" style="padding:24px;text-align:center">
         <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 12px">${svg('search', 22, 2)}</div>
         <div style="font-size:14px;font-weight:600">Kein Treffer im Bestand</div>
-        <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px;line-height:1.4">${canCreateFromInfo ? 'Der Artikel scheint neu zu sein. Lege ihn mit den erkannten Werten an oder versuche ein anderes Foto.' : 'Konnte aus dem Foto keine eindeutigen Daten lesen. Versuche ein klareres Bild vom Typenschild oder lege manuell an.'}</div>
+        <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px;line-height:1.4">${detectedModel ? 'Versuche manuell zu suchen — die Schreibweise im Bestand könnte abweichen — oder probier ein klareres Foto vom Typenschild.' : 'Konnte aus dem Foto keine eindeutigen Daten lesen. Versuche ein klareres Bild vom Typenschild oder eine manuelle Suche.'}</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
-          ${canCreateFromInfo ? `
-            <button data-action="wiz-from-photo-search" style="padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
-              ${svg('sparkles', 14, 2.5)} Artikel mit erkannten Werten anlegen
+          ${detectedModel ? `
+            <button data-action="photo-search-as-text" data-q="${detectedModel.replace(/"/g, '&quot;')}" style="padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:var(--elev-blue)">
+              ${svg('search', 13, 2.5)} Manuell suchen mit „${detectedModel}"
             </button>
           ` : ''}
-          <button data-action="wizard-start" style="padding:11px;background:var(--c-surface);border:1px solid var(--c-border);color:var(--c-ink);border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
-            ${svg('plus', 13, 2.4)} Manuell anlegen
+          ${detectedMaker ? `
+            <button data-action="photo-search-as-text" data-q="${detectedMaker.replace(/"/g, '&quot;')}" style="padding:11px;background:var(--c-surface);border:1px solid var(--c-border);color:var(--c-ink);border-radius:14px;font-weight:600;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+              ${svg('search', 12, 2.4)} Suche nach Hersteller „${detectedMaker}"
+            </button>
+          ` : ''}
+          <button data-action="photo-search-as-text" data-q="" style="padding:11px;background:var(--c-surface);border:1px solid var(--c-border);color:var(--c-ink);border-radius:14px;font-weight:600;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+            ${svg('search', 12, 2.4)} Manuell suchen
           </button>
           <button data-action="go-photo-search" style="padding:9px;background:transparent;color:var(--c-ink-mute);font-size:12.5px;font-weight:600">
             ${svg('camera', 11, 2.5)} Anderes Foto versuchen
@@ -6600,6 +6605,16 @@ document.addEventListener('click', (e) => {
     case 'go-bestand': go('bestand'); break;
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
+
+    /* Foto-Suche → Manuelle Text-Suche mit Vorbelegung */
+    case 'photo-search-as-text': {
+      const q = (btn.dataset.q || '').trim();
+      state.query = q;
+      // Wenn leer, lande auf Home damit User in das Sucheingabefeld tippen kann
+      if (!q) { state.editingQuery = true; go('results'); }
+      else go('results');
+      break;
+    }
 
     /* ====== Wizard ====== */
     case 'wiz-from-photo-search': {
