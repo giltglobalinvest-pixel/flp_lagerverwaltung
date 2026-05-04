@@ -525,7 +525,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.2';
+const APP_VERSION = 'v1.17.3';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1602,6 +1602,7 @@ const state = {
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
   wizardStep: null,           // null wenn nicht im Wizard, sonst 1..8
   wizPhotoPreviewIdx: null,   // Index des aktuell groß angezeigten Fotos im Wizard (Lightbox)
+  wizSnapRunning: false,      // true während Live-Snap-OCR läuft
   dashRange: '30d',           // Dashboard-Zeitfilter: 'today' | '7d' | '30d' | 'all'
   dashCat: 'all',             // Dashboard-Kategorienfilter
   dashMaker: 'all',           // Dashboard-Herstellerfilter
@@ -3012,17 +3013,17 @@ let _liveScanInterval = null;
 let _liveScanDetector = null;
 async function startLiveTrackerScan() {
   if (state.view !== 'wizardTrackerScan') return;
-  if (!('BarcodeDetector' in window)) return;
   const v = document.getElementById('liveScanVideo');
   if (!v) return;
-  if (Camera.stream && Camera.videoEl === v) {
-    // Stream läuft schon — nur Detector-Loop sicherstellen
-  } else {
+  // Kamera starten — auch wenn BarcodeDetector fehlt, brauchen wir sie für Snap-OCR
+  if (!(Camera.stream && Camera.videoEl === v)) {
     try { await Camera.start(v); } catch (e) {
       showToast('Kamera-Start fehlgeschlagen: ' + e.message, 'error', 3500);
       return;
     }
   }
+  // BarcodeDetector-Loop nur wenn verfügbar — sonst rein Snap-OCR über Button
+  if (!('BarcodeDetector' in window)) return;
   if (!_liveScanDetector) {
     try {
       const formats = await window.BarcodeDetector.getSupportedFormats();
@@ -3306,30 +3307,77 @@ function renderWizardTracker() {
 </div>`;
 }
 
-// Step 4-Helper — Live-QR-Scanner (eigener Vollbild-Screen mit Video-Stream)
+// Step 4-Helper — Live-Scanner (eigener Vollbild-Screen mit Video-Stream)
+// Funktioniert in 2 Modi parallel:
+//  1) Auto-QR via BarcodeDetector (wenn unterstützt)
+//  2) Tap-zu-Snap: User zielt auf die Tracker-Nummer, drückt Auslöser, Vision-OCR liefert die Zahl
 function renderWizardTrackerScan() {
-  const supported = ('BarcodeDetector' in window);
+  const camSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const qrAuto = ('BarcodeDetector' in window);
+  const snapping = !!state.wizSnapRunning;
   return `
 <div class="screen cam-screen">
   ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="wiz-tracker-scan-stop">${svg('x', 18, 2.5)}</button>`,
-    `<div class="pill">QR-Code scannen</div>`,
+    `<div class="pill">Tracker scannen</div>`,
     `<div class="header__slot"></div>`)}
   <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px;padding:16px;position:relative">
-    ${supported ? `
+    ${camSupported ? `
       <div class="live-cam" id="liveScanFrame">
         <video id="liveScanVideo" class="live-cam__video" autoplay playsinline muted></video>
-        <div class="live-cam__hint">QR-Code in das Bild halten …</div>
+        <div class="live-cam__hint">${qrAuto ? 'QR-Code oder Nummer ins Bild halten' : 'Tracker-Nummer ins Bild halten · Auslöser tippen'}</div>
       </div>
     ` : `
       <div style="text-align:center;color:#fff;padding:24px">
         <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">${svg('alert-triangle', 28, 2.2)}</div>
-        <div style="font-size:14px;font-weight:600">Live-Scanner nicht verfügbar</div>
-        <div style="font-size:12px;font-weight:500;opacity:.6;margin-top:6px">Dein Browser unterstützt BarcodeDetector nicht. iOS Safari 17+ oder Chrome nötig.</div>
+        <div style="font-size:14px;font-weight:600">Kamera nicht verfügbar</div>
+        <div style="font-size:12px;font-weight:500;opacity:.6;margin-top:6px">Dein Browser erlaubt keinen Kamerazugriff. Manuell in Step 4 eintragen oder ein Foto in Step 2 aufnehmen.</div>
         <button data-action="wiz-tracker-scan-stop" style="margin-top:16px;padding:10px 20px;background:rgba(255,255,255,0.15);color:#fff;border-radius:var(--r-pill);font-size:13px;font-weight:600">Zurück</button>
       </div>
     `}
   </div>
+  ${camSupported ? `
+    <div style="padding:0 20px 14px;display:flex;flex-direction:column;align-items:center;gap:10px">
+      <button class="cam-shutter ${snapping ? '' : 'cam-shutter--ai'}" data-action="wiz-tracker-snap" ${snapping ? 'disabled' : ''} title="Tracker-Nummer per KI auslesen">
+        ${snapping ? `<div class="spinner spinner--sm" style="border-color:rgba(36,86,229,.25);border-top-color:var(--c-blue)"></div>` : svg('sparkles', 26, 2.2)}
+      </button>
+      <div style="font-family:var(--f-mono);font-size:10px;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:.04em;text-transform:uppercase">${snapping ? 'KI liest Nummer …' : 'Auslöser tippen für KI-Erkennung'}</div>
+    </div>
+  ` : ''}
 </div>`;
+}
+
+// Snap: aktuellen Video-Frame greifen, an Vision schicken, Tracker-Nummer/URL extrahieren
+async function snapTrackerFromCamera() {
+  if (state.wizSnapRunning) return;
+  state.wizSnapRunning = true;
+  render();
+  try {
+    if (!Camera.stream) throw new Error('Kamera nicht aktiv');
+    const file = await Camera.capture();
+    const { tracker, trackerUrl } = await scanLabelFromFile(file);
+    let changed = 0;
+    if (tracker) { state.voiceFields.tracker = tracker; changed++; }
+    if (trackerUrl) { state.voiceFields.trackerUrl = trackerUrl; changed++; }
+    if (changed > 0) {
+      try { navigator.vibrate?.(80); } catch (_) {}
+      const parts = [];
+      if (tracker) parts.push('#' + tracker);
+      if (trackerUrl) parts.push('QR-Link');
+      showToast('Erkannt: ' + parts.join(' · '), 'success', 2400);
+      state.wizSnapRunning = false;
+      // Zurück zum Tracker-Step
+      stopLiveTrackerScan();
+      go('wizardTracker');
+      return;
+    } else {
+      showToast('Nichts erkannt — näher rangehen, gerade halten und nochmal versuchen', 'info', 3500);
+    }
+  } catch (e) {
+    showToast('Snap fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
+  } finally {
+    state.wizSnapRunning = false;
+    render();
+  }
 }
 
 function renderHome() {
@@ -5899,6 +5947,7 @@ document.addEventListener('click', (e) => {
     case 'wiz-tracker-from-photos': autoScanFirstPhotoForTracker((state.voicePhotoFiles || [])[0], { force: true }); break;
     case 'wiz-tracker-live': go('wizardTrackerScan'); break;
     case 'wiz-tracker-scan-stop': go('wizardTracker'); break;
+    case 'wiz-tracker-snap': snapTrackerFromCamera(); break;
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
