@@ -307,6 +307,24 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .wiz-actions__next--disabled,.wiz-actions__next[disabled]{background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none;cursor:default}
 .wiz-actions__next:not([disabled]):active{filter:brightness(.95)}
 .wiz-actions__skip{background:transparent;color:var(--c-ink-mute);border:0;font-size:12px;font-weight:600;padding:8px;text-align:center;display:inline-block;width:100%}
+
+/* Thumbnail-Strip in Step 3 */
+.wiz-thumbs{display:flex;gap:8px;overflow-x:auto;padding:2px 4px 14px;-webkit-overflow-scrolling:touch}
+.wiz-thumb{flex-shrink:0;width:72px;height:72px;border-radius:12px;background-size:cover;background-position:center;background-color:#0F1830;border:1.5px solid var(--c-border);box-shadow:var(--elev-1);cursor:pointer;position:relative;padding:0;overflow:hidden}
+.wiz-thumb:active{transform:scale(.96)}
+.wiz-thumb__no{position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;font-family:var(--f-mono);font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+
+/* Lightbox-Vollbild für Step-3-Vorschau */
+.wiz-lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:max(20px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom));cursor:pointer}
+.wiz-lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.wiz-lightbox__counter{position:absolute;top:max(20px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-family:var(--f-mono);font-size:11px;font-weight:600;padding:4px 12px;border-radius:var(--r-pill);backdrop-filter:blur(8px);letter-spacing:.04em}
+.wiz-lightbox__close{position:absolute;top:max(16px, env(safe-area-inset-top));right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:0;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);cursor:pointer}
+.wiz-lightbox__close:active{background:rgba(255,255,255,0.28)}
+.wiz-lightbox__nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:0;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);cursor:pointer;z-index:2}
+.wiz-lightbox__nav:active{background:rgba(255,255,255,0.28)}
+.wiz-lightbox__nav[disabled]{opacity:.3;cursor:default}
+.wiz-lightbox__nav--prev{left:12px;transform:translateY(-50%) scaleX(-1)}
+.wiz-lightbox__nav--next{right:12px}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -507,7 +525,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.1';
+const APP_VERSION = 'v1.17.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1583,6 +1601,7 @@ const state = {
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
   wizardStep: null,           // null wenn nicht im Wizard, sonst 1..8
+  wizPhotoPreviewIdx: null,   // Index des aktuell groß angezeigten Fotos im Wizard (Lightbox)
   dashRange: '30d',           // Dashboard-Zeitfilter: 'today' | '7d' | '30d' | 'all'
   dashCat: 'all',             // Dashboard-Kategorienfilter
   dashMaker: 'all',           // Dashboard-Herstellerfilter
@@ -2578,8 +2597,9 @@ async function captureLiveFrame() {
     render();
     // Stream nach Re-Render neu starten falls nötig
     setTimeout(startLiveCameraIfNeeded, 30);
-    // Erstes Foto: im Hintergrund nach Etikett/QR scannen
-    if (wasFirst) autoScanFirstPhotoForTracker(file);
+    // Erstes Foto: im Hintergrund nach Etikett/QR scannen — NICHT im Wizard,
+    // da dort Step 4 explizit für den Tracker zuständig ist.
+    if (wasFirst && !state.wizardStep) autoScanFirstPhotoForTracker(file);
   } catch (e) {
     showToast('Foto fehlgeschlagen: ' + e.message, 'error', 3500);
   }
@@ -3043,44 +3063,77 @@ function onLiveScanHit(rawUrl) {
   render();
 }
 
-// KI-Vision: liest Bezeichnung, Hersteller, Beschreibung aus den hochgeladenen Step-2-Fotos.
-// Wichtig: QR-Code-Etiketten + Tracker-Nummern werden ignoriert (separater Step 4).
-async function extractDescriptionFromPhotos() {
-  const files = (state.voicePhotoFiles || []).slice(0, 3); // max 3 Fotos pro Anfrage (Token-Sparen)
-  if (files.length === 0) { showToast('Keine Fotos zum Auslesen', 'info', 2200); return; }
-  setLoading(true, 'KI liest Datenblätter & Etiketten …');
+// Prüft ob ein Bild einen QR-Code enthält — solche Fotos sind in der Regel Tracker-Aufnahmen
+// und sollen für die Bauteilbeschreibung NICHT mitanalysiert werden.
+async function _photoContainsQR(file) {
+  if (!('BarcodeDetector' in window)) return false;
   try {
-    // Files in base64 wandeln
+    const formats = await window.BarcodeDetector.getSupportedFormats();
+    if (!formats.includes('qr_code')) return false;
+    const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+    const bitmap = await createImageBitmap(file);
+    const codes = await detector.detect(bitmap);
+    bitmap.close?.();
+    return Array.isArray(codes) && codes.length > 0;
+  } catch (e) { return false; }
+}
+
+// Erster Buchstabe groß (ohne den Rest umzubauen — falls Marke z.B. "BWG-Lift" ist).
+function capitalizeFirst(s) {
+  s = String(s || '').trim();
+  if (!s) return s;
+  return s[0].toUpperCase() + s.slice(1);
+}
+
+// KI-Vision: liest Bezeichnung, Hersteller und Typenschild-Inhalte aus den Step-2-Fotos.
+// Output für "description" ist eine LISTE (jede Zeile = ein Wert vom Etikett), kein Fließtext.
+// QR-/Tracker-Fotos werden vorab ausgefiltert — die sind für Step 4 zuständig.
+async function extractDescriptionFromPhotos() {
+  let files = (state.voicePhotoFiles || []);
+  if (files.length === 0) { showToast('Keine Fotos zum Auslesen', 'info', 2200); return; }
+  setLoading(true, 'Filtere Tracker-Fotos …');
+  try {
+    // QR-Fotos ausfiltern (parallel)
+    const flags = await Promise.all(files.map(_photoContainsQR));
+    const nonQR = files.filter((_, i) => !flags[i]);
+    // Wenn alle Fotos einen QR enthalten: trotzdem alle nehmen (besser als nichts), sonst nur nicht-QR
+    const useFiles = (nonQR.length > 0 ? nonQR : files).slice(0, 3); // max 3 Fotos pro Anfrage
+
+    setLoading(true, 'KI liest Datenblätter & Etiketten …');
     const images = [];
-    for (const f of files) {
+    for (const f of useFiles) {
       const base64 = await fileToBase64(f);
       images.push({ base64, mediaType: f.type || 'image/jpeg' });
     }
     const sys = 'Du extrahierst Daten aus Fotos von Aufzugs-Ersatzteilen für ein Lagerverwaltungs-System. Antworte AUSSCHLIESSLICH als JSON-Objekt, ohne Markdown-Codeblock und ohne erklärenden Text.';
-    const prompt = `Du bekommst ${files.length} Foto${files.length === 1 ? '' : 's'} eines Aufzugs-Ersatzteils. Auf einigen Fotos können Datenblätter, Typenschilder oder Etiketten zu sehen sein.
+    const prompt = `Du bekommst ${useFiles.length} Foto${useFiles.length === 1 ? '' : 's'} eines Aufzugs-Ersatzteils. Es geht um Typenschilder, Datenblätter und Beschriftungen am Bauteil.
 
 Extrahiere folgende Felder:
-- "name": Eindeutige Bezeichnung des Bauteils, möglichst kurz (z.B. "ZAdyn4C Frequenzumrichter", "Pana 40 Lichtgitter", "V3F20 Frequenzumrichter")
-- "maker": Marken-/Herstellername (z.B. "Ziehl-Abegg", "Memco", "Wittur", "Otis"). Nur die Marke, ohne GmbH/AG.
-- "description": 2–4 Sätze Fließtext: Funktion, typische Verwendung, wichtigste technische Eigenschaften. Auf Deutsch.
+- "name": Eindeutige Bezeichnung des Bauteils, möglichst kurz und exakt wie auf dem Typenschild (z.B. "V3F20", "ZAdyn4C Frequenzumrichter", "Pana 40 Lichtgitter"). Wenn ein Modellname und ein Bauteil-Typ getrennt stehen, kombiniere sinnvoll.
+- "maker": Marken-/Herstellername. **IMMER mit großem Anfangsbuchstaben** (z.B. "Otis", "Ziehl-Abegg", "Memco", "Wittur"). Nur die Marke, ohne GmbH/AG/Inc.
+- "description": Eine Liste der Inhalte aus dem Typenschild bzw. den Beschriftungen — als reine Aufzählung, ein Eintrag pro Zeile. Format: "Label: Wert", durch \\n getrennt. Beispiel:\n"Hersteller: Otis\\nModell: V3F20\\nVersorgung: 380 V AC\\nFrequenz: 50 Hz\\nSchutzart: IP21"\nKEINE Fließtext-Zusammenfassung, KEINE Funktionsbeschreibung — nur die ablesbaren Werte. Wenn auf einem Foto ein Datenblatt/Tabelle zu sehen ist, übernimm die Spalten/Zeilen genauso.
 
 WICHTIG — was du IGNORIEREN sollst:
-- QR-Codes auf dem Etikett
-- Tracker-Nummern wie "#12696" oder "Nr. 12345" (das ist intern, nicht Teil der Beschreibung)
+- QR-Codes auf einem Etikett (auch wenn Tracker-Nummer daneben steht — die gehört NICHT zur Beschreibung)
 - FLP-Klebeetiketten oder Lift-Parts-Repair-Sticker
 - Hotline-Nummern, Marketing-Domains wie "aufzug-umrichter.de"
+- Eigene Beschreibungen / Funktions-Erklärungen — nur das was wirklich auf dem Bauteil/Etikett geschrieben steht
 
 Wenn du etwas nicht erkennen kannst, gib einen leeren String "" zurück. Nie raten.
 
 Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
-    const txt = await askAI(prompt, { system: sys, images, maxTokens: 700 });
+    const txt = await askAI(prompt, { system: sys, images, maxTokens: 800 });
     const parsed = parseAIJson(txt);
     let changed = 0;
-    if (parsed?.name) { state.voiceFields.name = String(parsed.name).trim(); changed++; }
-    if (parsed?.maker) { state.voiceFields.maker = String(parsed.maker).trim(); changed++; }
+    if (parsed?.name) { state.voiceFields.name = capitalizeFirst(String(parsed.name).trim()); changed++; }
+    if (parsed?.maker) { state.voiceFields.maker = capitalizeFirst(String(parsed.maker).trim()); changed++; }
     if (parsed?.description) { state.voiceTranscript = String(parsed.description).trim(); changed++; }
-    if (changed > 0) showToast(`Erkannt: ${changed} Felder ausgefüllt`, 'success', 2400);
-    else showToast('Keine Daten erkannt — manuell ausfüllen', 'info', 3000);
+    if (changed > 0) {
+      const skipped = files.length - useFiles.length;
+      showToast(`Erkannt: ${changed} Felder${skipped > 0 ? ` · ${skipped} QR-Foto${skipped === 1 ? '' : 's'} übersprungen` : ''}`, 'success', 2800);
+    } else {
+      showToast('Keine Daten erkannt — manuell ausfüllen', 'info', 3000);
+    }
   } catch (e) {
     showToast('KI-Auslese fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
   } finally {
@@ -3135,7 +3188,8 @@ function renderWizardDesc() {
   const f = state.voiceFields || {};
   const desc = state.voiceTranscript || '';
   const hasName = !!(f.name || '').trim();
-  const photoCount = (state.voicePhotoFiles || []).length;
+  const previews = state.voicePhotoPreviews || [];
+  const photoCount = previews.length;
   return `
 <div class="screen">
   ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
@@ -3145,9 +3199,16 @@ function renderWizardDesc() {
     ${wizProgress()}
     <div style="margin-top:14px">
       <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Was für ein Artikel ist das?</h1>
-      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Lass die KI Bezeichnung, Hersteller und Beschreibung aus deinen Fotos auslesen — oder fülle die Felder manuell.</p>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 14px">Lass die KI Bezeichnung, Hersteller und Typenschild-Daten aus deinen Fotos auslesen — oder fülle die Felder manuell.</p>
     </div>
     ${photoCount > 0 ? `
+      <div class="wiz-thumbs">
+        ${previews.map((p, i) => `
+          <button class="wiz-thumb" data-action="wiz-preview-photo" data-idx="${i}" style="background-image:url('${p}')" title="Foto ${i + 1} ansehen">
+            <span class="wiz-thumb__no">${i + 1}</span>
+          </button>
+        `).join('')}
+      </div>
       <button data-action="wiz-extract-desc" style="width:100%;padding:14px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue);margin-bottom:16px">
         ${svg('sparkles', 15, 2.4)} Aus ${photoCount} Foto${photoCount === 1 ? '' : 's'} auslesen (KI)
       </button>
@@ -3177,6 +3238,17 @@ function renderWizardDesc() {
       Weiter ${svg('arrow-right', 14, 2.4)}
     </button>
   </div>
+  ${(state.wizPhotoPreviewIdx != null && previews[state.wizPhotoPreviewIdx]) ? `
+    <div class="wiz-lightbox" data-action="wiz-preview-close">
+      <img src="${previews[state.wizPhotoPreviewIdx]}" alt="">
+      <div class="wiz-lightbox__counter">${state.wizPhotoPreviewIdx + 1} / ${previews.length}</div>
+      ${previews.length > 1 ? `
+        <button class="wiz-lightbox__nav wiz-lightbox__nav--prev" data-action="wiz-preview-prev" ${state.wizPhotoPreviewIdx === 0 ? 'disabled' : ''}>${svg('chevron-right', 22, 2.4)}</button>
+        <button class="wiz-lightbox__nav wiz-lightbox__nav--next" data-action="wiz-preview-next" ${state.wizPhotoPreviewIdx === previews.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 22, 2.4)}</button>
+      ` : ''}
+      <button class="wiz-lightbox__close" data-action="wiz-preview-close">${svg('x', 18, 2.5)}</button>
+    </div>
+  ` : ''}
 </div>`;
 }
 
@@ -5016,8 +5088,9 @@ async function cropperConfirm() {
     try { URL.revokeObjectURL(c.imageUrl); } catch (_) {}
     state.cropper = null;
     go(ret);
-    // Erstes Foto: im Hintergrund nach Etikett/QR scannen — Original-Foto, da QR im gecroppten Bild oft zu klein ist
-    if (wasFirst) autoScanFirstPhotoForTracker(scanFile);
+    // Erstes Foto: im Hintergrund nach Etikett/QR scannen — Original-Foto, da QR im gecroppten Bild oft zu klein ist.
+    // Im Wizard NICHT auto-scannen — dort gibt's Step 4 dafür.
+    if (wasFirst && !state.wizardStep) autoScanFirstPhotoForTracker(scanFile);
   } catch (e) {
     showToast('Foto konnte nicht zugeschnitten werden: ' + e.message, 'error', 3500);
   } finally {
@@ -5801,6 +5874,27 @@ document.addEventListener('click', (e) => {
     }
     /* Step 3 — KI extrahiert Beschreibung aus Fotos */
     case 'wiz-extract-desc': extractDescriptionFromPhotos(); break;
+    /* Step 3 — Foto-Vorschau (Lightbox) */
+    case 'wiz-preview-photo': {
+      const i = +btn.dataset.idx;
+      state.wizPhotoPreviewIdx = isNaN(i) ? null : i;
+      render();
+      break;
+    }
+    case 'wiz-preview-close': {
+      state.wizPhotoPreviewIdx = null;
+      render();
+      break;
+    }
+    case 'wiz-preview-prev': {
+      if (state.wizPhotoPreviewIdx > 0) { state.wizPhotoPreviewIdx--; render(); }
+      break;
+    }
+    case 'wiz-preview-next': {
+      const max = (state.voicePhotoPreviews || []).length - 1;
+      if (state.wizPhotoPreviewIdx != null && state.wizPhotoPreviewIdx < max) { state.wizPhotoPreviewIdx++; render(); }
+      break;
+    }
     /* Step 4 — Tracker / QR */
     case 'wiz-tracker-from-photos': autoScanFirstPhotoForTracker((state.voicePhotoFiles || [])[0], { force: true }); break;
     case 'wiz-tracker-live': go('wizardTrackerScan'); break;
