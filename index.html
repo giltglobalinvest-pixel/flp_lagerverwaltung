@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.3';
+const APP_VERSION = 'v1.19.4';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3316,6 +3316,33 @@ function normalizeTitleForSave(input, maker) {
   return canonical || capitalizeFirst(raw);
 }
 
+// Tolerante Such-Funktion für Item-Listen.
+// Handhabt:
+//  - Leerzeichen in Query oder Haystack ("V3F 20" findet "V3F20")
+//  - Bindestriche, Unterstriche, Punkte, Slashes
+//  - Groß/Klein
+//  - Multi-Token-Queries: "Otis 3BF" matcht wenn alle Tokens (normalisiert) im Haystack vorkommen
+//  - Auch normale Phrasen mit Leerzeichen ("im lager") werden weiter unterstützt
+function _normalizeSearchString(s) {
+  return String(s || '').toLowerCase().replace(/[\s\-_.,/&]+/g, '');
+}
+function searchMatch(query, haystack) {
+  const q = String(query || '').trim();
+  if (!q) return true;
+  const hayLow = String(haystack || '').toLowerCase();
+  const hayNorm = _normalizeSearchString(hayLow);
+  // Tokens splitten — jedes muss matchen
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  for (const t of tokens) {
+    const tNorm = _normalizeSearchString(t);
+    if (!tNorm) continue;
+    // Match: normalisierte Form (toleriert Schreibweise) ODER 1:1 (für Phrasen)
+    if (hayNorm.includes(tNorm) || hayLow.includes(t)) continue;
+    return false;
+  }
+  return true;
+}
+
 // KI-Vision: liest Bezeichnung, Hersteller und Typenschild-Inhalte aus den Step-2-Fotos.
 // Output für "description" ist eine LISTE (jede Zeile = ein Wert vom Etikett), kein Fließtext.
 // QR-/Tracker-Fotos werden vorab ausgefiltert — die sind für Step 4 zuständig.
@@ -3992,11 +4019,11 @@ function renderListen() {
 
 function renderResults() {
   const filters = ['Alle', 'Funktioniert', 'Defekt/Schrott', 'Generalüberholt'];
-  const lo = state.query.toLowerCase();
+  const q = (state.query || '').trim();
   let m = inventory.filter(it => {
-    if (!lo) return true;
-    const hay = (it.title + ' ' + it.maker + ' ' + it.cat + ' ' + (it.description || '') + ' ' + it.id + ' ' + (it.loc || '')).toLowerCase();
-    return hay.includes(lo);
+    if (!q) return true;
+    const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
+    return searchMatch(q, hay);
   });
   if (state.filterIdx === 1) m = m.filter(it => it.func === 'ok' || it.func === 'untested');
   if (state.filterIdx === 2) m = m.filter(it => it.func === 'defective' || it.func === 'scrap');
@@ -4087,15 +4114,13 @@ function renderBestand() {
     items = items.filter(it => it.func === state.bestandFunc);
   }
 
-  // Apply search query
-  const q = (state.bestandQuery || '').trim().toLowerCase();
+  // Apply search query — tolerant gegen Leerzeichen/Bindestriche/Schreibweisen
+  const q = (state.bestandQuery || '').trim();
   if (q) {
-    items = items.filter(it =>
-      it.title.toLowerCase().includes(q) ||
-      it.maker.toLowerCase().includes(q) ||
-      it.id.toLowerCase().includes(q) ||
-      (it.description || '').toLowerCase().includes(q)
-    );
+    items = items.filter(it => {
+      const hay = `${it.title} ${it.maker} ${it.id} ${it.description || ''} ${it.loc || ''} ${it.tracker || ''} ${it.cat || ''}`;
+      return searchMatch(q, hay);
+    });
   }
 
   // Apply sort
