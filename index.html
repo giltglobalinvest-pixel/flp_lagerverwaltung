@@ -479,7 +479,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.16';
+const APP_VERSION = 'v1.16.1';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -945,16 +945,15 @@ async function scanItemPhotosForTracker() {
   }
 }
 
-// Stellt das erste Foto eines bereits gespeicherten Items frei.
-// Wichtig: Original wird NICHT gelöscht — landet auf Position 1, damit "Undo" möglich bleibt.
-// Bei voller Foto-Liste (PHOTO_MAX_PER_ITEM) wird abgebrochen — User muss vorher löschen.
-async function bgRemoveItemFirstPhoto() {
+// Stellt das angegebene Foto eines bereits gespeicherten Items frei (default: aktuell ausgewähltes).
+// Verhalten: ersetzt das Foto an seiner Position — keine Kopie. Das Original wird im Speicher behalten,
+// damit innerhalb der laufenden Edit-Session ein Undo möglich ist.
+async function bgRemoveItemPhoto(idx) {
   const it = state.item;
   if (!it) return;
   const photos = it.photo || [];
-  if (photos.length === 0) { showToast('Kein Foto vorhanden', 'info', 2200); return; }
-  if (photos.length >= PHOTO_MAX_PER_ITEM) {
-    showToast(`Foto-Liste ist voll (${PHOTO_MAX_PER_ITEM}/${PHOTO_MAX_PER_ITEM}) — bitte erst ein Foto löschen, damit das Original beim Freistellen erhalten bleibt`, 'info', 5000);
+  if (idx == null || idx < 0 || idx >= photos.length) {
+    showToast('Kein Foto ausgewählt', 'info', 2200);
     return;
   }
   if (state.bgRemoving) return;
@@ -962,32 +961,30 @@ async function bgRemoveItemFirstPhoto() {
   setLoading(true, 'Foto wird geladen …');
   render();
   try {
-    // 1) Erstes Foto als File holen
-    const file = await _fetchPhotoAsFile(photos[0], 0);
-    if (!file) throw new Error('Foto konnte nicht heruntergeladen werden');
+    const target = photos[idx];
+    // 1) Original-Foto als File holen — Input für die KI UND Cache für den Undo
+    const originalFile = await _fetchPhotoAsFile(target, idx);
+    if (!originalFile) throw new Error('Foto konnte nicht heruntergeladen werden');
 
     // 2) KI-Freistellen (lädt Modell beim ersten Mal ~30 MB)
     setLoading(true, 'Lade KI-Modell — beim ersten Mal kann es 30–60 s dauern …');
-    const result = await removePhotoBackground(file);
+    const result = await removePhotoBackground(originalFile);
 
-    // 3) Hochladen (wird ans Ende angehängt)
+    // 3) Hochladen + reordern: freigestellt an Position idx, Original wird entfernt (keine Kopie)
     setLoading(true, 'Hochladen …');
     await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', result);
 
-    // 4) Frisch nachladen + reordern: freigestellt = Position 0, Original = Position 1, Rest folgt unverändert
     setLoading(true, 'Bilder werden neu sortiert …');
     const oldIds = new Set(photos.map(p => p.id));
-    const oldFirstId = photos[0].id;
+    const oldId = target.id;
     const fresh = await fetchPhotosWithRetry(it._recordId, photos.length + 1);
     const newPhoto = fresh.find(p => !oldIds.has(p.id));
     if (!newPhoto) {
-      // Fallback: nur neu laden, kein Reorder
       it.photo = fresh;
       it.photoUrl = fresh[0]?.url || null;
     } else {
-      const oldFirst = fresh.find(p => p.id === oldFirstId);
-      const others = fresh.filter(p => p.id !== newPhoto.id && p.id !== oldFirstId);
-      const reordered = [newPhoto, oldFirst, ...others].filter(Boolean).map(p => ({ id: p.id }));
+      const others = fresh.filter(p => p.id !== newPhoto.id && p.id !== oldId);
+      const reordered = [...others.slice(0, idx), newPhoto, ...others.slice(idx)].map(p => ({ id: p.id }));
       await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
       const finalPhotos = await fetchPhotosWithRetry(it._recordId, reordered.length);
       it.photo = finalPhotos;
@@ -995,8 +992,17 @@ async function bgRemoveItemFirstPhoto() {
     }
     it.updated = nowIso();
     it.upd = 'gerade eben';
-    state.galleryIndex = 0;
-    showToast('Hauptfoto freigestellt — Original bleibt auf Platz 2 erhalten', 'success', 3500);
+    state.galleryIndex = idx;
+
+    // Undo-Cache füllen — gilt nur in dieser Edit-Session, geht beim Verlassen verloren
+    if (state.editForm) {
+      state.editForm._bgUndo = {
+        idx,
+        originalFile,
+        originalFilename: target.filename || `photo_${idx}.jpg`,
+      };
+    }
+    showToast('Foto freigestellt — Undo möglich solange Edit-Screen offen', 'success', 3000);
   } catch (e) {
     showToast('Freistellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 4500);
   } finally {
@@ -1086,23 +1092,52 @@ async function startRecropExistingPhoto(idx) {
   }
 }
 
-// Macht das letzte Freistellen rückgängig: löscht photo[0] (das freigestellte) → Original (Pos 1) wandert auf Pos 0
-async function undoBgRemove() {
+// Macht das zuletzt durchgeführte Freistellen rückgängig — nutzt den In-Memory-Cache aus state.editForm._bgUndo.
+async function undoBgRemoveItemPhoto() {
   const it = state.item;
   if (!it) return;
-  const photos = it.photo || [];
-  if (photos.length < 2) { showToast('Nichts zum Wiederherstellen', 'info', 2200); return; }
-  const firstName = photos[0]?.filename || '';
-  if (!/_freigestellt\.(jpe?g|png)$/i.test(firstName)) {
-    showToast('Hauptfoto sieht nicht nach Freistellung aus — Wiederherstellen abgebrochen', 'info', 3000);
+  const undo = state.editForm?._bgUndo;
+  if (!undo || !undo.originalFile) {
+    showToast('Nichts zum Wiederherstellen', 'info', 2200);
     return;
   }
+  const photos = it.photo || [];
+  const idx = Math.min(undo.idx, photos.length - 1);
+  const currentAtIdx = photos[idx];
+  if (!currentAtIdx) { showToast('Position nicht mehr vorhanden', 'error', 3000); return; }
   if (state.bgRemoving) return;
   state.bgRemoving = true;
-  setLoading(true, 'Original wird wiederhergestellt …');
+  setLoading(true, 'Original wird hochgeladen …');
   render();
   try {
-    await handleItemPhotoDelete(0);
+    // Original mit ursprünglichem Dateinamen wieder hochladen
+    const fileToRestore = new File(
+      [undo.originalFile],
+      undo.originalFilename || `photo_${idx}.jpg`,
+      { type: undo.originalFile.type || 'image/jpeg' }
+    );
+    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', fileToRestore);
+
+    // Reordern: Original an idx, freigestellt verschwindet
+    setLoading(true, 'Bilder werden neu sortiert …');
+    const oldIds = new Set(photos.map(p => p.id));
+    const fresh = await fetchPhotosWithRetry(it._recordId, photos.length + 1);
+    const newOrig = fresh.find(p => !oldIds.has(p.id));
+    if (newOrig) {
+      const others = fresh.filter(p => p.id !== newOrig.id && p.id !== currentAtIdx.id);
+      const reordered = [...others.slice(0, idx), newOrig, ...others.slice(idx)].map(p => ({ id: p.id }));
+      await airUpdate(TBL_ITEMS, it._recordId, { photo: reordered });
+      const finalPhotos = await fetchPhotosWithRetry(it._recordId, reordered.length);
+      it.photo = finalPhotos;
+      it.photoUrl = finalPhotos[0]?.url || null;
+    } else {
+      it.photo = fresh;
+      it.photoUrl = fresh[0]?.url || null;
+    }
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    state.galleryIndex = idx;
+    if (state.editForm) delete state.editForm._bgUndo;
     showToast('Original wiederhergestellt', 'success', 2400);
   } catch (e) {
     showToast('Wiederherstellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 3500);
@@ -3572,17 +3607,17 @@ function renderEdit() {
           `}
         </div>
         ${(photos.length > 0 && isAdmin()) ? (() => {
-          const firstName = photos[0]?.filename || '';
-          const isFreigestellt = /_freigestellt\.(jpe?g|png)$/i.test(firstName);
-          const canUndo = isFreigestellt && photos.length >= 2;
+          const curIdx = Math.min(state.galleryIndex || 0, photos.length - 1);
+          const canUndo = !!(state.editForm && state.editForm._bgUndo);
+          const undoIdx = state.editForm?._bgUndo?.idx;
           return `
             <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-              <button data-action="edit-bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:10px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px;${state.bgRemoving ? 'opacity:.6' : ''}">
-                ${svg('sparkles', 12, 2.5)} ${state.bgRemoving ? 'Wird freigestellt \u2014 bitte warten \u2026' : 'Hauptfoto freistellen (KI)'}
+              <button data-action="edit-bg-remove-current" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:10px;background:var(--c-surface);border:1px dashed var(--c-border-strong);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-blue);display:flex;align-items:center;justify-content:center;gap:6px;${state.bgRemoving ? 'opacity:.6' : ''}">
+                ${svg('sparkles', 12, 2.5)} ${state.bgRemoving ? 'Wird freigestellt \u2014 bitte warten \u2026' : `Aktuelles Foto freistellen (KI) \u00b7 ${curIdx + 1} / ${photos.length}`}
               </button>
               ${canUndo ? `
                 <button data-action="edit-bg-remove-undo" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:10px;background:var(--c-surface);border:1px dashed rgba(229,72,77,0.4);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--c-red);display:flex;align-items:center;justify-content:center;gap:6px">
-                  ${svg('rotate-ccw', 12, 2.5)} Freistellen r\u00fcckg\u00e4ngig \u2014 Original wiederherstellen
+                  ${svg('rotate-ccw', 12, 2.5)} Freistellen r\u00fcckg\u00e4ngig${undoIdx != null ? ` (Foto ${undoIdx + 1})` : ''}
                 </button>
               ` : ''}
             </div>`;
@@ -5443,12 +5478,12 @@ document.addEventListener('click', (e) => {
     case 'bg-remove-first':
       if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
       bgRemoveFirstPhoto(); break;
-    case 'edit-bg-remove-first':
+    case 'edit-bg-remove-current':
       if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
-      bgRemoveItemFirstPhoto(); break;
+      bgRemoveItemPhoto(state.galleryIndex || 0); break;
     case 'edit-bg-remove-undo':
       if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
-      undoBgRemove(); break;
+      undoBgRemoveItemPhoto(); break;
     /* Bestehendes Item-Foto neu zuschneiden — öffnet Cropper mit Replace-Modus */
     case 'photo-recrop': {
       const idx = +btn.dataset.idx;
