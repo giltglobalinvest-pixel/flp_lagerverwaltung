@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.17.5';
+const APP_VERSION = 'v1.17.6';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3138,15 +3138,22 @@ async function extractDescriptionFromPhotos() {
 Extrahiere folgende Felder:
 - "name": Eindeutige Bezeichnung des Bauteils, möglichst kurz und exakt wie auf dem Typenschild (z.B. "V3F20", "ZAdyn4C Frequenzumrichter", "Pana 40 Lichtgitter"). Wenn ein Modellname und ein Bauteil-Typ getrennt stehen, kombiniere sinnvoll.
 - "maker": Marken-/Herstellername. **IMMER mit großem Anfangsbuchstaben** (z.B. "Otis", "Ziehl-Abegg", "Memco", "Wittur"). Nur die Marke, ohne GmbH/AG/Inc.
-- "description": Eine Liste der Inhalte aus dem Typenschild bzw. den Beschriftungen — als reine Aufzählung, ein Eintrag pro Zeile. Format: "Label: Wert", durch \\n getrennt. Beispiel:\n"Hersteller: Otis\\nModell: V3F20\\nVersorgung: 380 V AC\\nFrequenz: 50 Hz\\nSchutzart: IP21"\nKEINE Fließtext-Zusammenfassung, KEINE Funktionsbeschreibung — nur die ablesbaren Werte. Wenn auf einem Foto ein Datenblatt/Tabelle zu sehen ist, übernimm die Spalten/Zeilen genauso.
+- "description": Schlanke Aufzählung der relevanten **technischen Daten** vom Typenschild — eine Zeile pro Wert, immer im Format "Label: Wert", getrennt durch \\n. Beispiel:\n"Versorgung: 380 V AC\\nFrequenz: 50 Hz\\nLeistung: 22 kW\\nSchutzart: IP21\\nNorm: EN 81-20"\nWenn ein Datenblatt sichtbar ist, übernimm die Tabellen-Zeilen genauso, jede Zeile mit ":" zwischen Bezeichnung und Wert.
 
-WICHTIG — was du IGNORIEREN sollst:
-- QR-Codes auf einem Etikett (auch wenn Tracker-Nummer daneben steht — die gehört NICHT zur Beschreibung)
-- FLP-Klebeetiketten oder Lift-Parts-Repair-Sticker
-- Hotline-Nummern, Marketing-Domains wie "aufzug-umrichter.de"
-- Eigene Beschreibungen / Funktions-Erklärungen — nur das was wirklich auf dem Bauteil/Etikett geschrieben steht
+WICHTIG — was du IGNORIEREN sollst (nicht in description aufnehmen):
+- Hersteller-Anschrift, Postleitzahl, Stadt, Land, Telefonnummer, Fax, E-Mail, Website-URL
+- QR-Codes auf einem Etikett, Tracker-Nummern wie "#12696", Seriennummern (außer eindeutig als "Serial No: …" gekennzeichnet)
+- FLP-Klebeetiketten, Lift-Parts-Repair-Sticker, Marketing-Domains wie "aufzug-umrichter.de"
+- Hotline-/Service-Nummern, Hinweise wie "Kostenlose Hotline"
+- Wiederholungen aus dem Artikel-"name" oder "maker" — wenn der Modellname z.B. "V3F20" schon im name-Feld steht, nicht nochmal in description als "Modell: V3F20" wiederholen. Hersteller ebenso nicht doppeln.
+- Hieroglyphen, kryptische Codes ohne erkennbare Bedeutung, Barcodes, Logos ohne Textinhalt
+- Eigene Beschreibungen, Funktions-Erklärungen, Marketing-Sprache — nur das was als technischer Wert auf dem Bauteil/Etikett steht
+- Leere Tabellenzeilen, "---", "N/A" oder ähnliche Platzhalter
 
-Wenn du etwas nicht erkennen kannst, gib einen leeren String "" zurück. Nie raten.
+Output-Anforderungen:
+- Maximal ~12 Zeilen — qualitativ, nicht quantitativ
+- Jede Zeile MUSS einen ":" enthalten ("Label: Wert"). Keine Bullet-Points, keine "-", keine Aufzählungszeichen
+- Nicht raten — wenn ein Wert unleserlich ist, weglassen
 
 Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
     const txt = await askAI(prompt, { system: sys, images, maxTokens: 800 });
@@ -3154,7 +3161,31 @@ Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
     let changed = 0;
     if (parsed?.name) { state.voiceFields.name = capitalizeFirst(String(parsed.name).trim()); changed++; }
     if (parsed?.maker) { state.voiceFields.maker = capitalizeFirst(String(parsed.maker).trim()); changed++; }
-    if (parsed?.description) { state.voiceTranscript = String(parsed.description).trim(); changed++; }
+    if (parsed?.description) {
+      // Cleanup: jede Zeile muss "Label: Wert" sein. Bullet-Prefixe weg, leere/inhaltslose Zeilen raus,
+      // Wiederholungen vom Modellnamen oder Hersteller filtern.
+      const nm = (state.voiceFields.name || '').toLowerCase();
+      const mk = (state.voiceFields.maker || '').toLowerCase();
+      const cleaned = String(parsed.description).split('\n')
+        .map(l => l.replace(/^[\s•·\-—*]+/, '').trim())
+        .filter(l => {
+          if (!l || l.length < 3) return false;
+          if (!l.includes(':')) return false;          // muss "Label: Wert" sein
+          const [lbl, ...rest] = l.split(':');
+          const val = rest.join(':').trim();
+          if (!val || /^(n\/?a|---|—|n\.?n\.?)$/i.test(val)) return false; // leere Werte raus
+          // Hersteller- und Modell-Wiederholungen rausfiltern
+          const lblLow = lbl.trim().toLowerCase();
+          if (mk && /^(hersteller|manufacturer|maker|brand|marke)$/i.test(lblLow) && val.toLowerCase() === mk) return false;
+          if (nm) {
+            if (/^(modell|model|typ|type|bezeichnung|name)$/i.test(lblLow) && nm.includes(val.toLowerCase())) return false;
+          }
+          return true;
+        })
+        .join('\n');
+      state.voiceTranscript = cleaned;
+      if (cleaned) changed++;
+    }
     if (changed > 0) {
       const skipped = files.length - useFiles.length;
       showToast(`Erkannt: ${changed} Felder${skipped > 0 ? ` · ${skipped} QR-Foto${skipped === 1 ? '' : 's'} übersprungen` : ''}`, 'success', 2800);
