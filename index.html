@@ -279,6 +279,34 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .dash-kpi__label{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em}
 .dash-kpi__val{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--c-ink);font-variant-numeric:tabular-nums}
 .dash-kpi__sub{font-size:10.5px;font-weight:500;color:var(--c-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Wizard — Progress + Steps + Tiles + Footer-Actions */
+.wiz-progress{display:flex;align-items:center;gap:5px;padding:0 4px}
+.wiz-progress__step{flex:1;height:5px;border-radius:3px;background:var(--c-bg-soft);transition:background .2s}
+.wiz-progress__step--active{background:var(--c-blue)}
+.wiz-progress__step--done{background:var(--c-blue-light)}
+.wiz-progress-label{margin-top:7px;padding:0 4px;font-family:var(--f-mono);font-size:10px;font-weight:600;color:var(--c-ink-mute);letter-spacing:.05em;text-transform:uppercase}
+/* Dark-Variante: weißer Text, transparentes Dot-BG — automatisch auf .cam-screen */
+.cam-screen .wiz-progress__step{background:rgba(255,255,255,0.18)}
+.cam-screen .wiz-progress__step--active{background:#fff}
+.cam-screen .wiz-progress__step--done{background:rgba(255,255,255,0.55)}
+.cam-screen .wiz-progress-label{color:rgba(255,255,255,0.7)}
+.wiz-tile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.wiz-tile{padding:22px 14px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;min-height:128px;transition:transform .1s, background .15s, border-color .15s, box-shadow .15s}
+.wiz-tile:active{transform:scale(.97)}
+.wiz-tile--active{border-color:var(--c-blue);background:var(--c-blue-soft);box-shadow:var(--elev-blue)}
+.wiz-tile--add{background:transparent;border-style:dashed;border-color:var(--c-blue-light);box-shadow:none}
+.wiz-tile__icon{width:48px;height:48px;border-radius:14px;background:var(--c-bg-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wiz-tile--active .wiz-tile__icon{background:#fff;color:var(--c-blue)}
+.wiz-tile__name{font-size:13.5px;font-weight:600;text-align:center;line-height:1.25;color:var(--c-ink)}
+.wiz-actions{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:10px 16px calc(12px + env(safe-area-inset-bottom)) 16px;background:var(--c-bg);border-top:1px solid var(--c-divider);flex-shrink:0}
+.wiz-actions>button{height:50px;border-radius:14px;font-size:14.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;cursor:pointer;transition:filter .12s, transform .1s}
+.wiz-actions>button:active{transform:scale(.98)}
+.wiz-actions__back{background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border) !important}
+.wiz-actions__next{background:var(--c-blue);color:#fff;box-shadow:var(--elev-blue)}
+.wiz-actions__next--disabled,.wiz-actions__next[disabled]{background:var(--c-surface-alt);color:var(--c-ink-subtle);box-shadow:none;cursor:default}
+.wiz-actions__next:not([disabled]):active{filter:brightness(.95)}
+.wiz-actions__skip{background:transparent;color:var(--c-ink-mute);border:0;font-size:12px;font-weight:600;padding:8px;text-align:center;display:inline-block;width:100%}
 .summary-card{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .summary-card>*+*{border-left:1px solid var(--c-divider);padding-left:12px}
 .hint-banner{padding:8px 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500}
@@ -479,7 +507,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.16.1';
+const APP_VERSION = 'v1.17';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1544,6 +1572,7 @@ const state = {
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
+  wizardStep: null,           // null wenn nicht im Wizard, sonst 1..8
   dashRange: '30d',           // Dashboard-Zeitfilter: 'today' | '7d' | '30d' | 'all'
   dashCat: 'all',             // Dashboard-Kategorienfilter
   dashMaker: 'all',           // Dashboard-Herstellerfilter
@@ -2921,6 +2950,74 @@ const wave = (n = 28) => Array.from({ length: n }, (_, i) => {
    SCREENS
    ============================================================ */
 
+// Wizard-Konfiguration: Schritte 1..8 mit Anzeigenamen
+const WIZ_STEPS = [
+  { n: 1, label: 'Kategorie' },
+  { n: 2, label: 'Fotos' },
+  { n: 3, label: 'Beschreibung' },
+  { n: 4, label: 'Tracker' },
+  { n: 5, label: 'Lagerort' },
+  { n: 6, label: 'Bestand' },
+  { n: 7, label: 'Webshop' },
+  { n: 8, label: 'Übersicht' },
+];
+
+// Progress-Komponente — Punkte pro Schritt + aktueller Label.
+// Wird oben auf jedem Wizard-Screen gerendert.
+function wizProgress() {
+  const cur = state.wizardStep;
+  if (!cur) return '';
+  const stepInfo = WIZ_STEPS.find(s => s.n === cur) || WIZ_STEPS[0];
+  return `
+    <div class="wiz-progress">
+      ${WIZ_STEPS.map(s => `<div class="wiz-progress__step ${s.n === cur ? 'wiz-progress__step--active' : (s.n < cur ? 'wiz-progress__step--done' : '')}"></div>`).join('')}
+    </div>
+    <div class="wiz-progress-label">Schritt ${cur} / ${WIZ_STEPS.length} · ${stepInfo.label}</div>
+  `;
+}
+
+// Step 1 — Kategorie
+function renderWizardCat() {
+  const cats = state.categories || [];
+  const selected = state.voiceFields?.cat || '';
+  const canNext = !!selected;
+  return `
+<div class="screen">
+  ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
+    `<div class="pill pill--ink">Neuer Artikel</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    ${wizProgress()}
+    <div style="margin-top:14px">
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Wofür ist der Artikel?</h1>
+      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Wähle eine Kategorie. Du kannst sie später jederzeit ändern.</p>
+    </div>
+    <div class="wiz-tile-grid">
+      ${cats.length === 0 ? `<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:13px;color:var(--c-ink-mute)">Noch keine Kategorien angelegt</div>` : ''}
+      ${cats.map(c => `
+        <button class="wiz-tile ${selected === c ? 'wiz-tile--active' : ''}" data-action="wiz-cat-pick" data-cat="${c.replace(/"/g, '&quot;')}">
+          <div class="wiz-tile__icon">${svg('boxes', 26, 1.9)}</div>
+          <div class="wiz-tile__name">${c}</div>
+        </button>
+      `).join('')}
+      ${isAdmin() ? `
+        <button class="wiz-tile wiz-tile--add" data-action="wiz-cat-add">
+          <div class="wiz-tile__icon" style="background:transparent;color:var(--c-blue)">${svg('plus', 26, 2.2)}</div>
+          <div class="wiz-tile__name" style="color:var(--c-blue)">Neue Kategorie</div>
+        </button>
+      ` : ''}
+    </div>
+  </div>
+  <div class="wiz-actions">
+    <button class="wiz-actions__back" disabled style="opacity:.4">${svg('arrow-left', 14, 2.4)} Zurück</button>
+    <button class="wiz-actions__next ${canNext ? '' : 'wiz-actions__next--disabled'}" data-action="wiz-next" ${canNext ? '' : 'disabled'}>
+      Weiter ${svg('arrow-right', 14, 2.4)}
+    </button>
+  </div>
+</div>`;
+}
+
+
 function renderHome() {
   return `
 <div class="screen">
@@ -2961,7 +3058,7 @@ function renderHome() {
     </div>
     <div class="action-grid">
       ${[
-        { icon: 'plus', title: 'Neuer Artikel', sub: 'Foto, Stimme oder manuell', action: 'go-camera' },
+        { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
       ].map(a => `
@@ -4351,11 +4448,13 @@ function renderCamera() {
   const cur = showLive ? null : previews[idx];                       // Im Live-Modus kein Preview-Bild
   const addAction = liveAvailable && canAddMore ? 'cam-back-to-live' : 'open-camera';
 
+  const inWizard = state.wizardStep === 2;
   return `
 <div class="screen cam-screen">
-  ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="go-home">${svg('x', 18, 2.5)}</button>`,
-    `<div class="pill">${count === 0 ? 'Foto vom Artikel' : count + ' / ' + PHOTO_MAX_PER_ITEM + ' Fotos'}</div>`,
+  ${headerBar(`<button class="icon-btn icon-btn--ghost" data-action="${inWizard ? 'wiz-back' : 'go-home'}">${svg(inWizard ? 'arrow-left' : 'x', 18, 2.5)}</button>`,
+    `<div class="pill">${inWizard ? 'Schritt 2 / 8 · Fotos' : (count === 0 ? 'Foto vom Artikel' : count + ' / ' + PHOTO_MAX_PER_ITEM + ' Fotos')}</div>`,
     showLive ? `<button class="icon-btn icon-btn--ghost" data-action="cam-flip" title="Kamera wechseln">${svg('rotate-ccw', 16, 2.5)}</button>` : `<div class="header__slot"></div>`)}
+  ${inWizard ? `<div style="padding:0 14px 4px">${wizProgress()}</div>` : ''}
 
   <div class="viewfinder" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px;padding:16px;position:relative">
     ${cur
@@ -5079,7 +5178,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -5218,14 +5317,14 @@ function go(view) {
   if (view !== 'detail') state.detailTab = 'overview';
   if (view !== 'testStart') state.checks = { visual: false, connect: false, label: false };
   if (view !== 'testResult') state.testChosen = null;
-  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; }
+  if (view === 'home') { state.item = null; state.testResult = null; state.galleryIndex = 0; state.wizardStep = null; }
   if (view === 'camera') { state.cameraShowLive = true; }
   // Cropper-Cleanup: bei Verlassen des Cropper-Flows Object-URL freigeben
   if (view !== 'cropper' && state.cropper) {
     try { URL.revokeObjectURL(state.cropper.imageUrl); } catch(_) {}
     state.cropper = null;
   }
-  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper') {
+  if (view !== 'voice' && view !== 'saved' && view !== 'camera' && view !== 'cropper' && view !== 'wizardCat') {
     // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
     state.voicePhase = 'idle';
     state.voiceTranscript = '';
@@ -5383,6 +5482,65 @@ document.addEventListener('click', (e) => {
     case 'go-bestand': go('bestand'); break;
     case 'go-dashboard': go('dashboard'); break;
     case 'reload-all-data': reloadAllData(); break;
+
+    /* ====== Wizard ====== */
+    case 'wizard-start': {
+      // Anlege-State sauber resetten (analog zu go() für Schritt 1)
+      state.voiceFields = { name: '', maker: '', cat: '', stock: '', tracker: '', trackerUrl: '' };
+      state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
+      state.voiceCond = 'neu';
+      state.voiceFunc = 'untested';
+      state.voicePhase = 'idle';
+      state.voiceTranscript = '';
+      (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+      state.voicePhotoFiles = [];
+      state.voicePhotoPreviews = [];
+      state.galleryIndex = 0;
+      state.cameraShowLive = true;
+      state.wizardStep = 1;
+      go('wizardCat');
+      break;
+    }
+    case 'wiz-cancel': {
+      state.wizardStep = null;
+      go('home');
+      break;
+    }
+    case 'wiz-cat-pick': {
+      state.voiceFields.cat = btn.dataset.cat || '';
+      render();
+      break;
+    }
+    case 'wiz-cat-add': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Kategorien anlegen', 'info', 2400); break; }
+      const name = (prompt('Neue Kategorie:') || '').trim();
+      if (!name) break;
+      if ((state.categories || []).includes(name)) { showToast('Kategorie existiert bereits', 'info', 2200); break; }
+      state.categories = [...(state.categories || []), name];
+      state.voiceFields.cat = name;
+      persistCompanyHallsShelves(state.company);
+      render();
+      break;
+    }
+    case 'wiz-next': {
+      if (state.wizardStep === 1) {
+        if (!state.voiceFields.cat) { showToast('Bitte erst eine Kategorie wählen', 'info', 2200); break; }
+        state.wizardStep = 2;
+        go('camera');
+      }
+      // Schritt 3+: vorerst über continue-to-voice → renderVoiceForm
+      break;
+    }
+    case 'wiz-back': {
+      if (state.wizardStep === 2) {
+        state.wizardStep = 1;
+        go('wizardCat');
+      } else if (state.wizardStep === 1) {
+        state.wizardStep = null;
+        go('home');
+      }
+      break;
+    }
     case 'dash-set-range': state.dashRange = btn.dataset.range || '30d'; render(); break;
     case 'dash-set-cat': state.dashCat = btn.dataset.cat || 'all'; render(); break;
     case 'dash-set-maker': state.dashMaker = btn.dataset.maker || 'all'; render(); break;
