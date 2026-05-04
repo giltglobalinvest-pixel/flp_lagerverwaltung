@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.6';
+const APP_VERSION = 'v1.19.7';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2365,28 +2365,35 @@ Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":[
       const descLow = lc(it.description || '');
       const allHay = `${titleLow} ${makerLow} ${idLow} ${descLow}`;
       let score = 0;
+      // strongModelMatch = wir sind sicher dass das wirklich dieselbe Modellnummer ist
+      // (nicht nur dieselbe Serie/Brand-Line). Nur dann darf das Item unter "Sicher" landen.
+      let strongModelMatch = false;
 
-      // 1) MODELL-MATCH \u2014 drei Stufen, h\u00f6chster Wert gewinnt
+      // 1) MODELL-MATCH \u2014 drei Stufen
       if (modelClean && modelClean.length >= 3) {
         // 1a) FULL-MATCH: kompletter Modell-Code (gestripped) im Title-stripped (60 Punkte)
         if (titleClean.includes(modelClean) || modelClean === titleClean) {
           score += 60;
+          strongModelMatch = true;
         }
         // 1b) TOKEN-MATCH: Hauptteile des Modellcodes als ganze W\u00f6rter im Titel
         // Sch\u00fctzt gegen OCR-Fehler in Suffix-Codes (z.B. "E110T0" vs "E1l0T0")
         else if (modelTokens.length > 0) {
           const matchedTokens = modelTokens.filter(t => titleSet.has(t));
           if (matchedTokens.length === modelTokens.length) {
-            score += 60; // alle Tokens da \u2014 voller Boost
+            score += 60;
+            strongModelMatch = true;
           } else if (matchedTokens.length >= 2) {
-            score += 50; // 2+ Tokens (typisch: Serie + Modellnummer)
+            score += 50;
+            strongModelMatch = true; // 2+ Tokens = spezifische Modellnummer trifft, nicht nur Serie
           } else if (matchedTokens.length === 1 && matchedTokens[0].length >= 5) {
-            score += 25; // ein langer Token allein (z.B. "ZETADYN") \u2014 schw\u00e4cher
+            score += 25; // nur Serie/Brand-Line trifft (z.B. "ZETADYN") \u2014 KEIN strong match
           }
         }
         // 1c) ID-Substring (Fallback)
         else if (modelClean.length >= 4 && stripPunct(it.id).includes(modelClean)) {
           score += 50;
+          strongModelMatch = true;
         }
       }
 
@@ -2410,13 +2417,18 @@ Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":[
         score += Math.min(16, kwHits * 4);
       }
 
-      return Math.min(99, score);
+      return { score: Math.min(99, score), strongModelMatch };
     }
 
-    const ranked = items.map(it => ({ it, score: scoreItem(it) })).sort((a, b) => b.score - a.score);
-    // Strengere Schwellen \u2014 vermeidet False-Positives
-    const text = ranked.filter(r => r.score >= 70).slice(0, 3).map(r => r.it);
-    const visual = ranked.filter(r => r.score < 70 && r.score >= 40).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
+    const ranked = items.map(it => {
+      const r = scoreItem(it);
+      return { it, score: r.score, strong: r.strongModelMatch };
+    }).sort((a, b) => b.score - a.score);
+    // "Sicher" verlangt sowohl hohen Score ALS AUCH einen starken Modell-Match
+    // (verhindert False-Positives wie "ZETADYN 3CS050" wenn nach "ZETADYN 3BF040" gesucht wird)
+    const text = ranked.filter(r => r.score >= 70 && r.strong).slice(0, 3).map(r => r.it);
+    const textIds = new Set(text.map(it => it.id));
+    const visual = ranked.filter(r => !textIds.has(r.it.id) && r.score >= 40).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
 
     state.photoSearchTextMatches = text;
     state.photoSearchVisualMatches = visual;
