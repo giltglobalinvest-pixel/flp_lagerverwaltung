@@ -583,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.24';
+const APP_VERSION = 'v1.25';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2952,6 +2952,11 @@ const formatVp = (v) => {
 const isPendingReturn = (it) => !!(it && it.sold && it.saleType === 'service-exchange' && !it.returnedAt);
 // Liste aller offenen Rücksendungen im aktuellen Bestand
 const getPendingReturns = () => (inventory || []).filter(isPendingReturn);
+// Service-Tausch: Verbundener Partner-Artikel (Original ↔ defekte Rücksendung) — sucht per Record-ID
+const findLinkedItem = (it) => {
+  if (!it?.linkedItemId) return null;
+  return (inventory || []).find(x => x._recordId === it.linkedItemId) || null;
+};
 
 // Liefert kleine Badges für item-card / compact-item:
 //  - Preis-Chip wenn vp gesetzt und (im Shop oder verkauft) — bleibt auch nach Verkauf sichtbar
@@ -4777,6 +4782,32 @@ function renderDetail() {
         </div>
         <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:#0A6B2C;letter-spacing:.02em">${formatVp(it.vp)}</div>
       </div>` : ''}
+    ${(() => {
+      // Linked-Partner: zeigt bei Service-Tausch den verbundenen Artikel (Original ↔ Rücksendung)
+      const partner = findLinkedItem(it);
+      if (!partner) return '';
+      // Wir sind auf dem Original (sold + service-exchange + returnedAt) → Partner ist die defekte Rücksendung
+      // Wir sind auf der Rücksendung (linkedItemId aber nicht sold) → Partner ist das Original
+      const isOnOriginal = it.sold && it.saleType === 'service-exchange' && !!it.returnedAt;
+      const label = isOnOriginal ? 'Defekte Rücksendung' : 'Verkauftes Original';
+      const sub = isOnOriginal
+        ? `Eingegangen ${it.returnedAt ? new Date(it.returnedAt).toLocaleDateString('de-DE') : '—'}`
+        : `Verkauft ${partner.soldAt ? new Date(partner.soldAt).toLocaleDateString('de-DE') : '—'}${partner.orderNumber ? ' · Auftrag ' + partner.orderNumber : ''}`;
+      return `
+        <button data-action="select-item" data-id="${partner.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%);border:1px solid #FDBA74;border-radius:var(--r-tile);width:100%;text-align:left;cursor:pointer">
+          <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center">${svg('rotate-ccw', 18, 2.4)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+            <div style="font-size:13.5px;font-weight:600;color:var(--c-ink);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="code-chip">#${partner.id}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${partner.title}</span>
+            </div>
+            <div style="font-size:11px;font-weight:500;color:#9A3412;margin-top:3px">${sub}</div>
+          </div>
+          <span style="color:#9A3412;display:flex;flex-shrink:0">${svg('chevron-right', 14, 2.5)}</span>
+        </button>
+      `;
+    })()}
     ${(it.tracker || it.trackerUrl) ? `
       <div class="tracker-tile">
         ${it.tracker ? `
@@ -4876,10 +4907,13 @@ function renderDetail() {
       </div>
     </div>
   </div>
-  <div class="action-bar" style="grid-template-columns:${(isAdmin() && !it.sold) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
+  <div class="action-bar" style="grid-template-columns:${(isAdmin() && (!it.sold || isPendingReturn(it))) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
     <button class="action-bar__btn" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
     ${(isAdmin() && !it.sold) ? `
       <button class="action-bar__btn action-bar__btn--primary" data-action="open-sale-sheet" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 2.7)} Verkauf eintragen</button>
+    ` : ''}
+    ${(isAdmin() && isPendingReturn(it)) ? `
+      <button class="action-bar__btn action-bar__btn--primary" data-action="open-return-sheet" style="padding:14px;background:#FB923C;border-color:#FB923C;color:#fff">${svg('rotate-ccw', 14, 2.7)} Rücksendung erhalten</button>
     ` : ''}
   </div>
 
@@ -4928,6 +4962,51 @@ function renderDetail() {
       <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
         <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
         <button class="action-bar__btn action-bar__btn--primary" data-action="save-sale" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 3)} Verkauf sichern</button>
+      </div>
+    </div>
+    `;
+  })() : ''}
+
+  ${state.quickEdit === 'return' ? (() => {
+    const d = state.returnDraft || { description: '', loc: it.loc || '' };
+    return `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Rücksendung erfassen</div>
+      <div style="padding:4px 16px 0;font-size:12px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Legt einen neuen Artikel als <strong>defekte Rücksendung</strong> an und verknüpft ihn mit dem Original.</div>
+      <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+        <!-- Original-Zusammenfassung (read-only) -->
+        <div style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md)">
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Wird vom Original übernommen</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px">
+            <span style="color:var(--c-ink-mute)">Hersteller</span><span style="font-weight:600">${it.maker || '—'}</span>
+            <span style="color:var(--c-ink-mute)">Modell</span><span style="font-weight:600">${it.title || '—'}</span>
+            <span style="color:var(--c-ink-mute)">Kategorie</span><span style="font-weight:600">${it.cat || '—'}</span>
+            ${it.orderNumber ? `<span style="color:var(--c-ink-mute)">Auftrag</span><span style="font-family:var(--f-mono);font-weight:600">${it.orderNumber}</span>` : ''}
+            <span style="color:var(--c-ink-mute)">Verlinkung</span><span style="font-family:var(--f-mono);font-size:11.5px;color:#9A3412">↔ #${it.id}</span>
+          </div>
+        </div>
+        <!-- Default-Werte für neuen Artikel -->
+        <div style="padding:10px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--r-md);display:flex;align-items:center;gap:10px">
+          <span style="color:#B45309;display:flex;flex-shrink:0">${svg('alert-triangle', 14, 2.4)}</span>
+          <div style="font-size:11.5px;color:#7A4A00;font-weight:500;line-height:1.4">
+            Neuer Artikel wird als <strong>Funktion: Defekt</strong> · <strong>Zustand: Gebraucht</strong> angelegt.
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">Notiz / Beschreibung <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
+          <textarea class="field__input" data-action="return-desc-input" placeholder="z.B. Lager defekt, Geräusch beim Anlauf …" rows="3" style="font-size:14px;font-family:inherit;resize:vertical;min-height:80px" autocomplete="off">${(d.description || '').replace(/</g, '&lt;')}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label">Lagerort <span style="color:var(--c-ink-mute);font-weight:500">(default: wie Original)</span></label>
+          <input class="field__input" data-action="return-loc-input" value="${(d.loc || '').replace(/"/g, '&quot;')}" placeholder="z.B. Werkstatt·1·12" style="font-family:var(--f-mono);font-size:15px" autocomplete="off">
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;font-family:var(--f-mono)">Format: Halle·Regal·Platz·Kiste</div>
+        </div>
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="save-return" style="padding:14px;background:#FB923C;border-color:#FB923C;color:#fff">${svg('rotate-ccw', 14, 3)} Rücksendung anlegen</button>
       </div>
     </div>
     `;
@@ -7020,7 +7099,7 @@ function go(view, opts = {}) {
     if (state.navHistory.length > 30) state.navHistory.shift();
   }
   state.view = view;
-  if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; state.saleDraft = null; }
+  if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; state.saleDraft = null; state.returnDraft = null; }
   state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
   if (view !== 'results') state.editingQuery = false;
   if (view !== 'detail') state.detailTab = 'overview';
@@ -7689,7 +7768,7 @@ document.addEventListener('click', (e) => {
     case 'quick-cond': state.quickEdit = 'cond'; render(); break;
     case 'quick-func': state.quickEdit = 'func'; render(); break;
     case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
-    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; render(); break;
+    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; state.returnDraft = null; render(); break;
 
     /* Service-Tausch / Verkauf eintragen aus Detail-Screen (Iteration 1) */
     case 'open-sale-sheet': {
@@ -7710,6 +7789,100 @@ document.addEventListener('click', (e) => {
     }
     case 'sale-order-input': /* handled by input event */ break;
     case 'sale-vp-input': /* handled by input event */ break;
+    /* Service-Tausch-Rücksendung anlegen (Iteration 2) */
+    case 'open-return-sheet': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Rücksendungen erfassen', 'info', 2400); break; }
+      if (!state.item || !isPendingReturn(state.item)) break;
+      state.quickEdit = 'return';
+      state.returnDraft = {
+        description: `Defekte Rücksendung von #${state.item.id}${state.item.orderNumber ? ' · Auftrag ' + state.item.orderNumber : ''}`,
+        loc: state.item.loc || '',
+      };
+      render();
+      break;
+    }
+    case 'return-desc-input': /* handled by input event */ break;
+    case 'return-loc-input':  /* handled by input event */ break;
+    case 'save-return': {
+      if (!isAdmin() || !state.item || !state.returnDraft) break;
+      const original = state.item;
+      if (!isPendingReturn(original)) {
+        showToast('Original ist keine offene Rücksendung mehr', 'error', 3000);
+        state.quickEdit = null;
+        state.returnDraft = null;
+        render();
+        break;
+      }
+      const company = state.company;
+      if (!company) { showToast('Keine Firma aktiv', 'error'); break; }
+      const d = state.returnDraft;
+      const now = nowIso();
+
+      // Neuen Artikel als defekte Rücksendung anlegen
+      const newItem = {
+        id: shortId('A'),
+        company_id: company.id,
+        maker: original.maker || '',
+        title: original.title || '',
+        description: (d.description || '').trim() || `Defekte Rücksendung von #${original.id}`,
+        cat: original.cat || '',
+        loc: (d.loc || '').trim() || original.loc || '',
+        cond: 'used',
+        func: 'defective',
+        specs: [],
+        photo: [],
+        photoUrl: null,
+        tracker: '',
+        trackerUrl: '',
+        vp: null,
+        inShop: false,
+        sold: false,
+        soldAt: null,
+        // Service-Tausch-Verlinkung — Original-RecordId; Original wird unten reziprok verlinkt
+        saleType: '',
+        orderNumber: original.orderNumber || '',
+        linkedItemId: original._recordId || '',
+        returnedAt: null,
+        created: now,
+        updated: now,
+        upd: 'gerade eben',
+      };
+
+      setLoading(true, 'Rücksendung wird angelegt …');
+      airWrite(TBL_ITEMS, itemToFields(newItem, teamKey()))
+        .then(rec => {
+          newItem._recordId = rec.id;
+          // Original-Item updaten: returnedAt + linkedItemId auf neuen Record
+          original.returnedAt = now;
+          original.linkedItemId = rec.id;
+          original.updated = now;
+          original.upd = 'gerade eben';
+          // Lokal in Inventory aufnehmen (vorne)
+          company.inventory.unshift(newItem);
+          // Original asynchron persistieren
+          return persistItemPatch(original, {
+            returned_at: now,
+            linked_item_id: rec.id,
+          }).then(() => rec);
+        })
+        .then(() => {
+          showToast('Rücksendung erfasst & verknüpft', 'success', 2800);
+          // Auf neuen Artikel navigieren
+          state.item = newItem;
+          state.galleryIndex = 0;
+          state.quickEdit = null;
+          state.returnDraft = null;
+          go('detail');
+        })
+        .catch(err => {
+          showToast('Anlegen fehlgeschlagen: ' + err.message, 'error', 3500);
+          state.quickEdit = null;
+          state.returnDraft = null;
+          render();
+        })
+        .finally(() => setLoading(false));
+      break;
+    }
     case 'save-sale': {
       if (!isAdmin() || !state.item || !state.saleDraft) break;
       const it = state.item;
@@ -8136,6 +8309,8 @@ document.addEventListener('input', (e) => {
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
   else if (a === 'sale-vp-input') { if (state.saleDraft) state.saleDraft.vp = t.value; }
+  else if (a === 'return-desc-input') { if (state.returnDraft) state.returnDraft.description = t.value; }
+  else if (a === 'return-loc-input') { if (state.returnDraft) state.returnDraft.loc = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
     if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
