@@ -547,7 +547,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.19.1';
+const APP_VERSION = 'v1.19.2';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1638,7 +1638,7 @@ const state = {
   listenTranscript: '', listenPhase: 'listening',
   aiStep: 0,
   photoSearchPhase: 'idle', photoSearchFile: null, photoSearchPreview: null,
-  photoSearchTextMatches: [], photoSearchVisualMatches: [],
+  photoSearchTextMatches: [], photoSearchVisualMatches: [], photoSearchAIInfo: null,
   bestandFilter: 'all', bestandSort: 'updated', bestandQuery: '', bestandMaker: 'all', bestandModel: 'all', bestandCond: 'all', bestandFunc: 'all', bestandFiltersExpanded: false,
   quickEdit: null, quickLocDraft: null,
   locAddingFor: null, locAddDraft: '', locManageMode: null,
@@ -2310,30 +2310,89 @@ async function runPhotoSearch() {
 
     // Schritt 1: Claude Vision \u2014 OCR + Bauteil-Identifikation
     const cats = (state.categories || []).join('|') || 'Antrieb|Sicherheit|T\u00fcren|Notruf|Mechanik|Steuerung|Beleuchtung';
-    const visionPrompt = `Du analysierst ein Foto eines Aufzugs-Ersatzteils. Antworte AUSSCHLIESSLICH als JSON:\n{"text_on_label":"...","probable_maker":"...","probable_model":"...","category":"${cats}","keywords":["w1","w2",...]}\nW\u00e4hle die fachlich passendste Kategorie aus der Liste. Wenn keine passt, lasse "category" leer.`;
-    const visionRes = await askAI(visionPrompt, { imageBase64: base64, imageMediaType: mediaType, maxTokens: 400 });
-    let info; try { info = parseAIJson(visionRes); } catch(e) { info = { keywords: [] }; }
+    const sys = 'Du analysierst Fotos von Aufzugs-Ersatzteilen. Antworte AUSSCHLIESSLICH als JSON-Objekt, ohne Markdown-Codeblock und ohne erkl\u00e4renden Text.';
+    const visionPrompt = `Du bekommst ein Foto eines (vermutlichen) Aufzugs-Ersatzteils, oft ein Typenschild oder Datenblatt.
+
+Extrahiere:
+- "model_code": die kurze, eindeutige Modellbezeichnung (z.B. "V3F20", "ZAdyn4C", "3BF040", "Pana 40"). NUR der Code, ohne erkl\u00e4rende Worte. Leerstring wenn nicht erkennbar.
+- "probable_maker": Hersteller-Marke (z.B. "Otis", "Ziehl-Abegg", "Memco"). Nur die Marke, mit gro\u00dfem Anfangsbuchstaben. Leer wenn nicht erkennbar.
+- "category": fachlich passende Kategorie aus dieser Liste \u2014 gib EINEN davon zur\u00fcck, sonst leer:
+  ${cats}
+- "keywords": Array bedeutsamer Schl\u00fcsselw\u00f6rter (Bauteilart, Funktion, Eigenschaften). Mind. 3 Zeichen pro Wort, max. 8 St\u00fcck, deutsch oder englisch.
+- "text_on_label": die wichtigsten Texte vom Etikett zur Identifikation (mehrzeilig erlaubt).
+
+Sei ehrlich: wenn du etwas NICHT erkennen kannst, gib einen leeren String. Nicht raten.
+
+Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":["..","..","..",".."],"text_on_label":"..."}`;
+    const visionRes = await askAI(visionPrompt, { system: sys, imageBase64: base64, imageMediaType: mediaType, maxTokens: 500 });
+    let info;
+    try { info = parseAIJson(visionRes); } catch (e) { info = { keywords: [] }; }
+    // Backward-compat: wenn AI nur "probable_model" liefert (alter Prompt), in model_code mappen
+    if (!info.model_code && info.probable_model) info.model_code = info.probable_model;
+    state.photoSearchAIInfo = info;
     state.aiStep = 2; render();
 
-    // Schritt 2: Lokal aus Bestand passende Treffer suchen (Text-Match + Vision-Match)
+    // Schritt 2: Lokal aus Bestand passende Treffer suchen \u2014 strenges Scoring
     const items = inventory;
-    const lc = (s) => (s || '').toLowerCase();
-    const labelText = lc(info.text_on_label) + ' ' + lc(info.probable_maker) + ' ' + lc(info.probable_model);
-    const tokens = (info.keywords || []).concat([info.probable_maker, info.probable_model]).map(lc).filter(Boolean);
+    const lc = (s) => String(s || '').toLowerCase();
+    const stripPunct = (s) => lc(s).replace(/[\s\-_./,]+/g, '');
+
+    // Word-Boundary-Match: verhindert dass "BF" auf "asbestfrei" matcht
+    const wordMatch = (haystack, token) => {
+      if (!token || token.length < 3) return false;
+      const escaped = String(token).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      try { return new RegExp('\\b' + escaped + '\\b', 'i').test(haystack); }
+      catch (e) { return haystack.includes(lc(token)); }
+    };
+
+    const modelCode = String(info.model_code || '').trim();
+    const modelClean = stripPunct(modelCode);
+    const makerStr = String(info.probable_maker || '').trim();
+    const makerNormAI = makerStr ? normalizeMaker(makerStr) : '';
 
     function scoreItem(it) {
-      const hay = (it.title + ' ' + it.maker + ' ' + it.id + ' ' + (it.description || '')).toLowerCase();
+      const titleLow = lc(it.title);
+      const titleClean = stripPunct(it.title);
+      const makerLow = lc(it.maker);
+      const idLow = lc(it.id);
+      const descLow = lc(it.description || '');
+      const allHay = `${titleLow} ${makerLow} ${idLow} ${descLow}`;
       let score = 0;
-      tokens.forEach(tk => { if (tk && hay.includes(tk)) score += 30; });
-      if (info.category && it.cat === info.category) score += 25;
-      if (info.probable_maker && lc(it.maker) === lc(info.probable_maker)) score += 35;
-      // Etikett-Text ein- oder enth\u00e4lt
-      if (labelText.trim() && (hay.includes(lc(it.title)) || labelText.includes(lc(it.id)))) score += 40;
+
+      // 1) EXAKTER MODELL-MATCH \u2014 h\u00f6chste Priorit\u00e4t (60 Punkte)
+      // Modell-Code wird im Title oder umgekehrt erkannt (Whitespace/Bindestriche normalisiert)
+      if (modelClean && modelClean.length >= 3) {
+        if (titleClean.includes(modelClean) || modelClean === titleClean) score += 60;
+        else if (modelClean.length >= 4 && stripPunct(it.id).includes(modelClean)) score += 50;
+      }
+
+      // 2) HERSTELLER-MATCH (30 Punkte)
+      if (makerNormAI && makerNormAI.length >= 3) {
+        const itMakerNorm = normalizeMaker(it.maker);
+        if (itMakerNorm && itMakerNorm === makerNormAI) score += 30;
+      }
+
+      // 3) KATEGORIE (10 Punkte)
+      if (info.category && it.cat === info.category) score += 10;
+
+      // 4) KEYWORDS \u2014 word-boundary, mindestens 3 Zeichen, max 4 Treffer (16 Punkte)
+      if (Array.isArray(info.keywords)) {
+        let kwHits = 0;
+        for (const kw of info.keywords) {
+          const k = String(kw || '').trim();
+          if (k.length < 3) continue;
+          if (wordMatch(allHay, k)) kwHits++;
+        }
+        score += Math.min(16, kwHits * 4);
+      }
+
       return Math.min(99, score);
     }
-    const ranked = items.map(it => ({ it, score: scoreItem(it) })).sort((a,b) => b.score - a.score);
-    const text = ranked.filter(r => r.score >= 60).slice(0, 2).map(r => r.it);
-    const visual = ranked.filter(r => r.score < 60 && r.score >= 15).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
+
+    const ranked = items.map(it => ({ it, score: scoreItem(it) })).sort((a, b) => b.score - a.score);
+    // Strengere Schwellen \u2014 vermeidet False-Positives
+    const text = ranked.filter(r => r.score >= 70).slice(0, 3).map(r => r.it);
+    const visual = ranked.filter(r => r.score < 70 && r.score >= 40).slice(0, 4).map(r => ({ ...r.it, match: r.score }));
 
     state.photoSearchTextMatches = text;
     state.photoSearchVisualMatches = visual;
@@ -5392,18 +5451,45 @@ function renderPhotoResults() {
   const textMatches = state.photoSearchTextMatches || [];
   const visualMatches = state.photoSearchVisualMatches || [];
   const total = textMatches.length + visualMatches.length;
+  const info = state.photoSearchAIInfo || {};
+  const detectedModel = (info.model_code || '').trim();
+  const detectedMaker = (info.probable_maker || '').trim();
+  const detectedCat = (info.category || '').trim();
+  // Wenn AI mindestens Modell oder Hersteller erkannt hat → "Anlegen mit diesen Werten" anbieten
+  const canCreateFromInfo = !!(detectedModel || detectedMaker);
   return `
 <div class="screen">
   ${headerBar(backBtn('go-home'),
     `<div class="pill pill--blue" style="box-shadow:var(--elev-blue)">${svg('sparkles', 11, 2.5)} ${total} AI-Treffer</div>`,
     `<button class="icon-btn" data-action="go-photo-search">${svg('camera', 15, 2.5)}</button>`)}
   <div class="scroll" style="padding-bottom:24px">
+    ${(detectedModel || detectedMaker || detectedCat) ? `
+      <div class="tile" style="padding:12px 14px;background:var(--c-blue-soft);border-color:rgba(36,86,229,0.25);margin-bottom:12px">
+        <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-blue-deep);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${svg('eye', 11, 2.5)} KI hat erkannt</div>
+        <div style="display:flex;flex-direction:column;gap:3px;font-size:12.5px">
+          ${detectedModel ? `<div><strong style="font-family:var(--f-mono)">Modell:</strong> ${detectedModel}</div>` : ''}
+          ${detectedMaker ? `<div><strong>Hersteller:</strong> ${detectedMaker}</div>` : ''}
+          ${detectedCat ? `<div><strong>Kategorie:</strong> ${detectedCat}</div>` : ''}
+        </div>
+      </div>` : ''}
     ${total === 0 ? `
-      <div class="tile" style="padding:32px;text-align:center">
+      <div class="tile" style="padding:24px;text-align:center">
         <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute);margin:0 auto 12px">${svg('search', 22, 2)}</div>
-        <div style="font-size:14px;font-weight:600">Keine passenden Artikel gefunden</div>
-        <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Versuche ein anderes Foto oder lege den Artikel neu an</div>
-        <button class="action-bar__btn action-bar__btn--primary" data-action="go-camera" style="margin-top:18px;padding:12px 18px">${svg('plus', 14, 2.5)} Neuer Artikel</button>
+        <div style="font-size:14px;font-weight:600">Kein Treffer im Bestand</div>
+        <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px;line-height:1.4">${canCreateFromInfo ? 'Der Artikel scheint neu zu sein. Lege ihn mit den erkannten Werten an oder versuche ein anderes Foto.' : 'Konnte aus dem Foto keine eindeutigen Daten lesen. Versuche ein klareres Bild vom Typenschild oder lege manuell an.'}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+          ${canCreateFromInfo ? `
+            <button data-action="wiz-from-photo-search" style="padding:13px;background:var(--c-blue);color:#fff;border-radius:14px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--elev-blue)">
+              ${svg('sparkles', 14, 2.5)} Artikel mit erkannten Werten anlegen
+            </button>
+          ` : ''}
+          <button data-action="wizard-start" style="padding:11px;background:var(--c-surface);border:1px solid var(--c-border);color:var(--c-ink);border-radius:14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+            ${svg('plus', 13, 2.4)} Manuell anlegen
+          </button>
+          <button data-action="go-photo-search" style="padding:9px;background:transparent;color:var(--c-ink-mute);font-size:12.5px;font-weight:600">
+            ${svg('camera', 11, 2.5)} Anderes Foto versuchen
+          </button>
+        </div>
       </div>` : ''}
     ${textMatches.length ? `
       <div>
@@ -6490,6 +6576,34 @@ document.addEventListener('click', (e) => {
     case 'reload-all-data': reloadAllData(); break;
 
     /* ====== Wizard ====== */
+    case 'wiz-from-photo-search': {
+      // Wizard mit Vor-Befüllung aus den Foto-Such-Erkennungen starten
+      const info = state.photoSearchAIInfo || {};
+      const ms = normalizeMakerForSave(info.probable_maker || '');
+      const titleRaw = String(info.model_code || '').trim();
+      state.voiceFields = {
+        name: capitalizeFirst(titleRaw),
+        maker: ms,
+        cat: info.category || '',
+        stock: '1',
+        tracker: '', trackerUrl: '',
+        vp: '', inShop: false,
+      };
+      state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
+      state.voiceCond = 'neu';
+      state.voiceFunc = 'untested';
+      state.voicePhase = 'idle';
+      state.voiceTranscript = '';
+      (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+      state.voicePhotoFiles = [];
+      state.voicePhotoPreviews = [];
+      state.galleryIndex = 0;
+      state.cameraShowLive = true;
+      // Wenn Kategorie schon erkannt: Step 1 trotzdem anzeigen aber mit Vor-Auswahl, sonst Step 1 leer
+      state.wizardStep = 1;
+      go('wizardCat');
+      break;
+    }
     case 'wizard-start': {
       // Anlege-State sauber resetten (analog zu go() für Schritt 1)
       state.voiceFields = { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
