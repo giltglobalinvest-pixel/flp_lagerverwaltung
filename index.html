@@ -656,7 +656,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.30';
+const APP_VERSION = 'v1.31';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1739,7 +1739,7 @@ const state = {
   testNotes: '', testHasPhoto: false, testChosen: null,
   voicePhase: 'idle', voiceTranscript: '',
   voiceCond: 'neu', voiceFunc: 'untested',
-  voiceFields: { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false },
+  voiceFields: { name: '', maker: '', cat: '', owner: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false },
   voiceScanRunning: false,    // true während scanLabelFromFile läuft
   bgRemoving: false,          // true während Hintergrund-Freistellen läuft
   reloadingAll: false,        // true während manueller Komplett-Reload läuft
@@ -1791,6 +1791,10 @@ Object.defineProperty(state, 'shelves', {
 Object.defineProperty(state, 'categories', {
   get() { return state.company?.categories || []; },
   set(v) { if (state.company) state.company.categories = v; },
+});
+Object.defineProperty(state, 'owners', {
+  get() { return state.company?.owners || []; },
+  set(v) { if (state.company) state.company.owners = v; },
 });
 // Map: { hallName → { _recordId, photo: {url, thumbnails, ...} } } für die aktive Company
 Object.defineProperty(state, 'hallPhotos', {
@@ -1857,6 +1861,7 @@ const COMPANY_FIELDS = [
   { name: 'halls', type: 'multilineText' },
   { name: 'shelves', type: 'multilineText' },
   { name: 'categories', type: 'multilineText' },
+  { name: 'owners', type: 'multilineText' },          // Liste der externen Besitzer (JSON-Array von Namen)
   { name: 'created', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -1875,6 +1880,7 @@ const ITEM_FIELDS = [
   { name: 'photo', type: 'multipleAttachments' },
   { name: 'tracker', type: 'singleLineText' },
   { name: 'tracker_url', type: 'singleLineText' },
+  { name: 'owner', type: 'singleLineText' },          // Externer Besitzer (Name) — leer = eigener Bestand
   // Webshop-Felder
   { name: 'vp', type: 'singleLineText' },        // Verkaufspreis € (als Text gespeichert, parse als Number)
   { name: 'in_shop', type: 'singleLineText' },   // "1" oder leer
@@ -2039,15 +2045,17 @@ function recordToCompany(rec) {
   let halls = SEED_FLP_HALLS.slice();
   let shelves = SEED_FLP_SHELVES.slice();
   let categories = SEED_FLP_CATEGORIES.slice();
+  let owners = [];
   try { if (f.halls) halls = JSON.parse(f.halls); } catch(e) {}
   try { if (f.shelves) shelves = JSON.parse(f.shelves); } catch(e) {}
   try { if (f.categories) categories = JSON.parse(f.categories); } catch(e) {}
+  try { if (f.owners) owners = JSON.parse(f.owners); } catch(e) {}
   return {
     id: f.company_id,
     _recordId: rec.id,
     name: f.name || '',
     color: f.color || COMPANY_COLORS[0],
-    halls, shelves, categories,
+    halls, shelves, categories, owners,
     inventory: [],
   };
 }
@@ -2073,6 +2081,8 @@ function recordToItem(rec) {
     photoUrl: photoArr[0]?.url || null,
     tracker: f.tracker || '',
     trackerUrl: f.tracker_url || '',
+    // Externer Besitzer (z.B. Fremd-Antrieb im Lager) — leerer String = eigener Bestand
+    owner: f.owner || '',
     // Webshop
     vp: (f.vp !== '' && f.vp != null) ? parseFloat(String(f.vp).replace(',', '.')) : null,
     inShop: f.in_shop === '1' || f.in_shop === 'true',
@@ -2104,6 +2114,8 @@ function itemToFields(it, apiKey) {
     specs: JSON.stringify(it.specs || []),
     tracker: it.tracker || '',
     tracker_url: it.trackerUrl || '',
+    // Externer Besitzer
+    owner: it.owner || '',
     // Webshop
     vp: (it.vp != null && !isNaN(it.vp)) ? String(it.vp) : '',
     in_shop: it.inShop ? '1' : '',
@@ -2128,6 +2140,7 @@ function companyToFields(c, apiKey) {
     halls: JSON.stringify(c.halls || []),
     shelves: JSON.stringify(c.shelves || []),
     categories: JSON.stringify(c.categories || []),
+    owners: JSON.stringify(c.owners || []),
     created: c._created || nowIso(),
     api_key: apiKey,
   };
@@ -2351,6 +2364,7 @@ async function persistCompanyHallsShelves(c) {
       halls: JSON.stringify(c.halls || []),
       shelves: JSON.stringify(c.shelves || []),
       categories: JSON.stringify(c.categories || []),
+      owners: JSON.stringify(c.owners || []),
     });
   } catch (e) { showToast('Sync fehlgeschlagen: ' + e.message, 'error', 3500); }
 }
@@ -2689,6 +2703,8 @@ async function saveNewItemFromVoice() {
     photoUrl: null,
     tracker: (f.tracker || '').trim(),
     trackerUrl: (f.trackerUrl || '').trim(),
+    // Externer Besitzer (leer = eigener Bestand)
+    owner: (f.owner || '').trim(),
     // Webshop-Felder vom Wizard / Admin
     vp: (() => {
       const v = String(f.vp || '').replace(',', '.').trim();
@@ -3153,15 +3169,17 @@ const trackerChip = (it, opts = {}) => {
   return `<span class="${cls}" style="padding:${px};font-size:${fs}">${svg('hash', sz === 'sm' ? 9 : 11, 2.5)}<span>${label}</span></span>`;
 };
 
-const itemCard = (it, opts = {}) => `
-<button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}">
+const itemCard = (it, opts = {}) => {
+  const owner = (it.owner || '').trim();
+  return `
+<button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${owner ? 'border-left:3px solid #FB923C' : ''}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
     ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
     <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
     ${it.sold ? `<span class="sold-stamp">Verkauft</span>` : ''}
   </div>
   <div class="item-card__body">
-    <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}</div>
+    <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}${owner ? `<span class="price-chip price-chip--sm" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Besitzer: ${owner.replace(/"/g, '&quot;')}">${svg('user', 9, 2.6)} ${owner}</span>` : ''}</div>
     <h3 class="item-card__name">${it.title}</h3>
     <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
     <div class="item-card__row" style="margin-top:8px">${condPill(it.cond)}${funcPill(it.func)}</div>
@@ -3170,6 +3188,7 @@ const itemCard = (it, opts = {}) => `
     </div>
   </div>
 </button>`;
+};
 
 const headerBar = (l, c, r) => `<div class="header"><div class="header__slot">${l || ''}</div>${c || ''}<div class="header__slot" style="display:flex;justify-content:flex-end">${r || ''}</div></div>`;
 const backBtn = (a) => `<button class="icon-btn" data-action="${a}">${svg('arrow-left', 17, 2.5)}</button>`;
@@ -3340,6 +3359,56 @@ function renderCatPicker(scope, selectedValue, selectAction) {
             return `<button class="chip" data-action="cat-remove" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${c} ${svg('x', 11, 2.8)}</button>`;
           }
           return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${selectAction}" data-cat="${ev}">${c}</button>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Inline „Neu"-Button / Input für Besitzer
+function renderOwnerAddRow() {
+  return state.ownerAdding ? `
+    <div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 10px;background:var(--c-surface);border:1.5px solid #FB923C;border-radius:var(--r-pill);box-shadow:var(--elev-1);flex-shrink:0">
+      <input data-action="owner-add-input" value="${(state.ownerAddDraft || '').replace(/"/g, '&quot;')}" placeholder="Name des Besitzers" style="background:transparent;border:0;padding:0;width:160px;font-size:12px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit" autofocus>
+      <button data-action="owner-add-save" style="width:22px;height:22px;border-radius:50%;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center">${svg('check', 11, 3)}</button>
+      <button data-action="owner-add-cancel" style="width:22px;height:22px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('x', 11, 2.5)}</button>
+    </div>
+  ` : `
+    <button class="chip" data-action="owner-add-start" style="border:1.5px dashed #FDBA74;color:#9A3412;background:transparent;box-shadow:none">${svg('plus', 11, 2.5)} Neu</button>
+  `;
+}
+
+// Wiederverwendbarer Besitzer-Picker — externe Eigentümer von Artikeln im Lager.
+// scope = 'edit' | 'voice' | 'wizardDesc' | 'bestand'  (steuert Selektor-Action via selectAction)
+function renderOwnerPicker(scope, selectedValue, selectAction, opts = {}) {
+  const list = state.owners || [];
+  const isManaging = !!state.ownerManageMode;
+  const allowNone = opts.allowNone !== false;
+  const noneLabel = opts.noneLabel || '— Eigener Bestand';
+  const showAll = !!opts.allLabel;
+  const help = opts.help || 'Externe Besitzer kennzeichnen Artikel, die nicht uns gehören.';
+  return `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">${svg('user', 10, 2.5)} Besitzer ${opts.optional ? '· optional' : ''}</span>
+          ${opts.showHelp !== false ? `<span style="font-size:10.5px;font-weight:500;color:var(--c-ink-mute)">${help}</span>` : ''}
+        </div>
+        ${isAdmin() ? `<button data-action="owner-manage-toggle" style="flex-shrink:0;font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
+          ${isManaging ? svg('check', 10, 3) : svg('pencil', 10, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
+        </button>` : ''}
+      </div>
+      <div class="chip-row">
+        ${(showAll && !isManaging) ? `<button class="chip ${(selectedValue || 'all') === 'all' ? 'chip--active' : ''}" data-action="${selectAction}" data-owner="all">${opts.allLabel}</button>` : ''}
+        ${(allowNone && !isManaging) ? `<button class="chip ${(selectedValue === '' || selectedValue == null) ? 'chip--active' : ''}" data-action="${selectAction}" data-owner="">${noneLabel}</button>` : ''}
+        ${(!isManaging && isAdmin()) ? renderOwnerAddRow() : ''}
+        ${list.map(o => {
+          const ev = String(o).replace(/"/g, '&quot;');
+          if (isManaging) {
+            return `<button class="chip" data-action="owner-remove" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${o} ${svg('x', 11, 2.8)}</button>`;
+          }
+          const active = selectedValue === o;
+          return `<button class="chip ${active ? 'chip--active' : ''}" data-action="${selectAction}" data-owner="${ev}" style="${active ? 'background:#FB923C;color:#fff;border-color:#FB923C' : 'border-color:#FDBA74;color:#9A3412'}">${svg('user', 10, 2.4)} ${o}</button>`;
         }).join('')}
       </div>
     </div>
@@ -3990,6 +4059,9 @@ function renderWizardDesc() {
       <div class="field">
         <label class="field__label">BESCHREIBUNG</label>
         <textarea data-action="wiz-desc-text" rows="5" style="width:100%;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-md);padding:12px 14px;font-family:var(--f-display);font-size:14px;font-weight:500;line-height:1.5;color:var(--c-ink);resize:vertical;outline:none" placeholder="Funktion, typische Verwendung, Eigenschaften …">${desc.replace(/</g, '&lt;')}</textarea>
+      </div>
+      <div class="field">
+        ${renderOwnerPicker('wizardDesc', f.owner || '', 'wiz-pick-owner', { optional: true, help: 'Markiere den Artikel, falls er einer anderen Firma gehört.' })}
       </div>
     </div>
   </div>
@@ -4677,6 +4749,15 @@ function renderBestand() {
     items = items.filter(it => it.func === state.bestandFunc);
   }
 
+  // Apply Besitzer-Filter — 'all' = alle, '__own' = nur eigene (kein Owner-String), sonst genau dieser Besitzer
+  if (state.bestandOwner && state.bestandOwner !== 'all') {
+    if (state.bestandOwner === '__own') {
+      items = items.filter(it => !((it.owner || '').trim()));
+    } else {
+      items = items.filter(it => (it.owner || '').trim() === state.bestandOwner);
+    }
+  }
+
   // Apply search query — tolerant gegen Leerzeichen/Bindestriche/Schreibweisen
   const q = (state.bestandQuery || '').trim();
   if (q) {
@@ -4728,7 +4809,8 @@ function renderBestand() {
       (state.bestandMaker && state.bestandMaker !== 'all' ? 1 : 0) +
       (state.bestandModel && state.bestandModel !== 'all' ? 1 : 0) +
       (state.bestandCond && state.bestandCond !== 'all' ? 1 : 0) +
-      (state.bestandFunc && state.bestandFunc !== 'all' ? 1 : 0);
+      (state.bestandFunc && state.bestandFunc !== 'all' ? 1 : 0) +
+      (state.bestandOwner && state.bestandOwner !== 'all' ? 1 : 0);
     const expanded = state.bestandFiltersExpanded;
     return `
   <div style="padding:12px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:10px">
@@ -4840,6 +4922,42 @@ function renderBestand() {
       }).join('')}
     </div>
   </div>
+
+  ${(() => {
+    // Besitzer-Filter — nur anzeigen wenn überhaupt Owner gesetzt sind ODER der Admin gerade welche pflegt
+    const owners = state.owners || [];
+    const itemsWithOwner = baseInventory.filter(it => (it.owner || '').trim());
+    if (owners.length === 0 && itemsWithOwner.length === 0 && !isAdmin()) return '';
+    const ownCount = baseInventory.length - itemsWithOwner.length;
+    const ownerCounts = {};
+    itemsWithOwner.forEach(it => { const k = (it.owner || '').trim(); if (k) ownerCounts[k] = (ownerCounts[k] || 0) + 1; });
+    const isManaging = !!state.ownerManageMode;
+    const sel = state.bestandOwner || 'all';
+    return `
+      <div style="padding:10px 20px 0">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-bottom:7px;gap:10px">
+          <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">${svg('user', 10, 2.5)} Besitzer</span>
+          ${isAdmin() ? `<button data-action="owner-manage-toggle" style="font-size:11px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:4px">
+            ${isManaging ? svg('check', 10, 3) : svg('pencil', 10, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
+          </button>` : ''}
+        </div>
+        <div class="chip-row">
+          ${!isManaging ? `<button class="chip ${sel === 'all' ? 'chip--active' : ''}" data-action="set-bestand-owner" data-owner="all">Alle <span class="chip__count">${baseInventory.length}</span></button>` : ''}
+          ${!isManaging ? `<button class="chip ${sel === '__own' ? 'chip--active' : ''}" data-action="set-bestand-owner" data-owner="__own">Eigener Bestand <span class="chip__count">${ownCount}</span></button>` : ''}
+          ${(!isManaging && isAdmin()) ? renderOwnerAddRow() : ''}
+          ${owners.map(o => {
+            const ev = String(o).replace(/"/g, '&quot;');
+            if (isManaging) {
+              return `<button class="chip" data-action="owner-remove" data-val="${ev}" style="background:var(--c-red-soft);color:var(--c-red);border-color:rgba(229,72,77,0.2)">${o} ${svg('x', 11, 2.8)}</button>`;
+            }
+            const active = sel === o;
+            const cnt = ownerCounts[o] || 0;
+            return `<button class="chip ${active ? 'chip--active' : ''}" data-action="set-bestand-owner" data-owner="${ev}" style="${active ? 'background:#FB923C;color:#fff;border-color:#FB923C' : 'border-color:#FDBA74;color:#9A3412'}">${svg('user', 10, 2.4)} ${o} <span class="chip__count" style="${active ? 'background:rgba(255,255,255,.25);color:#fff' : ''}">${cnt}</span></button>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  })()}
 
   <div style="padding:12px 20px 0">
     <button data-action="toggle-bestand-show-sold" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px;background:${showSold ? 'var(--c-ink)' : 'var(--c-surface)'};color:${showSold ? '#fff' : 'var(--c-ink-soft)'};border:1px solid ${showSold ? 'var(--c-ink)' : 'var(--c-border)'};box-shadow:var(--elev-1);border-radius:var(--r-pill);font-size:11.5px;font-weight:600;transition:all .15s">
@@ -4966,6 +5084,15 @@ function renderDetail() {
           <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Im Webshop</span>
         </div>
         <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:#0A6B2C;letter-spacing:.02em">${formatVp(it.vp)}</div>
+      </div>` : ''}
+    ${(it.owner || '').trim() ? `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%);border:1px solid #FDBA74;border-radius:var(--r-tile)">
+        <div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center">${svg('user', 16, 2.4)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:.06em">Externer Besitzer</div>
+          <div style="font-size:14px;font-weight:600;color:var(--c-ink);margin-top:2px">${it.owner.replace(/</g, '&lt;')}</div>
+          <div style="font-size:10.5px;font-weight:500;color:#9A3412;margin-top:1px">Dieser Artikel gehört nicht uns — bitte nicht ohne Rücksprache verkaufen.</div>
+        </div>
       </div>` : ''}
     ${(() => {
       // Linked-Partner: zeigt bei Service-Tausch den verbundenen Artikel (Original ↔ Rücksendung)
@@ -5509,6 +5636,12 @@ function renderEdit() {
     <div>
       <div class="section-head"><h2 class="section-head__title">Kategorie</h2></div>
       ${renderCatPicker('edit', f.cat, 'edit-cat')}
+    </div>
+
+    <!-- Besitzer -->
+    <div>
+      <div class="section-head"><h2 class="section-head__title">Besitzer</h2></div>
+      ${renderOwnerPicker('edit', f.owner || '', 'edit-pick-owner', { optional: true })}
     </div>
 
     <!-- Lagerort -->
@@ -7504,7 +7637,7 @@ function go(view, opts = {}) {
     // Aufnahme-State komplett zurücksetzen wenn der Anlege-Flow verlassen wird
     state.voicePhase = 'idle';
     state.voiceTranscript = '';
-    state.voiceFields = { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
+    state.voiceFields = { name: '', maker: '', cat: '', owner: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
     state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
     (state.voicePhotoPreviews || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
     state.voicePhotoFiles = [];
@@ -7515,6 +7648,12 @@ function go(view, opts = {}) {
     state.catManageMode = false;
     state.catAdding = false;
     state.catAddDraft = '';
+  }
+  // Besitzer-Manage / Inline-Add zurücksetzen wenn nicht auf einem Screen mit Owner-Picker
+  if (view !== 'wizardDesc' && view !== 'edit' && view !== 'voice' && view !== 'bestand') {
+    state.ownerManageMode = false;
+    state.ownerAdding = false;
+    state.ownerAddDraft = '';
   }
   render();
 }
@@ -7573,6 +7712,7 @@ document.addEventListener('click', (e) => {
         state.bestandMaker = 'all';
         state.bestandCond = 'all';
         state.bestandFunc = 'all';
+        state.bestandOwner = 'all';
         state.bestandQuery = '';
         state.bestandFiltersExpanded = false;
         state.locManageMode = null;
@@ -7623,6 +7763,7 @@ document.addEventListener('click', (e) => {
         state.bestandMaker = 'all';
         state.bestandCond = 'all';
         state.bestandFunc = 'all';
+        state.bestandOwner = 'all';
         state.bestandQuery = '';
       }
       state.editingCompany = null;
@@ -7901,7 +8042,7 @@ document.addEventListener('click', (e) => {
     }
     case 'wizard-start': {
       // Anlege-State sauber resetten (analog zu go() für Schritt 1)
-      state.voiceFields = { name: '', maker: '', cat: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
+      state.voiceFields = { name: '', maker: '', cat: '', owner: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
       state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
       state.voiceCond = 'neu';
       state.voiceFunc = 'untested';
@@ -8111,6 +8252,7 @@ document.addEventListener('click', (e) => {
         description: it.description || '',
         maker: it.maker || '',
         cat: it.cat || '',
+        owner: it.owner || '',
         loc: it.loc || '',
         locDraft: parseLoc(it.loc || ''),
         cond: it.cond || 'used',
@@ -8305,6 +8447,73 @@ document.addEventListener('click', (e) => {
         if ((state.view === 'voice' || state.view === 'wizardCat') && state.voiceFields?.cat === v) state.voiceFields.cat = '';
         persistCompanyHallsShelves(state.company);
       }
+      render();
+      break;
+    }
+
+    /* ===== Besitzer-Verwaltung (externe Eigentümer) ===== */
+    case 'owner-manage-toggle': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Besitzer verwalten', 'info', 2400); break; }
+      state.ownerManageMode = !state.ownerManageMode;
+      state.ownerAdding = false;
+      state.ownerAddDraft = '';
+      render();
+      break;
+    }
+    case 'owner-add-start': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Besitzer anlegen', 'info', 2400); break; }
+      state.ownerAdding = true;
+      state.ownerAddDraft = '';
+      render();
+      break;
+    }
+    case 'owner-add-cancel': state.ownerAdding = false; state.ownerAddDraft = ''; render(); break;
+    case 'owner-add-save': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Besitzer anlegen', 'info', 2400); break; }
+      const v = (state.ownerAddDraft || '').trim();
+      if (v && state.company && !(state.owners || []).includes(v)) {
+        state.owners = [...(state.owners || []), v];
+        // Direkt selektieren je nach aktuellem Screen
+        if (state.view === 'edit' && state.editForm) state.editForm.owner = v;
+        if (state.view === 'wizardDesc' || state.view === 'voice') {
+          if (!state.voiceFields) state.voiceFields = {};
+          state.voiceFields.owner = v;
+        }
+        if (state.view === 'bestand') state.bestandOwner = v;
+        persistCompanyHallsShelves(state.company);
+      }
+      state.ownerAdding = false;
+      state.ownerAddDraft = '';
+      render();
+      break;
+    }
+    case 'owner-remove': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Besitzer entfernen', 'info', 2400); break; }
+      const v = btn.dataset.val;
+      if (state.company) {
+        state.owners = (state.owners || []).filter(o => o !== v);
+        // Hinweis: Items behalten ihren Owner-Eintrag — der Name verschwindet nur aus der Vorschlagsliste,
+        // bleibt am Item bis manuell entfernt. So gehen keine Daten verloren.
+        if (state.view === 'edit' && state.editForm?.owner === v) state.editForm.owner = '';
+        if ((state.view === 'wizardDesc' || state.view === 'voice') && state.voiceFields?.owner === v) state.voiceFields.owner = '';
+        if (state.view === 'bestand' && state.bestandOwner === v) state.bestandOwner = 'all';
+        persistCompanyHallsShelves(state.company);
+      }
+      render();
+      break;
+    }
+    case 'edit-pick-owner': {
+      if (state.editForm) { state.editForm.owner = btn.dataset.owner || ''; render(); }
+      break;
+    }
+    case 'wiz-pick-owner': {
+      if (!state.voiceFields) state.voiceFields = {};
+      state.voiceFields.owner = btn.dataset.owner || '';
+      render();
+      break;
+    }
+    case 'set-bestand-owner': {
+      state.bestandOwner = btn.dataset.owner || 'all';
       render();
       break;
     }
@@ -8635,7 +8844,7 @@ document.addEventListener('click', (e) => {
     case 'set-bestand-sort': state.bestandSort = btn.dataset.sort; render(); break;
     case 'toggle-bestand-filters': state.bestandFiltersExpanded = !state.bestandFiltersExpanded; render(); break;
     case 'toggle-bestand-show-sold': state.bestandShowSold = !state.bestandShowSold; render(); break;
-    case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandModel = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; render(); break;
+    case 'reset-bestand-filters': state.bestandFilter = 'all'; state.bestandMaker = 'all'; state.bestandModel = 'all'; state.bestandCond = 'all'; state.bestandFunc = 'all'; state.bestandOwner = 'all'; render(); break;
     case 'bestand-clear': state.bestandQuery = ''; render(); break;
     case 'select-item': {
       const it = inventory.find(i => i.id === btn.dataset.id);
@@ -8877,6 +9086,7 @@ document.addEventListener('input', (e) => {
   else if (a === 'hall-rename-input') state.locRenameDraft = t.value;
   else if (a === 'wiz-desc-text') state.voiceTranscript = t.value;
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
+  else if (a === 'owner-add-input') state.ownerAddDraft = t.value;
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
