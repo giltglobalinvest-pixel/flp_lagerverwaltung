@@ -583,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.28';
+const APP_VERSION = 'v1.29';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3922,7 +3922,7 @@ function renderWizardDesc() {
   </div>
   <div class="wiz-actions">
     <button class="wiz-actions__back" data-action="wiz-back">${svg('arrow-left', 14, 2.4)} Zurück</button>
-    <button class="wiz-actions__next ${hasName ? '' : 'wiz-actions__next--disabled'}" data-action="wiz-next" ${hasName ? '' : 'disabled'}>
+    <button id="wizDescNext" class="wiz-actions__next ${hasName ? '' : 'wiz-actions__next--disabled'}" data-action="wiz-next">
       Weiter ${svg('arrow-right', 14, 2.4)}
     </button>
   </div>
@@ -8787,6 +8787,14 @@ document.addEventListener('input', (e) => {
       // URL-Vorschau im Wizard live mitupdaten ohne komplettes re-render
       const preview = document.getElementById('wizTrackerUrlPreview');
       if (preview) preview.textContent = state.voiceFields.trackerUrl || '— wird automatisch erzeugt —';
+    }
+    // Wizard-Step 3 (wizardDesc): „Weiter"-Button live freischalten/sperren wenn Bezeichnung getippt wird
+    if (state.view === 'wizardDesc' && t.dataset.key === 'name') {
+      const nextBtn = document.getElementById('wizDescNext');
+      if (nextBtn) {
+        const has = !!String(t.value || '').trim();
+        nextBtn.classList.toggle('wiz-actions__next--disabled', !has);
+      }
     }
   }
   else if (a === 'voice-loc-pos') { if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' }; state.voiceLocDraft.pos = t.value; }
