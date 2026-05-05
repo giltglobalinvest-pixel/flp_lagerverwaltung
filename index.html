@@ -583,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.26';
+const APP_VERSION = 'v1.27';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1630,6 +1630,9 @@ const ICONS = {
   hash: '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
   'edit-3': '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  key: '<path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'message-circle': '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/>',
 };
 
 function svg(name, size = 16, sw = 2.4) {
@@ -1868,6 +1871,82 @@ function teamKey() {
 
 function nowIso() { return new Date().toISOString(); }
 function shortId(prefix) { return (prefix || '') + Math.random().toString(36).slice(2, 8).toUpperCase(); }
+
+/* ============================================================
+   USER-VERWALTUNG (Admin-only)
+   ============================================================ */
+const TBL_USERS = 'User';
+
+// Generiert einen zufälligen api_key wie "flp_xxxxxxxxxxxxxxxx"
+function generateApiKey() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // ohne ähnliche Zeichen (0,O,1,l,i)
+  let s = '';
+  for (let i = 0; i < 18; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return 'flp_' + s;
+}
+
+// Mapt Airtable-Record auf lokales User-Objekt
+function recordToUser(rec) {
+  const f = rec.fields || {};
+  return {
+    _recordId: rec.id,
+    name: f.name || '',
+    role: (f.role || 'user').toLowerCase(),
+    status: (f.status || 'aktiv').toLowerCase(),
+    apiKey: f.api_key || '',
+    email: f.email || '',
+    tenantKey: f.tenant_key || f.team_key || f.tenantKey || '',
+  };
+}
+
+async function loadUsers() {
+  const recs = await airRead(TBL_USERS);
+  return recs.map(recordToUser).sort((a, b) => {
+    // Admins zuerst, dann nach Name
+    if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
+
+async function persistUser(u) {
+  const fields = {
+    name: u.name || '',
+    role: u.role || 'user',
+    status: u.status || 'aktiv',
+    api_key: u.apiKey || '',
+  };
+  // Optionale Felder nur mitsenden wenn gesetzt — vermeidet Airtable-Fehler bei nicht existierenden Spalten
+  if (u.email) fields.email = u.email;
+  if (u.tenantKey) fields.tenant_key = u.tenantKey;
+  if (u._recordId) {
+    return await airUpdate(TBL_USERS, u._recordId, fields);
+  }
+  return await airWrite(TBL_USERS, fields);
+}
+
+async function removeUser(u) {
+  if (!u?._recordId) return;
+  return await airDelete(TBL_USERS, u._recordId);
+}
+
+// Baut den WhatsApp-Einladungstext für einen User (mit Link + Schlüssel)
+function buildUserWelcomeMessage(u) {
+  const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
+  const name = u?.name ? u.name.split(' ')[0] : 'zusammen';
+  const greeting = u?.name ? `Hallo ${name}` : 'Hallo';
+  return [
+    `${greeting},`,
+    ``,
+    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'FLP Lagerverwaltung'} ist eingerichtet:`,
+    ``,
+    `🌐 ${appUrl}`,
+    `🔑 ${u.apiKey}`,
+    ``,
+    `Einfach den Link auf dem Handy öffnen, persönlichen Schlüssel eintippen und los. Der Schlüssel bleibt im Browser gespeichert — beim nächsten Mal genügt der Link.`,
+  ].join('\n');
+}
+
+// (copyTextToClipboard ist bereits oben definiert)
 function relTime(iso) {
   if (!iso) return '\u2014';
   const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
@@ -4310,6 +4389,7 @@ function renderHome() {
         { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
+        ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge · WhatsApp-Einladung', action: 'go-users' }] : []),
         ...((() => {
           const pr = getPendingReturns();
           if (pr.length === 0) return [];
@@ -5925,6 +6005,184 @@ function renderDashboard() {
 </div>`;
 }
 
+function renderUsers() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">User</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:40px 24px">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('alert-triangle', 28, 2.2)}</div>
+    <div style="text-align:center">
+      <div style="font-size:14px;font-weight:600">Kein Zugriff</div>
+      <div style="font-size:12px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Die Userverwaltung ist nur für Admins.</div>
+    </div>
+  </div>
+</div>`;
+  }
+  const users = state.users || [];
+  const loading = !!state.usersLoading;
+  const error = state.usersError;
+  const isMe = (u) => APP_KEYS.user && u._recordId === APP_KEYS.user._recordId;
+  const adminCount = users.filter(u => u.role === 'admin').length;
+  const activeCount = users.filter(u => u.status === 'aktiv').length;
+
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--ink">${svg('user', 11, 2.5)} Userverwaltung</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    <div style="padding:0 20px 4px">
+      <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">User</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${users.length} ${users.length === 1 ? 'User' : 'User'} · ${adminCount} Admin · ${activeCount} aktiv</p>
+    </div>
+
+    <div style="padding:14px 20px 0">
+      <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="width:100%;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
+    </div>
+
+    <div style="padding:14px 20px 0">
+      ${loading ? `
+        <div class="tile" style="padding:28px;text-align:center">
+          <div class="spinner" style="margin:0 auto 12px"></div>
+          <div style="font-size:12.5px;color:var(--c-ink-mute)">User werden geladen …</div>
+        </div>
+      ` : error ? `
+        <div class="tile" style="padding:20px;text-align:center;border-color:var(--c-red)">
+          <div style="color:var(--c-red);font-size:13px;font-weight:600;margin-bottom:6px">${svg('alert-triangle', 14, 2.4)} Fehler</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-bottom:10px">${String(error).replace(/</g, '&lt;')}</div>
+          <button data-action="user-reload" style="padding:7px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:11.5px;font-weight:600">Erneut versuchen</button>
+        </div>
+      ` : users.length === 0 ? `
+        <div class="tile" style="padding:28px;text-align:center">
+          <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Noch keine User</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Lege oben einen neuen User an.</div>
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${users.map(u => {
+            const me = isMe(u);
+            const isAdminUser = u.role === 'admin';
+            const isInactive = u.status !== 'aktiv';
+            const initial = (u.name || '?').trim().charAt(0).toUpperCase();
+            return `
+              <div class="tile" style="padding:0;overflow:hidden;${isInactive ? 'opacity:.65' : ''}">
+                <button data-action="user-edit" data-rid="${u._recordId}" style="display:flex;align-items:center;gap:12px;padding:14px;width:100%;text-align:left;cursor:pointer">
+                  <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:${isAdminUser ? '#FFD45C' : 'var(--c-blue-soft)'};color:${isAdminUser ? '#3A2400' : 'var(--c-blue-deep)'};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">${initial}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                      <span style="font-size:14px;font-weight:600;letter-spacing:-.005em">${(u.name || '— Ohne Name —').replace(/</g, '&lt;')}</span>
+                      ${me ? `<span class="pill pill--neutral" style="font-size:9px">Du</span>` : ''}
+                      <span class="pill ${isAdminUser ? 'pill--amber' : 'pill--neutral'}" style="font-size:9px">${isAdminUser ? 'Admin' : 'User'}</span>
+                      ${isInactive ? `<span class="pill" style="font-size:9px;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,.3)">inaktiv</span>` : ''}
+                    </div>
+                    <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.apiKey ? svg('key', 9, 2.5) + ' ' + u.apiKey.slice(0, 14) + (u.apiKey.length > 14 ? '…' : '') : '— kein Schlüssel —'}</div>
+                  </div>
+                  <span style="color:var(--c-ink-subtle);display:flex;flex-shrink:0">${svg('chevron-right', 14, 2.5)}</span>
+                </button>
+                <div style="display:flex;border-top:1px solid var(--c-divider)">
+                  <button data-action="user-copy-wa" data-rid="${u._recordId}" style="flex:1;padding:11px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:#0A6B2C;background:#E6F4EA;cursor:pointer" title="Einladungstext für WhatsApp kopieren">
+                    ${svg('message-circle', 13, 2.4)} WhatsApp-Text kopieren
+                  </button>
+                  <button data-action="user-copy-key" data-rid="${u._recordId}" style="flex:none;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;color:var(--c-ink-soft);background:var(--c-surface-alt);border-left:1px solid var(--c-divider);cursor:pointer" title="Nur Schlüssel kopieren">
+                    ${svg('copy', 13, 2.4)}
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+
+    ${state.userDraft ? (() => {
+      const d = state.userDraft;
+      const isNew = !d._recordId;
+      const isMyself = d._recordId && APP_KEYS.user && d._recordId === APP_KEYS.user._recordId;
+      return `
+        <div class="sheet-backdrop" data-action="user-cancel"></div>
+        <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
+          <div class="action-sheet__handle"></div>
+          <div class="action-sheet__title">${isNew ? 'Neuen User anlegen' : 'User bearbeiten'}</div>
+          <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+            <div class="field">
+              <label class="field__label">Name</label>
+              <input class="field__input" data-action="user-name-input" value="${(d.name || '').replace(/"/g, '&quot;')}" placeholder="z.B. Max Mustermann" autocomplete="off" autofocus>
+            </div>
+            <div class="field">
+              <label class="field__label">Rolle</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button class="picker-tile" data-action="user-set-role" data-role="user" style="${d.role !== 'admin' ? 'background:var(--c-blue-soft);border-color:var(--c-blue);border-width:1.5px' : ''}">
+                  <span style="color:${d.role !== 'admin' ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex">${svg('user', 18, 2.4)}</span>
+                  <span class="picker-tile__label" style="color:${d.role !== 'admin' ? 'var(--c-blue-deep)' : 'var(--c-ink-soft)'}">User</span>
+                  <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Standard</span>
+                </button>
+                <button class="picker-tile" data-action="user-set-role" data-role="admin" ${isMyself ? 'disabled' : ''} style="${d.role === 'admin' ? 'background:#FFF1B0;border-color:#7A5400;border-width:1.5px' : ''}${isMyself ? ';opacity:.5;cursor:not-allowed' : ''}">
+                  <span style="color:${d.role === 'admin' ? '#7A5400' : 'var(--c-ink-mute)'};display:flex">${svg('shield', 18, 2.4)}</span>
+                  <span class="picker-tile__label" style="color:${d.role === 'admin' ? '#7A5400' : 'var(--c-ink-soft)'}">Admin</span>
+                  <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Volle Rechte</span>
+                </button>
+              </div>
+              ${isMyself ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px">Du kannst deine eigene Admin-Rolle nicht entfernen.</div>` : ''}
+            </div>
+            <div class="field">
+              <label class="field__label">Status</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button class="picker-tile" data-action="user-set-status" data-status="aktiv" ${isMyself ? 'disabled' : ''} style="${d.status === 'aktiv' ? 'background:#E6F4EA;border-color:#0A6B2C;border-width:1.5px' : ''}${isMyself ? ';opacity:.7' : ''}">
+                  <span style="color:${d.status === 'aktiv' ? '#0A6B2C' : 'var(--c-ink-mute)'};display:flex">${svg('check', 18, 2.4)}</span>
+                  <span class="picker-tile__label" style="color:${d.status === 'aktiv' ? '#0A6B2C' : 'var(--c-ink-soft)'}">Aktiv</span>
+                </button>
+                <button class="picker-tile" data-action="user-set-status" data-status="inaktiv" ${isMyself ? 'disabled' : ''} style="${d.status === 'inaktiv' ? 'background:var(--c-red-soft);border-color:var(--c-red);border-width:1.5px' : ''}${isMyself ? ';opacity:.5;cursor:not-allowed' : ''}">
+                  <span style="color:${d.status === 'inaktiv' ? 'var(--c-red)' : 'var(--c-ink-mute)'};display:flex">${svg('x', 18, 2.6)}</span>
+                  <span class="picker-tile__label" style="color:${d.status === 'inaktiv' ? 'var(--c-red)' : 'var(--c-ink-soft)'}">Inaktiv</span>
+                </button>
+              </div>
+              ${isMyself ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px">Du kannst dich nicht selbst deaktivieren.</div>` : ''}
+            </div>
+            <div class="field">
+              <label class="field__label">Persönlicher Schlüssel</label>
+              <div style="display:flex;gap:8px;align-items:stretch">
+                <input class="field__input" data-action="user-key-input" value="${(d.apiKey || '').replace(/"/g, '&quot;')}" placeholder="flp_…" style="flex:1;font-family:var(--f-mono);font-size:13.5px;letter-spacing:.02em" autocomplete="off">
+                <button data-action="user-regen-key" style="flex:none;padding:0 12px;background:var(--c-surface-alt);border:1px solid var(--c-border);border-radius:var(--r-md);color:var(--c-ink-soft);display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600" title="Neuen Schlüssel generieren">${svg('rotate-ccw', 13, 2.4)} Neu</button>
+              </div>
+              <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wird zum Login verwendet — nach dem Anlegen per WhatsApp-Text teilen.</div>
+            </div>
+            ${!isNew && !isMyself ? `
+              <div style="padding-top:8px;border-top:1px solid var(--c-divider);display:flex;justify-content:flex-end">
+                <button data-action="user-delete" style="padding:8px 14px;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,.3);border-radius:var(--r-pill);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px">${svg('trash-2', 12, 2.4)} User löschen</button>
+              </div>
+            ` : ''}
+          </div>
+          <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+            <button class="action-bar__btn" data-action="user-cancel" style="padding:14px">Abbrechen</button>
+            <button class="action-bar__btn action-bar__btn--primary" data-action="user-save" style="padding:14px" ${(d.name || '').trim() && (d.apiKey || '').trim() ? '' : 'disabled'}>${svg('check', 14, 3)} ${isNew ? 'Anlegen' : 'Speichern'}</button>
+          </div>
+        </div>
+      `;
+    })() : ''}
+
+    ${state.userDeleteConfirm ? (() => {
+      const u = state.userDeleteConfirm;
+      return `
+        <div class="sheet-backdrop" data-action="user-delete-cancel"></div>
+        <div class="action-sheet">
+          <div class="action-sheet__handle"></div>
+          <div class="action-sheet__title">User wirklich löschen?</div>
+          <div style="padding:14px 18px 18px">
+            <p style="font-size:13px;color:var(--c-ink-soft);line-height:1.5;margin:0 0 6px">Der Zugang von <strong>${(u.name || '').replace(/</g, '&lt;') || 'diesem User'}</strong> wird unwiderruflich entfernt.</p>
+            <p style="font-size:11.5px;color:var(--c-ink-mute);margin:0">Anschließend ist ein Login mit dem alten Schlüssel nicht mehr möglich.</p>
+          </div>
+          <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="action-bar__btn" data-action="user-delete-cancel" style="padding:14px">Abbrechen</button>
+            <button class="action-bar__btn" data-action="user-delete-confirm" style="padding:14px;background:var(--c-red);border-color:var(--c-red);color:#fff">${svg('trash-2', 14, 2.5)} Löschen</button>
+          </div>
+        </div>
+      `;
+    })() : ''}
+  </div>
+</div>`;
+}
+
 function renderIssues() {
   const defective = inventory.filter(it => it.func === 'defective');
   const scrap = inventory.filter(it => it.func === 'scrap');
@@ -6966,7 +7224,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -7124,6 +7382,7 @@ function go(view, opts = {}) {
   }
   state.view = view;
   if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; state.saleDraft = null; state.returnDraft = null; }
+  if (view !== 'users') { state.userDraft = null; state.userDeleteConfirm = null; }
   state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
   if (view !== 'results') state.editingQuery = false;
   if (view !== 'detail') state.detailTab = 'overview';
@@ -7309,6 +7568,172 @@ document.addEventListener('click', (e) => {
       state.homeFilterOpen = null;
       render(); break;
     case 'go-dashboard': go('dashboard'); break;
+    case 'go-users': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen die Userverwaltung öffnen', 'info', 2400); break; }
+      go('users');
+      // Auto-load: nur wenn noch nie geladen (state.users ist nicht definiert) oder stale
+      const neverLoaded = !Array.isArray(state.users);
+      if (neverLoaded || state._usersStale) {
+        state.usersLoading = true;
+        state.usersError = null;
+        state._usersStale = false;
+        render();
+        loadUsers()
+          .then(list => { state.users = list; state.usersLoading = false; render(); })
+          .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+      }
+      break;
+    }
+    case 'user-reload': {
+      if (!isAdmin()) break;
+      state.usersLoading = true;
+      state.usersError = null;
+      render();
+      loadUsers()
+        .then(list => { state.users = list; state.usersLoading = false; render(); })
+        .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+      break;
+    }
+    case 'user-add': {
+      if (!isAdmin()) break;
+      state.userDraft = {
+        _recordId: null,
+        name: '',
+        role: 'user',
+        status: 'aktiv',
+        apiKey: generateApiKey(),
+        email: '',
+      };
+      render();
+      break;
+    }
+    case 'user-edit': {
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u) break;
+      state.userDraft = { ...u };
+      render();
+      break;
+    }
+    case 'user-cancel': state.userDraft = null; render(); break;
+    case 'user-name-input':  /* input event */ break;
+    case 'user-key-input':   /* input event */ break;
+    case 'user-set-role': {
+      if (!state.userDraft) break;
+      const isMyself = state.userDraft._recordId && APP_KEYS.user && state.userDraft._recordId === APP_KEYS.user._recordId;
+      // Eigene Admin-Rolle nicht entfernen
+      if (isMyself && btn.dataset.role !== 'admin') {
+        showToast('Du kannst deine eigene Admin-Rolle nicht entfernen', 'info', 2400);
+        break;
+      }
+      state.userDraft.role = btn.dataset.role || 'user';
+      render();
+      break;
+    }
+    case 'user-set-status': {
+      if (!state.userDraft) break;
+      const isMyself = state.userDraft._recordId && APP_KEYS.user && state.userDraft._recordId === APP_KEYS.user._recordId;
+      if (isMyself && btn.dataset.status !== 'aktiv') {
+        showToast('Du kannst dich nicht selbst deaktivieren', 'info', 2400);
+        break;
+      }
+      state.userDraft.status = btn.dataset.status || 'aktiv';
+      render();
+      break;
+    }
+    case 'user-regen-key': {
+      if (!state.userDraft) break;
+      state.userDraft.apiKey = generateApiKey();
+      render();
+      break;
+    }
+    case 'user-save': {
+      if (!isAdmin() || !state.userDraft) break;
+      const d = state.userDraft;
+      const name = (d.name || '').trim();
+      const apiKey = (d.apiKey || '').trim();
+      if (!name) { showToast('Name ist erforderlich', 'error', 2400); break; }
+      if (!apiKey) { showToast('Schlüssel ist erforderlich', 'error', 2400); break; }
+      // Doppelte api_keys vermeiden
+      const dup = (state.users || []).find(x => x.apiKey === apiKey && x._recordId !== d._recordId);
+      if (dup) { showToast('Dieser Schlüssel wird bereits verwendet', 'error', 2800); break; }
+      const isNew = !d._recordId;
+      const userToSave = { ...d, name, apiKey };
+      setLoading(true, isNew ? 'User wird angelegt …' : 'User wird gespeichert …');
+      persistUser(userToSave)
+        .then(rec => {
+          // Lokal aktualisieren
+          if (isNew) {
+            const u = recordToUser(rec);
+            state.users = [...(state.users || []), u].sort((a, b) => {
+              if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
+              return (a.name || '').localeCompare(b.name || '');
+            });
+          } else {
+            state.users = (state.users || []).map(u => u._recordId === d._recordId ? { ...u, ...userToSave } : u);
+            // Falls eigener User: APP_KEYS aktualisieren
+            if (APP_KEYS.user && APP_KEYS.user._recordId === d._recordId) {
+              APP_KEYS.user = { ...APP_KEYS.user, name: userToSave.name, role: userToSave.role, api_key: userToSave.apiKey };
+              // Auch persistierten Login-Key aktualisieren falls Schlüssel rotiert wurde
+              try { localStorage.setItem('user_key_' + APP_CONFIG.PROJECT_ID, userToSave.apiKey); } catch(e) {}
+            }
+          }
+          showToast(isNew ? 'User angelegt' : 'User gespeichert', 'success', 2200);
+          state.userDraft = null;
+          render();
+        })
+        .catch(err => showToast('Speichern fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'user-delete': {
+      // Schritt 1: Bestätigung anzeigen
+      if (!isAdmin() || !state.userDraft) break;
+      const isMyself = state.userDraft._recordId && APP_KEYS.user && state.userDraft._recordId === APP_KEYS.user._recordId;
+      if (isMyself) { showToast('Du kannst dich nicht selbst löschen', 'info', 2400); break; }
+      state.userDeleteConfirm = { ...state.userDraft };
+      render();
+      break;
+    }
+    case 'user-delete-cancel': state.userDeleteConfirm = null; render(); break;
+    case 'user-delete-confirm': {
+      if (!isAdmin() || !state.userDeleteConfirm) break;
+      const u = state.userDeleteConfirm;
+      setLoading(true, 'User wird gelöscht …');
+      removeUser(u)
+        .then(() => {
+          state.users = (state.users || []).filter(x => x._recordId !== u._recordId);
+          showToast('User gelöscht', 'success', 2200);
+          state.userDeleteConfirm = null;
+          state.userDraft = null;
+          render();
+        })
+        .catch(err => showToast('Löschen fehlgeschlagen: ' + err.message, 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'user-copy-wa': {
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u) break;
+      const text = buildUserWelcomeMessage(u);
+      copyTextToClipboard(text).then(ok => {
+        if (ok) showToast('WhatsApp-Text kopiert · jetzt in WhatsApp einfügen', 'success', 2800);
+        else showToast('Kopieren fehlgeschlagen', 'error', 2400);
+      });
+      break;
+    }
+    case 'user-copy-key': {
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u || !u.apiKey) break;
+      copyTextToClipboard(u.apiKey).then(ok => {
+        if (ok) showToast('Schlüssel kopiert', 'success', 1800);
+        else showToast('Kopieren fehlgeschlagen', 'error', 2400);
+      });
+      break;
+    }
     case 'go-pending-returns': {
       // Aus Home-Tile: zum Dashboard, nach Render zum Pending-Returns-Block scrollen
       state._scrollToPendingReturns = true;
@@ -8332,6 +8757,8 @@ document.addEventListener('input', (e) => {
   else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
   else if (a === 'sale-vp-input') { if (state.saleDraft) state.saleDraft.vp = t.value; }
   else if (a === 'return-loc-input') { if (state.returnDraft) state.returnDraft.loc = t.value; }
+  else if (a === 'user-name-input') { if (state.userDraft) state.userDraft.name = t.value; }
+  else if (a === 'user-key-input')  { if (state.userDraft) state.userDraft.apiKey = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
     if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
