@@ -583,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.27';
+const APP_VERSION = 'v1.28';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1268,8 +1268,11 @@ async function undoBgRemoveItemPhoto() {
 
 // Stellt das erste Foto im Voice-/Camera-Flow frei (Hintergrund weg → weißer BG).
 // Trigger: User-Klick im Camera-Screen.
-async function bgRemoveFirstPhoto() {
-  const original = state.voicePhotoFiles?.[0];
+// Entfernt den Hintergrund eines Fotos im Wizard-Foto-Stack via index.
+// idx default = aktuelles Galerie-Foto, fällt auf 0 zurück wenn nichts gewählt.
+async function bgRemoveWizardPhoto(idx) {
+  const i = (typeof idx === 'number' && idx >= 0) ? idx : (state.galleryIndex || 0);
+  const original = state.voicePhotoFiles?.[i];
   if (!original) { showToast('Erst ein Foto aufnehmen', 'info', 2200); return; }
   if (state.bgRemoving) return;
   state.bgRemoving = true;
@@ -1280,13 +1283,13 @@ async function bgRemoveFirstPhoto() {
     setLoading(true, 'Hintergrund wird entfernt — kann 10–30 s dauern …');
     const result = await removePhotoBackground(original);
     // Original-Preview-URL freigeben, neue erstellen
-    try { URL.revokeObjectURL(state.voicePhotoPreviews[0]); } catch (_) {}
-    state.voicePhotoFiles[0] = result;
-    state.voicePhotoPreviews[0] = URL.createObjectURL(result);
-    // Im Camera-Screen das frisch freigestellte Foto anzeigen
-    state.galleryIndex = 0;
+    try { URL.revokeObjectURL(state.voicePhotoPreviews[i]); } catch (_) {}
+    state.voicePhotoFiles[i] = result;
+    state.voicePhotoPreviews[i] = URL.createObjectURL(result);
+    // Auf das frisch freigestellte Foto schalten
+    state.galleryIndex = i;
     state.cameraShowLive = false;
-    showToast('Hauptfoto freigestellt', 'success', 2400);
+    showToast(i === 0 ? 'Hauptfoto freigestellt' : `Foto ${i + 1} freigestellt`, 'success', 2400);
   } catch (e) {
     showToast('Freistellen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'), 'error', 4500);
   } finally {
@@ -1295,6 +1298,8 @@ async function bgRemoveFirstPhoto() {
     render();
   }
 }
+// Backwards-compat alias
+const bgRemoveFirstPhoto = () => bgRemoveWizardPhoto(0);
 
 // Scannt das gegebene File und füllt voiceFields.tracker / .trackerUrl, wenn dort noch nichts steht.
 // Läuft im Hintergrund — re-rendert nur, falls sich etwas ändert.
@@ -3109,7 +3114,8 @@ function getActiveLocDraft() {
     if (!state.editForm.locDraft) state.editForm.locDraft = { hall:'', shelf:'', pos:'', box:'' };
     return state.editForm.locDraft;
   }
-  if (state.view === 'voice') {
+  // Wizard-Step 5 (wizardLoc) und Legacy-Voice-Form teilen sich state.voiceLocDraft
+  if (state.view === 'voice' || state.view === 'wizardLoc') {
     if (!state.voiceLocDraft) state.voiceLocDraft = { hall:'', shelf:'', pos:'', box:'' };
     return state.voiceLocDraft;
   }
@@ -3774,7 +3780,9 @@ Antwortformat exakt: {"name":"...","maker":"...","description":"..."}`;
 function renderWizardCat() {
   const cats = state.categories || [];
   const selected = state.voiceFields?.cat || '';
-  const canNext = !!selected;
+  const isManaging = !!state.catManageMode;
+  const isAdding = !!state.catAdding;
+  const canNext = !!selected && !isManaging && !isAdding;
   return `
 <div class="screen">
   ${headerBar(`<button class="icon-btn" data-action="wiz-cancel">${svg('x', 18, 2.5)}</button>`,
@@ -3782,24 +3790,48 @@ function renderWizardCat() {
     `<div class="header__slot"></div>`)}
   <div class="scroll" style="padding-bottom:24px">
     ${wizProgress()}
-    <div style="margin-top:14px">
-      <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Wofür ist der Artikel?</h1>
-      <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 18px">Wähle eine Kategorie. Du kannst sie später jederzeit ändern.</p>
-    </div>
-    <div class="wiz-tile-grid">
-      ${cats.length === 0 ? `<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:13px;color:var(--c-ink-mute)">Noch keine Kategorien angelegt</div>` : ''}
-      ${cats.map(c => `
-        <button class="wiz-tile ${selected === c ? 'wiz-tile--active' : ''}" data-action="wiz-cat-pick" data-cat="${c.replace(/"/g, '&quot;')}">
-          <div class="wiz-tile__icon">${svg('boxes', 26, 1.9)}</div>
-          <div class="wiz-tile__name">${c}</div>
-        </button>
-      `).join('')}
+    <div style="margin-top:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+      <div>
+        <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px">Wofür ist der Artikel?</h1>
+        <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:0 0 8px">${isManaging ? 'Tippe eine Kategorie an, um sie zu löschen.' : 'Wähle eine Kategorie. Du kannst sie später jederzeit ändern.'}</p>
+      </div>
       ${isAdmin() ? `
-        <button class="wiz-tile wiz-tile--add" data-action="wiz-cat-add">
+        <button data-action="cat-manage-toggle" style="flex-shrink:0;font-size:11.5px;font-weight:600;color:${isManaging ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:inline-flex;align-items:center;gap:5px;padding:6px 10px;background:${isManaging ? 'var(--c-blue-soft)' : 'var(--c-surface)'};border:1px solid ${isManaging ? 'var(--c-blue)' : 'var(--c-border)'};border-radius:var(--r-pill);box-shadow:var(--elev-1)">
+          ${isManaging ? svg('check', 11, 3) : svg('pencil', 11, 2.4)} ${isManaging ? 'Fertig' : 'Verwalten'}
+        </button>
+      ` : ''}
+    </div>
+    <div class="wiz-tile-grid" style="margin-top:14px">
+      ${cats.length === 0 && !isAdding ? `<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:13px;color:var(--c-ink-mute)">Noch keine Kategorien angelegt${isAdmin() ? ' — tippe unten auf „Neue Kategorie"' : ''}</div>` : ''}
+      ${cats.map(c => {
+        const ev = c.replace(/"/g, '&quot;');
+        if (isManaging) {
+          return `
+            <button class="wiz-tile" data-action="cat-remove" data-val="${ev}" style="background:var(--c-red-soft);border-color:rgba(229,72,77,0.25)">
+              <div class="wiz-tile__icon" style="background:#fff;color:var(--c-red)">${svg('x', 26, 2.4)}</div>
+              <div class="wiz-tile__name" style="color:var(--c-red)">${c}</div>
+            </button>`;
+        }
+        return `
+          <button class="wiz-tile ${selected === c ? 'wiz-tile--active' : ''}" data-action="wiz-cat-pick" data-cat="${ev}">
+            <div class="wiz-tile__icon">${svg('boxes', 26, 1.9)}</div>
+            <div class="wiz-tile__name">${c}</div>
+          </button>`;
+      }).join('')}
+      ${(!isManaging && isAdmin()) ? (isAdding ? `
+        <div class="wiz-tile" style="background:var(--c-surface);border:1.5px solid var(--c-blue);box-shadow:var(--elev-blue);display:flex;flex-direction:column;align-items:stretch;justify-content:center;padding:14px;gap:10px">
+          <input data-action="cat-add-input" value="${(state.catAddDraft || '').replace(/"/g, '&quot;')}" placeholder="Neue Kategorie" style="background:transparent;border:0;padding:6px 4px;font-size:14px;font-weight:600;color:var(--c-ink);outline:none;font-family:inherit;text-align:center;border-bottom:1px solid var(--c-border)" autofocus>
+          <div style="display:flex;justify-content:center;gap:6px">
+            <button data-action="cat-add-cancel" style="width:30px;height:30px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('x', 13, 2.5)}</button>
+            <button data-action="cat-add-save" style="width:30px;height:30px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center">${svg('check', 13, 3)}</button>
+          </div>
+        </div>
+      ` : `
+        <button class="wiz-tile wiz-tile--add" data-action="cat-add-start">
           <div class="wiz-tile__icon" style="background:transparent;color:var(--c-blue)">${svg('plus', 26, 2.2)}</div>
           <div class="wiz-tile__name" style="color:var(--c-blue)">Neue Kategorie</div>
         </button>
-      ` : ''}
+      `) : ''}
     </div>
   </div>
   <div class="wiz-actions">
@@ -6557,10 +6589,10 @@ function renderCamera() {
       </button>
     </div>
   ` : `
-    ${isAdmin() ? `
+    ${(isAdmin() && cur) ? `
       <div style="padding:0 20px 8px">
-        <button data-action="bg-remove-first" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:11px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:12px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.bgRemoving ? 'opacity:.6' : ''}">
-          ${svg('sparkles', 13, 2.5)} ${state.bgRemoving ? 'Wird freigestellt — bitte warten …' : 'Hauptfoto freistellen (KI)'}
+        <button data-action="bg-remove-current" ${state.bgRemoving ? 'disabled' : ''} style="width:100%;padding:11px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:12px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;${state.bgRemoving ? 'opacity:.6' : ''}">
+          ${svg('sparkles', 13, 2.5)} ${state.bgRemoving ? 'Wird freigestellt — bitte warten …' : (count > 1 ? `Foto ${idx + 1} / ${count} freistellen (KI)` : 'Foto freistellen (KI)')}
         </button>
       </div>
     ` : ''}
@@ -7405,6 +7437,12 @@ function go(view, opts = {}) {
     state.voicePhotoFiles = [];
     state.voicePhotoPreviews = [];
   }
+  // Kategorie-Manage-Modus / Inline-Add nur auf Screens behalten, die ihn nutzen können (wizardCat, edit, voice)
+  if (view !== 'wizardCat' && view !== 'edit' && view !== 'voice') {
+    state.catManageMode = false;
+    state.catAdding = false;
+    state.catAddDraft = '';
+  }
   render();
 }
 
@@ -7816,13 +7854,10 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'wiz-cat-add': {
+      // Backwards-compat: leitet auf den neuen Inline-Add-Flow um (cat-add-start)
       if (!isAdmin()) { showToast('Nur Admins dürfen Kategorien anlegen', 'info', 2400); break; }
-      const name = (prompt('Neue Kategorie:') || '').trim();
-      if (!name) break;
-      if ((state.categories || []).includes(name)) { showToast('Kategorie existiert bereits', 'info', 2200); break; }
-      state.categories = [...(state.categories || []), name];
-      state.voiceFields.cat = name;
-      persistCompanyHallsShelves(state.company);
+      state.catAdding = true;
+      state.catAddDraft = '';
       render();
       break;
     }
@@ -8083,6 +8118,12 @@ document.addEventListener('click', (e) => {
       break;
     }
 
+    /* Aktuelles Wizard-Foto freistellen (Hintergrund entfernen via KI) — nutzt galleryIndex */
+    case 'bg-remove-current': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen Fotos freistellen', 'info', 2400); break; }
+      bgRemoveWizardPhoto(state.galleryIndex || 0);
+      break;
+    }
     /* Hauptfoto freistellen (Hintergrund entfernen via KI) */
     case 'bg-remove-first':
       if (!isAdmin()) { showToast('Freistellen ist nur für Admins', 'info', 2400); break; }
@@ -8170,9 +8211,12 @@ document.addEventListener('click', (e) => {
       const v = (state.catAddDraft || '').trim();
       if (v && state.company && !(state.categories || []).includes(v)) {
         state.categories = [...(state.categories || []), v];
-        // bei Edit/Voice-Form direkt als gewählte Kategorie setzen
+        // Im Wizard / Edit / Voice direkt als gewählte Kategorie setzen
         if (state.view === 'edit' && state.editForm) state.editForm.cat = v;
-        if (state.view === 'voice') state.voiceFields.cat = v;
+        if (state.view === 'voice' || state.view === 'wizardCat') {
+          if (!state.voiceFields) state.voiceFields = {};
+          state.voiceFields.cat = v;
+        }
         persistCompanyHallsShelves(state.company);
       }
       state.catAdding = false;
@@ -8185,7 +8229,7 @@ document.addEventListener('click', (e) => {
       if (state.company) {
         state.categories = (state.categories || []).filter(c => c !== v);
         if (state.view === 'edit' && state.editForm && state.editForm.cat === v) state.editForm.cat = '';
-        if (state.view === 'voice' && state.voiceFields.cat === v) state.voiceFields.cat = '';
+        if ((state.view === 'voice' || state.view === 'wizardCat') && state.voiceFields?.cat === v) state.voiceFields.cat = '';
         persistCompanyHallsShelves(state.company);
       }
       render();
