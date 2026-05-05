@@ -42,6 +42,79 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
 }
 .phone__inner{position:relative;height:100%;display:flex;flex-direction:column}
 
+/* ============================================================
+   iPad / Tablet — optimierte Darstellung (≥ 768px)
+   App füllt den gesamten Bildschirm, Inhalte werden mittig
+   begrenzt, Grids bekommen mehr Spalten, Action-Sheets werden
+   zu zentrierten Modalen.
+   ============================================================ */
+@media (min-width:768px){
+  html,body{height:100%;height:100dvh;overflow:hidden;position:fixed;width:100%;top:0;left:0;overscroll-behavior:none}
+  body{padding:0;align-items:stretch;background:var(--c-bg);display:block}
+  .phone{max-width:100%;aspect-ratio:auto;min-height:0;height:100%;height:100dvh;width:100%;border-radius:0;border:0;box-shadow:none}
+  .phone__inner{height:100%}
+  /* Safe-Area-Insets für iPad mit Home-Indicator */
+  .header{padding-top:14px;padding-left:calc(28px + env(safe-area-inset-left));padding-right:calc(28px + env(safe-area-inset-right));max-width:1096px;width:100%;margin:0 auto}
+  .scroll{padding-left:max(28px, calc((100vw - 1040px) / 2 + env(safe-area-inset-left)));padding-right:max(28px, calc((100vw - 1040px) / 2 + env(safe-area-inset-right)));padding-bottom:24px}
+  .bottom-bar,.action-bar{max-width:1040px;margin:8px auto calc(14px + env(safe-area-inset-bottom));width:calc(100% - 56px)}
+  .toast-stack{top:calc(16px + env(safe-area-inset-top));left:50%;right:auto;transform:translateX(-50%);width:min(560px, calc(100% - 32px))}
+  .user-bar{padding:7px 18px;font-size:11px;padding-top:max(7px, env(safe-area-inset-top));padding-left:max(18px, env(safe-area-inset-left));padding-right:max(18px, env(safe-area-inset-right))}
+  .user-bar__user{justify-content:center}
+  .user-bar__name{flex:0 1 auto}
+  .has-user-bar .header{padding-top:14px}
+
+  /* Mehr Spalten in den wichtigen Grids */
+  .action-grid{grid-template-columns:repeat(4,1fr);gap:14px}
+  .wiz-tile-grid{grid-template-columns:repeat(4,1fr);gap:14px}
+  .hall-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+  .dash-grid{grid-template-columns:repeat(4,1fr);gap:12px}
+
+  /* Bestand / Suche / Issues: Item-Cards in 2 Spalten */
+  .item-list{display:grid !important;grid-template-columns:repeat(2,1fr);gap:10px !important}
+  .item-list>*{flex:none}
+
+  /* Item-Card Layout: höher und etwas mehr Padding für Tablet */
+  .item-card{padding:16px}
+  .item-card__icon{width:64px;height:64px}
+
+  /* Headlines etwas größer */
+  .screen h1{font-size:34px}
+
+  /* Login-Karte breiter wirken lassen */
+  .login-screen{align-items:center;justify-content:center}
+  .login-card{max-width:480px}
+
+  /* Action-Sheets: zentriertes Modal statt Bottom-Sheet */
+  .action-sheet{
+    bottom:auto;top:50%;left:50%;right:auto;
+    width:min(640px, calc(100vw - 64px));
+    max-height:min(82vh, 720px);
+    border-radius:24px;
+    padding-bottom:12px;
+    box-shadow:0 24px 64px rgba(15,24,48,0.28);
+    animation:none;
+    transform:translate(-50%, -50%);
+  }
+  .action-sheet__handle{display:none}
+  .sheet-backdrop{background:rgba(15,24,48,0.5);backdrop-filter:blur(4px)}
+
+  /* Camera-Viewfinder nicht über volle Breite ziehen, aber breiter als auf Phone */
+  .cam-screen .viewfinder{padding:24px}
+  .cam-screen .viewfinder>div:first-child{max-width:720px !important;margin:0 auto}
+  .cam-screen .live-cam{max-width:720px;margin:0 auto}
+  .cam-strip{max-width:720px;margin-left:auto;margin-right:auto}
+
+  /* Wiz-Lightbox: Bilder zentrieren */
+  .wiz-lightbox img{max-width:90vw;max-height:80vh}
+}
+
+/* iPad Pro 12.9" und Landscape: noch mehr Spalten */
+@media (min-width:1100px){
+  .item-list{grid-template-columns:repeat(3,1fr)}
+  .wiz-tile-grid{grid-template-columns:repeat(5,1fr)}
+  .hall-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+}
+
 /* Top User-Bar: zeigt Login-Name, Rolle und Versionsnummer über jedem Screen */
 .user-bar{display:none;align-items:center;justify-content:space-between;padding:5px 14px;font-size:10.5px;font-weight:600;background:var(--c-ink);color:rgba(255,255,255,0.85);font-family:var(--f-mono);letter-spacing:.04em;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.08);gap:10px;min-height:24px}
 .user-bar--shown{display:flex}
@@ -583,7 +656,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.29';
+const APP_VERSION = 'v1.30';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4799,7 +4872,7 @@ function renderBestand() {
         </div>`
       : grouped
         ? renderGroupedItems(items)
-        : `<div style="display:flex;flex-direction:column;gap:8px">${items.map(it => itemCard(it)).join('')}</div>`}
+        : `<div class="item-list">${items.map(it => itemCard(it)).join('')}</div>`}
   </div>
 
   <div class="bottom-bar">
@@ -4821,7 +4894,7 @@ function renderGroupedItems(items) {
         <span style="flex:1;height:1px;background:var(--c-divider)"></span>
         <span style="font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--c-ink-mute)">${list.length}</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px">${list.map(it => itemCard(it)).join('')}</div>
+      <div class="item-list">${list.map(it => itemCard(it)).join('')}</div>
     </div>
   `).join('');
 }
@@ -6251,7 +6324,7 @@ function renderIssues() {
   <div class="scroll" style="padding-top:12px;padding-bottom:24px">
     ${a.items.length === 0
       ? `<div class="tile" style="padding:32px;text-align:center"><div style="margin-bottom:8px;color:var(--c-green)">${svg('check', 28, 2)}</div><div style="font-size:14px;font-weight:600">Keine Eintr\u00e4ge</div></div>`
-      : `<div style="display:flex;flex-direction:column;gap:8px">${a.items.map(it => itemCard(it)).join('')}</div>`}
+      : `<div class="item-list">${a.items.map(it => itemCard(it)).join('')}</div>`}
   </div>
 </div>`;
 }
