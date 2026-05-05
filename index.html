@@ -656,7 +656,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.31';
+const APP_VERSION = 'v1.32';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4995,7 +4995,7 @@ function renderBestand() {
 
   <div class="bottom-bar">
     <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
-    <button class="bottom-bar__btn" data-action="go-camera">${svg('plus', 15, 2.4)} Neu</button>
+    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
     <button class="bottom-bar__btn bottom-bar__btn--active">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 </div>`;
