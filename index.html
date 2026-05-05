@@ -4,9 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#DDE7F0">
-<title>Lager.OS</title>
+<meta name="apple-mobile-web-app-title" content="Stockmanager">
+<meta name="application-name" content="Stockmanager">
+<meta name="theme-color" content="#1D7CAF">
+<title>Stockmanager · FLP Lift Parts</title>
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -656,7 +663,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.32';
+const APP_VERSION = 'v1.33';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -666,7 +673,7 @@ const APP_CONFIG = {
   MASTER_BASE_ID: 'appzhNrhkLSTEaNFW',
   APP_BASE_ID: 'appc4YGv2X1v4O1eO',
   PROJECT_ID: 'p_1777628997641',
-  PROJECT_NAME: 'FLP Lagerverwaltung',
+  PROJECT_NAME: 'Stockmanager',
   GITHUB_REPO: 'giltglobalinvest-pixel/flp_lagerverwaltung',
 };
 
@@ -2021,7 +2028,7 @@ function buildUserWelcomeMessage(u) {
   return [
     `${greeting},`,
     ``,
-    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'FLP Lagerverwaltung'} ist eingerichtet:`,
+    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'Stockmanager'}-App von FLP Lift Parts ist eingerichtet:`,
     ``,
     `🌐 ${appUrl}`,
     `🔑 ${u.apiKey}`,
@@ -7448,7 +7455,7 @@ function renderLogin() {
 <div class="login-screen">
   <div class="login-card">
     <div class="login-logo">${svg('boxes', 28, 2.2)}</div>
-    <h1 class="login-title">Lager.OS</h1>
+    <h1 class="login-title">Stockmanager</h1>
     <div class="login-sub">Bitte mit pers\u00f6nlichem Zugangs-Schl\u00fcssel anmelden</div>
     <form data-action="login-submit" autocomplete="off">
       <input type="password" class="login-input" data-action="login-input" value="${val}" placeholder="Pers\u00f6nlicher Schl\u00fcssel" autocomplete="off" ${pending ? 'disabled' : 'autofocus'}>
