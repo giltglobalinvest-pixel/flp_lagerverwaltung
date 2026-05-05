@@ -583,7 +583,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.25';
+const APP_VERSION = 'v1.26';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4787,17 +4787,38 @@ function renderDetail() {
       const partner = findLinkedItem(it);
       if (!partner) return '';
       // Wir sind auf dem Original (sold + service-exchange + returnedAt) → Partner ist die defekte Rücksendung
-      // Wir sind auf der Rücksendung (linkedItemId aber nicht sold) → Partner ist das Original
-      const isOnOriginal = it.sold && it.saleType === 'service-exchange' && !!it.returnedAt;
-      const label = isOnOriginal ? 'Defekte Rücksendung' : 'Verkauftes Original';
-      const sub = isOnOriginal
-        ? `Eingegangen ${it.returnedAt ? new Date(it.returnedAt).toLocaleDateString('de-DE') : '—'}`
-        : `Verkauft ${partner.soldAt ? new Date(partner.soldAt).toLocaleDateString('de-DE') : '—'}${partner.orderNumber ? ' · Auftrag ' + partner.orderNumber : ''}`;
+      // Wir sind auf der Rücksendung (Partner ist sold + service-exchange) → Partner ist das Original
+      const isOnReturn = !it.sold && partner.sold && partner.saleType === 'service-exchange';
+      if (isOnReturn) {
+        // Prominente orange Banner-Kachel für die defekte Rücksendung — separater Hinweis statt Description-Pre-fill
+        const partnerOrder = partner.orderNumber ? ' · Auftrag ' + partner.orderNumber : '';
+        const partnerSold = partner.soldAt ? 'Verkauft am ' + new Date(partner.soldAt).toLocaleDateString('de-DE') : '';
+        return `
+          <div style="background:linear-gradient(135deg,#FB923C 0%,#EA580C 100%);color:#fff;border-radius:var(--r-tile);box-shadow:0 6px 20px rgba(234,88,12,.35);overflow:hidden">
+            <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+              <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center">${svg('rotate-ccw', 20, 2.5)}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;line-height:1.1">Defekte Rücksendung</div>
+                <div style="font-size:11.5px;font-weight:500;opacity:.92;margin-top:3px">Aus Service-Tausch${partnerOrder}</div>
+              </div>
+            </div>
+            <button data-action="select-item" data-id="${partner.id}" style="display:flex;align-items:center;gap:10px;padding:10px 16px;width:100%;background:rgba(0,0,0,0.12);text-align:left;cursor:pointer;color:#fff;border-top:1px solid rgba(255,255,255,0.18)">
+              <span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.85;flex-shrink:0">Original</span>
+              <span class="code-chip" style="background:rgba(255,255,255,0.22);color:#fff;border-color:rgba(255,255,255,0.35)">#${partner.id}</span>
+              <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${partner.title}</span>
+              <span style="font-size:10.5px;opacity:.85;flex-shrink:0">${partnerSold}</span>
+              <span style="display:flex;flex-shrink:0">${svg('chevron-right', 14, 2.5)}</span>
+            </button>
+          </div>
+        `;
+      }
+      // Auf dem Original (Rücksendung schon eingegangen): kompakter Sprung-Tile
+      const sub = `Eingegangen ${it.returnedAt ? new Date(it.returnedAt).toLocaleDateString('de-DE') : '—'}`;
       return `
         <button data-action="select-item" data-id="${partner.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%);border:1px solid #FDBA74;border-radius:var(--r-tile);width:100%;text-align:left;cursor:pointer">
           <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center">${svg('rotate-ccw', 18, 2.4)}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:10px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+            <div style="font-size:10px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:.05em">Defekte Rücksendung</div>
             <div style="font-size:13.5px;font-weight:600;color:var(--c-ink);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span class="code-chip">#${partner.id}</span>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${partner.title}</span>
@@ -4881,7 +4902,14 @@ function renderDetail() {
     <div>
       <div class="section-head"><h2 class="section-head__title">Beschreibung</h2></div>
       <div class="tile" style="padding:18px 20px">
-        <p style="font-size:13.5px;line-height:1.6;font-weight:500;color:var(--c-ink-soft);margin:0">${it.description}</p>
+        ${(it.description || '').trim() ? `
+          <p style="font-size:13.5px;line-height:1.6;font-weight:500;color:var(--c-ink-soft);margin:0">${it.description}</p>
+        ` : `
+          <div style="display:flex;align-items:center;gap:10px;color:var(--c-ink-mute)">
+            <span style="display:flex;flex-shrink:0">${svg('camera', 16, 2.4)}</span>
+            <p style="font-size:12.5px;line-height:1.5;font-weight:500;margin:0">Noch keine Beschreibung. Foto vom Typenschild hinzufügen oder im Bearbeiten-Modus manuell ergänzen.</p>
+          </div>
+        `}
       </div>
     </div>
     <div>
@@ -4968,13 +4996,13 @@ function renderDetail() {
   })() : ''}
 
   ${state.quickEdit === 'return' ? (() => {
-    const d = state.returnDraft || { description: '', loc: it.loc || '' };
+    const d = state.returnDraft || { loc: it.loc || '' };
     return `
     <div class="sheet-backdrop" data-action="close-quick"></div>
     <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
       <div class="action-sheet__handle"></div>
       <div class="action-sheet__title">Rücksendung erfassen</div>
-      <div style="padding:4px 16px 0;font-size:12px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Legt einen neuen Artikel als <strong>defekte Rücksendung</strong> an und verknüpft ihn mit dem Original.</div>
+      <div style="padding:4px 16px 0;font-size:12px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Legt einen neuen Artikel als <strong>defekte Rücksendung</strong> an und verknüpft ihn mit dem Original. Beschreibung & Fotos kommen danach.</div>
       <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
         <!-- Original-Zusammenfassung (read-only) -->
         <div style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md)">
@@ -4991,12 +5019,8 @@ function renderDetail() {
         <div style="padding:10px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--r-md);display:flex;align-items:center;gap:10px">
           <span style="color:#B45309;display:flex;flex-shrink:0">${svg('alert-triangle', 14, 2.4)}</span>
           <div style="font-size:11.5px;color:#7A4A00;font-weight:500;line-height:1.4">
-            Neuer Artikel wird als <strong>Funktion: Defekt</strong> · <strong>Zustand: Gebraucht</strong> angelegt.
+            Neuer Artikel wird als <strong>Funktion: Defekt</strong> · <strong>Zustand: Gebraucht</strong> · <strong>leere Beschreibung</strong> angelegt.<br>Foto/Typenschild oder manuelle Eingabe folgen im nächsten Schritt.
           </div>
-        </div>
-        <div class="field">
-          <label class="field__label">Notiz / Beschreibung <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
-          <textarea class="field__input" data-action="return-desc-input" placeholder="z.B. Lager defekt, Geräusch beim Anlauf …" rows="3" style="font-size:14px;font-family:inherit;resize:vertical;min-height:80px" autocomplete="off">${(d.description || '').replace(/</g, '&lt;')}</textarea>
         </div>
         <div class="field">
           <label class="field__label">Lagerort <span style="color:var(--c-ink-mute);font-weight:500">(default: wie Original)</span></label>
@@ -7795,13 +7819,11 @@ document.addEventListener('click', (e) => {
       if (!state.item || !isPendingReturn(state.item)) break;
       state.quickEdit = 'return';
       state.returnDraft = {
-        description: `Defekte Rücksendung von #${state.item.id}${state.item.orderNumber ? ' · Auftrag ' + state.item.orderNumber : ''}`,
         loc: state.item.loc || '',
       };
       render();
       break;
     }
-    case 'return-desc-input': /* handled by input event */ break;
     case 'return-loc-input':  /* handled by input event */ break;
     case 'save-return': {
       if (!isAdmin() || !state.item || !state.returnDraft) break;
@@ -7818,13 +7840,13 @@ document.addEventListener('click', (e) => {
       const d = state.returnDraft;
       const now = nowIso();
 
-      // Neuen Artikel als defekte Rücksendung anlegen
+      // Neuen Artikel als defekte Rücksendung anlegen — Beschreibung bleibt leer, kommt später per Foto/Typenschild oder manuell
       const newItem = {
         id: shortId('A'),
         company_id: company.id,
         maker: original.maker || '',
         title: original.title || '',
-        description: (d.description || '').trim() || `Defekte Rücksendung von #${original.id}`,
+        description: '',
         cat: original.cat || '',
         loc: (d.loc || '').trim() || original.loc || '',
         cond: 'used',
@@ -8309,7 +8331,6 @@ document.addEventListener('input', (e) => {
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
   else if (a === 'sale-vp-input') { if (state.saleDraft) state.saleDraft.vp = t.value; }
-  else if (a === 'return-desc-input') { if (state.returnDraft) state.returnDraft.description = t.value; }
   else if (a === 'return-loc-input') { if (state.returnDraft) state.returnDraft.loc = t.value; }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
