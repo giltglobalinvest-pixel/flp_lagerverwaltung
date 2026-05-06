@@ -694,7 +694,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.35';
+const APP_VERSION = 'v1.36';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1749,6 +1749,10 @@ const ICONS = {
   key: '<path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
   shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
   'message-circle': '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/>',
+  'list-checks': '<path d="M3 17l2 2l4-4"/><path d="M3 7l2 2l4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  'bookmark-plus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><line x1="12" x2="12" y1="7" y2="13"/><line x1="15" x2="9" y1="10" y2="10"/>',
+  'bookmark-minus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><line x1="15" x2="9" y1="10" y2="10"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
 };
 
 function svg(name, size = 16, sw = 2.4) {
@@ -1803,6 +1807,7 @@ const state = {
   locAddingFor: null, locAddDraft: '', locManageMode: null,
   locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
   catAdding: false, catAddDraft: '', catManageMode: false,
+  itemList: [],                              // Persönliche Merkliste — Array mit Item-IDs (item.id, nicht _recordId)
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
   cameraShowLive: true,      // true = Live-Cam im Camera-Screen zeigen, false = Preview eines bereits aufgenommenen Fotos
@@ -2069,6 +2074,47 @@ function buildUserWelcomeMessage(u) {
 }
 
 // (copyTextToClipboard ist bereits oben definiert)
+
+/* ============================================================
+   PERSÖNLICHE MERKLISTE (pro User, lokal gespeichert)
+   Speichert Item-IDs in localStorage. Key ist projekt- +
+   user-spezifisch, damit verschiedene Logins eigene Listen haben.
+   ============================================================ */
+function listStorageKey() {
+  const uid = APP_KEYS.user?._recordId || 'anon';
+  return 'flp_item_list_' + APP_CONFIG.PROJECT_ID + '_' + uid;
+}
+function loadItemList() {
+  try {
+    const raw = localStorage.getItem(listStorageKey());
+    return raw ? (JSON.parse(raw) || []) : [];
+  } catch(e) { return []; }
+}
+function saveItemList(list) {
+  try { localStorage.setItem(listStorageKey(), JSON.stringify(list || [])); } catch(e) {}
+}
+function isInList(id) { return Array.isArray(state.itemList) && state.itemList.includes(id); }
+function addToList(id) {
+  if (!id) return;
+  if (isInList(id)) return;
+  state.itemList = [...(state.itemList || []), id];
+  saveItemList(state.itemList);
+}
+function removeFromList(id) {
+  state.itemList = (state.itemList || []).filter(x => x !== id);
+  saveItemList(state.itemList);
+}
+function clearItemList() {
+  state.itemList = [];
+  saveItemList(state.itemList);
+}
+// Filtert die rohe ID-Liste gegen das aktuelle Inventory — IDs zu nicht mehr existierenden Items werden ausgefiltert,
+// die Reihenfolge der Liste bleibt aber erhalten (zuletzt hinzugefügte unten).
+function getListItems() {
+  return (state.itemList || [])
+    .map(id => (inventory || []).find(it => it.id === id))
+    .filter(Boolean);
+}
 function relTime(iso) {
   if (!iso) return '\u2014';
   const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
@@ -4603,6 +4649,10 @@ function renderHome() {
       ${[
         { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
+        ...((() => {
+          const n = (state.itemList || []).filter(id => (inventory || []).some(it => it.id === id)).length;
+          return [{ icon: 'list-checks', title: 'Meine Liste', sub: n === 0 ? 'Leer · Artikel hinzufügen' : `${n} ${n === 1 ? 'Artikel' : 'Artikel'} gemerkt`, action: 'go-list' }];
+        })()),
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
         ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge · WhatsApp-Einladung', action: 'go-users' }] : []),
         ...((() => {
@@ -5061,11 +5111,12 @@ function renderDetail() {
   const cond = CONDITION[it.cond];
   const func = FUNCTION_STATUS[it.func];
 
+  const onList = isInList(it.id);
   return `
 <div class="screen">
   ${headerBar(backBtn('go-home'),
     `<span class="pill pill--ink" style="font-family:var(--f-mono)">#${it.id}</span>`,
-    `<div class="header__slot"></div>`)}
+    `<button class="icon-btn" data-action="list-toggle" data-id="${it.id}" title="${onList ? 'Aus Liste entfernen' : 'Zur Liste hinzufügen'}" style="${onList ? 'background:var(--c-blue);color:#fff;border-color:var(--c-blue);box-shadow:var(--elev-blue)' : ''}">${svg(onList ? 'bookmark-minus' : 'bookmark-plus', 17, 2.4)}</button>`)}
   <div class="scroll" style="padding-bottom:124px">
     ${(() => {
       const photos = it.photo || [];
@@ -6278,6 +6329,65 @@ function renderDashboard() {
     </div>
 
   </div>
+</div>`;
+}
+
+function renderItemList() {
+  const items = getListItems();
+  const total = items.length;
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--ink">${svg('list-checks', 11, 2.5)} Meine Liste</div>`,
+    total > 0 ? `<button class="icon-btn" data-action="list-clear-confirm" title="Alle entfernen">${svg('trash-2', 16, 2.4)}</button>` : `<div class="header__slot"></div>`)}
+
+  <div style="padding:0 20px 4px">
+    <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">Meine Liste</h1>
+    <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${total === 0 ? 'Noch keine Artikel gemerkt' : `${total} ${total === 1 ? 'Artikel' : 'Artikel'} · gespeichert auf diesem Gerät`}</p>
+  </div>
+
+  <div class="scroll" style="padding-top:14px;padding-bottom:90px">
+    ${total === 0 ? `
+      <div class="tile" style="padding:32px 24px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--c-blue-soft);display:flex;align-items:center;justify-content:center;color:var(--c-blue);margin:0 auto 14px">${svg('bookmark', 26, 2)}</div>
+        <div style="font-size:14.5px;font-weight:600;color:var(--c-ink)">Deine Merkliste ist leer</div>
+        <div style="font-size:12px;font-weight:500;color:var(--c-ink-mute);margin-top:6px;line-height:1.5;max-width:300px;margin-left:auto;margin-right:auto">Öffne im Bestand einen Artikel und tippe unten auf <strong>„Auf Liste"</strong> — er erscheint dann hier zur schnellen Wiedervorlage.</div>
+        <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
+          <button data-action="go-bestand" style="padding:12px;background:var(--c-blue);color:#fff;border-radius:14px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:var(--elev-blue)">${svg('boxes', 13, 2.5)} Zum Bestand</button>
+        </div>
+      </div>
+    ` : `
+      <div class="item-list">
+        ${items.map(it => `
+          <div style="position:relative">
+            ${itemCard(it)}
+            <button data-action="list-remove" data-id="${it.id}" title="Aus Liste entfernen" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.95);color:var(--c-red);border:1px solid rgba(229,72,77,0.3);box-shadow:var(--elev-1);display:flex;align-items:center;justify-content:center;cursor:pointer">${svg('x', 14, 2.6)}</button>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  </div>
+
+  <div class="bottom-bar">
+    <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
+    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
+    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
+  </div>
+
+  ${state.listClearConfirm ? `
+    <div class="sheet-backdrop" data-action="list-clear-cancel"></div>
+    <div class="action-sheet">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Liste leeren?</div>
+      <div style="padding:14px 18px 18px">
+        <p style="font-size:13px;color:var(--c-ink-soft);line-height:1.5;margin:0">Alle ${total} ${total === 1 ? 'Artikel' : 'Artikel'} werden aus deiner Merkliste entfernt. Die Artikel selbst bleiben im Bestand.</p>
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="action-bar__btn" data-action="list-clear-cancel" style="padding:14px">Abbrechen</button>
+        <button class="action-bar__btn" data-action="list-clear-confirmed" style="padding:14px;background:var(--c-red);border-color:var(--c-red);color:#fff">${svg('trash-2', 14, 2.5)} Leeren</button>
+      </div>
+    </div>
+  ` : ''}
 </div>`;
 }
 
@@ -7500,7 +7610,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -7659,6 +7769,7 @@ function go(view, opts = {}) {
   state.view = view;
   if (view !== 'detail') { state.quickEdit = null; state.quickLocDraft = null; state.saleDraft = null; state.returnDraft = null; }
   if (view !== 'users') { state.userDraft = null; state.userDeleteConfirm = null; }
+  if (view !== 'list') { state.listClearConfirm = false; }
   state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null;
   if (view !== 'results') state.editingQuery = false;
   if (view !== 'detail') state.detailTab = 'overview';
@@ -7858,6 +7969,36 @@ document.addEventListener('click', (e) => {
       state.homeFilterOpen = null;
       render(); break;
     case 'go-dashboard': go('dashboard'); break;
+    case 'go-list': go('list'); break;
+    case 'list-toggle': {
+      const id = btn.dataset.id;
+      if (!id) break;
+      if (isInList(id)) {
+        removeFromList(id);
+        showToast('Aus Liste entfernt', 'info', 1600);
+      } else {
+        addToList(id);
+        showToast('Zur Liste hinzugefügt', 'success', 1600);
+      }
+      render();
+      break;
+    }
+    case 'list-remove': {
+      const id = btn.dataset.id;
+      if (!id) break;
+      removeFromList(id);
+      render();
+      break;
+    }
+    case 'list-clear-confirm': state.listClearConfirm = true; render(); break;
+    case 'list-clear-cancel':  state.listClearConfirm = false; render(); break;
+    case 'list-clear-confirmed': {
+      clearItemList();
+      state.listClearConfirm = false;
+      showToast('Liste geleert', 'info', 1800);
+      render();
+      break;
+    }
     case 'go-users': {
       if (!isAdmin()) { showToast('Nur Admins dürfen die Userverwaltung öffnen', 'info', 2400); break; }
       go('users');
@@ -9308,6 +9449,8 @@ async function bootData() {
   try {
     await ensureAllTables();
     await loadAllData();
+    // Persönliche Merkliste laden (nach loadAllData, damit Inventory verfügbar ist)
+    state.itemList = loadItemList();
     state.bootingData = false;
     render();
     // Polling für Sold-Status starten — andere User sehen Verkaufs-Updates ~30s nach Speichern
