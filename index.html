@@ -649,6 +649,28 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* Version badge */
 .version-badge{display:none}
 @media (max-width:600px){.version-badge{bottom:4px;right:6px}}
+
+/* ============================================================
+   Rotate-Prompt — sperrt Handys im Querformat
+   Nur sichtbar wenn Bildschirm-Höhe ≤ 500px UND Landscape ist.
+   Diese Bedingung trifft auf alle Handys zu, aber NICHT auf iPad
+   (kleinste iPad-Höhe in beliebiger Orientierung ≥ 744px).
+   ============================================================ */
+.rotate-prompt{display:none;position:fixed;inset:0;background:#0F1830;color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;z-index:99999;font-family:var(--f-display)}
+.rotate-prompt__icon{color:rgba(255,255,255,0.85);animation:rotate-prompt-shake 1.6s ease-in-out infinite;transform-origin:center}
+.rotate-prompt__title{font-size:18px;font-weight:600;letter-spacing:-.005em}
+.rotate-prompt__sub{font-size:13px;font-weight:500;opacity:.75;max-width:280px;line-height:1.4}
+@keyframes rotate-prompt-shake{
+  0%,100%{transform:rotate(0deg)}
+  25%{transform:rotate(-90deg)}
+  50%{transform:rotate(-90deg)}
+  75%{transform:rotate(0deg)}
+}
+@media (orientation:landscape) and (max-height:500px){
+  .rotate-prompt{display:flex}
+  /* Phone-Inhalt + Toasts hinter dem Overlay verstecken, damit nichts rausguckt */
+  .phone,.version-badge{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -659,11 +681,20 @@ a.tracker-chip:hover{filter:brightness(.97)}
 </div>
 </div>
 <div class="version-badge" id="versionBadge"></div>
+<!-- Rotate-Prompt: nur auf Handys in Landscape (max-height:500px + landscape) sichtbar — iPad bleibt unberührt -->
+<div class="rotate-prompt" aria-hidden="true">
+  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="rotate-prompt__icon">
+    <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+    <path d="M12 18h.01"/>
+  </svg>
+  <div class="rotate-prompt__title">Bitte hochkant halten</div>
+  <div class="rotate-prompt__sub">Stockmanager funktioniert nur im Hochformat.</div>
+</div>
 <script>
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.34';
+const APP_VERSION = 'v1.35';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
