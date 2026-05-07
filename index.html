@@ -134,12 +134,6 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
   .detail-grid{display:grid;grid-template-columns:minmax(380px, 460px) 1fr;gap:32px;align-items:start;max-width:1240px;margin:0 auto;padding-top:8px}
   .detail-grid__left{position:sticky;top:16px}
 }
-/* Bestand-Filter immer sichtbar auf iPad / Tablet — der Toggle-Button verschwindet
-   (Breakpoint 740 px deckt iPad mini Portrait 744 px mit ab) */
-@media (min-width:740px){
-  .bestand-filter-toggle{display:none}
-}
-
 /* Subtiler iPad-Tag in der User-Bar (statt knallorange) */
 body.mode-tablet .user-bar__user::after{
   content:'iPad';
@@ -691,6 +685,22 @@ body.mode-tablet .bottom-bar{grid-template-columns:none}
 body.mode-tablet .bottom-bar>*{flex:1}
 /* iPad-Tag-Styling steht weiter unten (kombiniert mit Detail-Grid-CSS) */
 
+/* iPad-Modus: Home-Action-Kacheln deutlich größer + spürbarere Touch-Targets,
+   weil das Foto-vom-Typenschild-Hero ausgeblendet ist und die Fläche füllt werden soll */
+@media (min-width:768px){
+  body.mode-tablet .action-grid{gap:18px}
+  body.mode-tablet .action-tile{
+    min-height:170px;
+    padding:24px 24px 28px;
+    gap:18px;
+    border-radius:24px;
+  }
+  body.mode-tablet .action-tile__icon{width:54px;height:54px;border-radius:16px}
+  body.mode-tablet .action-tile__icon svg{width:24px !important;height:24px !important}
+  body.mode-tablet .action-tile__title{font-size:20px;letter-spacing:-.012em}
+  body.mode-tablet .action-tile__sub{font-size:13px;margin-top:6px}
+}
+
 /* ============================================================
    Rotate-Prompt — sperrt Handys im Querformat
    Nur sichtbar wenn Bildschirm-Höhe ≤ 500px UND Landscape ist.
@@ -735,7 +745,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.38';
+const APP_VERSION = 'v1.39';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4703,8 +4713,8 @@ function renderHome() {
           </div>
         `}
       </div>
-    ` : `
-      <!-- Foto-Suche-Hero (prominent, wenn nicht gerade getippt wird) -->
+    ` : (isTabletMode() ? '' : `
+      <!-- Foto-Suche-Hero (prominent, wenn nicht gerade getippt wird) — auf iPad ausgeblendet, weil Typenschild-Fotos ein Mobile-Workflow sind -->
       <button class="hero hero--ai" data-action="go-photo-search">
         <div class="hero__head">
           <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} KI · Foto-Suche</div>
@@ -4717,7 +4727,7 @@ function renderHome() {
           <span style="margin-left:auto;display:flex">${svg('arrow-right', 14, 2.4)}</span>
         </div>
       </button>
-    `}
+    `)}
 
     ${!isSearching ? `<div class="action-grid">
       ${[
@@ -4973,12 +4983,10 @@ function renderBestand() {
       (state.bestandCond && state.bestandCond !== 'all' ? 1 : 0) +
       (state.bestandFunc && state.bestandFunc !== 'all' ? 1 : 0) +
       (state.bestandOwner && state.bestandOwner !== 'all' ? 1 : 0);
-    // Auf iPad/Tablet (Viewport ≥ 740 px) sind die Filter immer sichtbar — der Toggle-Button wird per CSS versteckt.
-    const isWide = (typeof window !== 'undefined') && window.innerWidth >= 740;
-    const expanded = isWide ? true : state.bestandFiltersExpanded;
+    const expanded = state.bestandFiltersExpanded;
     return `
-  <div style="padding:12px 20px 0;display:flex;align-items:center;justify-content:${isWide ? 'flex-end' : 'space-between'};gap:10px">
-    <button class="bestand-filter-toggle" data-action="toggle-bestand-filters" style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-surface)'};color:${activeCount > 0 ? '#fff' : 'var(--c-ink)'};border:1px solid ${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-border)'};box-shadow:${activeCount > 0 ? 'var(--elev-blue)' : 'var(--elev-1)'};border-radius:var(--r-pill);font-size:12.5px;font-weight:600;transition:all .15s">
+  <div style="padding:12px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <button data-action="toggle-bestand-filters" style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-surface)'};color:${activeCount > 0 ? '#fff' : 'var(--c-ink)'};border:1px solid ${activeCount > 0 ? 'var(--c-blue)' : 'var(--c-border)'};box-shadow:${activeCount > 0 ? 'var(--elev-blue)' : 'var(--elev-1)'};border-radius:var(--r-pill);font-size:12.5px;font-weight:600;transition:all .15s">
       ${svg('filter', 12, 2.5)}
       Filter${activeCount > 0 ? ` · ${activeCount}` : ''}
       ${svg(expanded ? 'chevron-up' : 'chevron-down', 12, 2.5)}
