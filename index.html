@@ -651,6 +651,26 @@ a.tracker-chip:hover{filter:brightness(.97)}
 @media (max-width:600px){.version-badge{bottom:4px;right:6px}}
 
 /* ============================================================
+   Geräte-Modus: Tablet
+   - Bottom-Bar wird ohne „Neu"-Button auf 2-Spalten verteilt
+   - User-Bar bekommt einen orangenen Akzent am Toggle, damit
+     erkennbar ist warum keine Anlegen-Buttons da sind.
+   ============================================================ */
+body.mode-tablet .bottom-bar{grid-template-columns:none}
+body.mode-tablet .bottom-bar>*{flex:1}
+body.mode-tablet .user-bar__user::after{
+  content:'iPad';
+  margin-left:6px;
+  padding:1px 6px;
+  background:#FB923C;
+  color:#fff;
+  border-radius:var(--r-pill);
+  font-size:8.5px;
+  letter-spacing:.06em;
+  font-weight:700;
+}
+
+/* ============================================================
    Rotate-Prompt — sperrt Handys im Querformat
    Nur sichtbar wenn Bildschirm-Höhe ≤ 500px UND Landscape ist.
    Diese Bedingung trifft auf alle Handys zu, aber NICHT auf iPad
@@ -694,7 +714,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.36';
+const APP_VERSION = 'v1.37';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1753,6 +1773,8 @@ const ICONS = {
   'bookmark-plus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><line x1="12" x2="12" y1="7" y2="13"/><line x1="15" x2="9" y1="10" y2="10"/>',
   'bookmark-minus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><line x1="15" x2="9" y1="10" y2="10"/>',
   bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+  tablet: '<rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/>',
+  smartphone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
 };
 
 function svg(name, size = 16, sw = 2.4) {
@@ -1808,6 +1830,7 @@ const state = {
   locRenamingHall: null, locRenameDraft: '',     // Inline-Umbenennen einer Halle im Verwalten-Modus
   catAdding: false, catAddDraft: '', catManageMode: false,
   itemList: [],                              // Persönliche Merkliste — Array mit Item-IDs (item.id, nicht _recordId)
+  deviceMode: 'phone',                       // 'phone' | 'tablet' — steuert ob Anlegen-UI sichtbar ist
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
   cameraShowLive: true,      // true = Live-Cam im Camera-Screen zeigen, false = Preview eines bereits aufgenommenen Fotos
@@ -2115,6 +2138,36 @@ function getListItems() {
     .map(id => (inventory || []).find(it => it.id === id))
     .filter(Boolean);
 }
+
+/* ============================================================
+   GERÄTEMODUS (phone / tablet)
+   - Tablet-Modus: keine „Neuer Artikel"-Buttons mehr sichtbar.
+     Eingeben/Anlegen ist eine typische Mobile-Aufgabe (Foto, Tracker-Scan)
+     — auf dem iPad meist unhandlich.
+   - Erkennung: erstmal aus localStorage (User-Override gewinnt),
+     sonst UA-basiert (iPad / Macintosh+Touch), sonst Viewport-Heuristik.
+   - User kann jederzeit über User-Bar-Button umschalten.
+   ============================================================ */
+function detectDeviceMode() {
+  try {
+    const stored = localStorage.getItem('flp_device_mode');
+    if (stored === 'phone' || stored === 'tablet') return stored;
+  } catch(e) {}
+  const ua = navigator.userAgent || '';
+  // Klassischer iPad-UA + moderne iPads, die sich als Macintosh ausgeben + Touch melden
+  const isIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  if (isIPad) return 'tablet';
+  // Generische Tablet-Heuristik: Viewport ≥ 768×600 (iPad-mini Mindestmaß) UND Touch
+  const w = Math.min(window.innerWidth, window.innerHeight);
+  const big = Math.max(window.innerWidth, window.innerHeight);
+  if (w >= 700 && big >= 1000 && (navigator.maxTouchPoints || 0) > 0) return 'tablet';
+  return 'phone';
+}
+function setDeviceMode(mode) {
+  state.deviceMode = (mode === 'tablet') ? 'tablet' : 'phone';
+  try { localStorage.setItem('flp_device_mode', state.deviceMode); } catch(e) {}
+}
+function isTabletMode() { return state.deviceMode === 'tablet'; }
 function relTime(iso) {
   if (!iso) return '\u2014';
   const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
@@ -4647,7 +4700,7 @@ function renderHome() {
 
     ${!isSearching ? `<div class="action-grid">
       ${[
-        { icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' },
+        ...(isTabletMode() ? [] : [{ icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' }]),
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
         ...((() => {
           const n = (state.itemList || []).filter(id => (inventory || []).some(it => it.id === id)).length;
@@ -4701,7 +4754,7 @@ function renderHome() {
   </div>
   <div class="bottom-bar">
     <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
-    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
     <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 </div>`;
@@ -5083,7 +5136,7 @@ function renderBestand() {
 
   <div class="bottom-bar">
     <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
-    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
     <button class="bottom-bar__btn bottom-bar__btn--active">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 </div>`;
@@ -6370,7 +6423,7 @@ function renderItemList() {
 
   <div class="bottom-bar">
     <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
-    <button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
     <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 
@@ -7632,12 +7685,16 @@ function updateUserBar() {
   bar.classList.add('user-bar--shown');
   document.body.classList.add('has-user-bar');
   const reloading = !!state.reloadingAll;
+  const tablet = isTabletMode();
   bar.innerHTML = `
     <div class="user-bar__user">
       ${svg('user', 11, 2.4)}
       <span class="user-bar__name">${String(name).replace(/</g, '&lt;')}</span>
       <span class="user-bar__role ${admin ? 'user-bar__role--admin' : ''}">${admin ? 'Admin' : 'User'}</span>
     </div>
+    <button class="user-bar__reload" data-action="toggle-device-mode" title="${tablet ? 'Auf Mobil-Modus umschalten' : 'Auf iPad-Modus umschalten (kein Anlegen)'}">
+      ${svg(tablet ? 'tablet' : 'smartphone', 11, 2.4)}
+    </button>
     <button class="user-bar__reload ${reloading ? 'user-bar__reload--spin' : ''}" data-action="reload-all-data" ${reloading ? 'disabled' : ''} title="Daten neu laden">
       ${svg('rotate-ccw', 11, 2.4)}
     </button>
@@ -7649,6 +7706,9 @@ function render() {
   const app = document.getElementById('app');
   if (!app) return;
   updateUserBar();
+  // Body-Klasse spiegelt aktuellen Geräte-Modus, damit CSS bei Bedarf reagieren kann
+  document.body.classList.toggle('mode-tablet', isTabletMode());
+  document.body.classList.toggle('mode-phone', !isTabletMode());
 
   // Auth-Gate: vor erfolgreichem Login werden ausschlie\u00dflich Boot/Login angezeigt
   if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
@@ -8172,6 +8232,15 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'reload-all-data': reloadAllData(); break;
+    case 'toggle-device-mode': {
+      const next = isTabletMode() ? 'phone' : 'tablet';
+      setDeviceMode(next);
+      showToast(next === 'tablet'
+        ? 'iPad-Modus: Anlegen-Buttons sind ausgeblendet'
+        : 'Mobil-Modus: alle Funktionen sichtbar', 'info', 2400);
+      render();
+      break;
+    }
 
     /* Foto-Suche → Schwellen lockern und neu auswerten (kein neuer API-Call) */
     case 'photo-search-relax': {
@@ -8220,6 +8289,11 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'wizard-start': {
+      // iPad-Modus: Anlegen ist deaktiviert. Hinweis + Abbruch.
+      if (isTabletMode()) {
+        showToast('Anlegen ist im iPad-Modus deaktiviert. Wechsle oben in den Mobil-Modus.', 'info', 3200);
+        break;
+      }
       // Anlege-State sauber resetten (analog zu go() für Schritt 1)
       state.voiceFields = { name: '', maker: '', cat: '', owner: '', stock: '1', tracker: '', trackerUrl: '', vp: '', inShop: false };
       state.voiceLocDraft = { hall: '', shelf: '', pos: '', box: '' };
@@ -9496,6 +9570,8 @@ document.addEventListener('pointercancel', () => { _backSwipeStart = null; }, { 
 async function init() {
   const vb = document.getElementById('versionBadge');
   if (vb) vb.textContent = APP_CONFIG.PROJECT_NAME + ' \u00b7 ' + APP_VERSION;
+  // Ger\u00e4te-Modus initial bestimmen (Override \u2192 UA \u2192 Viewport-Heuristik)
+  state.deviceMode = detectDeviceMode();
   // Erst rendern (zeigt Boot-Spinner), dann Auto-Login probieren
   render();
   const ok = await tryAutoLogin();
