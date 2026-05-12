@@ -165,6 +165,48 @@ body.mode-tablet .user-bar__user::after{
 .user-bar__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .user-bar__role{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.18);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;line-height:1.4}
 .user-bar__role--admin{background:#FFD45C;color:#3A2400}
+.user-bar__role--customer{background:#A78BFA;color:#1A0B47}
+
+/* ============================================================
+   Customer-Home: bewusst „spürbarer" Look statt Power-User-UI
+   ============================================================ */
+.customer-home .scroll{padding-top:8px}
+.customer-hero{position:relative;margin:0 0 20px;padding:28px 24px 32px;border-radius:24px;background:linear-gradient(135deg,#2456E5 0%,#1D7CAF 50%,#7C3AED 100%);color:#fff;overflow:hidden;box-shadow:0 12px 40px rgba(36,86,229,.35)}
+.customer-hero::before{content:"";position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 70%);pointer-events:none}
+.customer-hero::after{content:"";position:absolute;bottom:-80px;left:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,0.4) 0%,rgba(167,139,250,0) 70%);pointer-events:none}
+.customer-hero__sparkle{position:absolute;top:16px;right:18px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;color:#fff;backdrop-filter:blur(4px)}
+.customer-hero__title{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.05;margin:0 0 10px;position:relative;z-index:1}
+.customer-hero__sub{font-size:13.5px;font-weight:500;color:rgba(255,255,255,.88);line-height:1.4;margin:0;max-width:90%;position:relative;z-index:1}
+
+.customer-action{width:100%;display:flex;align-items:center;gap:14px;padding:20px 20px 22px;border-radius:20px;text-align:left;transition:transform .12s;cursor:pointer;border:none}
+.customer-action:active{transform:scale(.98)}
+.customer-action__icon{flex-shrink:0;width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center}
+.customer-action__title{font-size:17px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.15}
+.customer-action__sub{font-size:12.5px;font-weight:500;margin:4px 0 0;line-height:1.35}
+.customer-action--primary{background:linear-gradient(135deg,#0F1830 0%,#1740B8 100%);color:#fff;margin-bottom:10px;box-shadow:0 8px 28px rgba(15,24,48,.28)}
+.customer-action--primary .customer-action__icon{background:rgba(255,255,255,0.16);color:#fff}
+.customer-action--primary .customer-action__sub{color:rgba(255,255,255,.78)}
+.customer-action--secondary{background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);box-shadow:var(--elev-1)}
+.customer-action--secondary .customer-action__icon--alt{background:var(--c-blue-soft);color:var(--c-blue)}
+.customer-action__title--alt{color:var(--c-ink)}
+.customer-action__sub--alt{color:var(--c-ink-mute)}
+
+.customer-step{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1)}
+.customer-step__num{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--c-blue);color:#fff;font-family:var(--f-mono);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.customer-step__icon{flex-shrink:0;width:36px;height:36px;border-radius:10px;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center}
+.customer-step__title{font-size:13.5px;font-weight:600;color:var(--c-ink);letter-spacing:-.005em}
+.customer-step__sub{font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:2px;line-height:1.4}
+
+/* iPad: Customer-Hero zentral und etwas größer */
+@media (min-width:768px){
+  .customer-hero{padding:40px 32px 44px;border-radius:28px}
+  .customer-hero__title{font-size:38px}
+  .customer-hero__sub{font-size:15px;max-width:540px}
+  .customer-action{padding:24px 24px 26px}
+  .customer-action__icon{width:60px;height:60px;border-radius:18px}
+  .customer-action__title{font-size:20px}
+  .customer-action__sub{font-size:13.5px}
+}
 .user-bar__version{opacity:.55;flex-shrink:0;white-space:nowrap}
 .user-bar__reload{flex-shrink:0;width:24px;height:20px;border-radius:6px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,opacity .15s;padding:0}
 .user-bar__reload:active{background:rgba(255,255,255,0.22)}
@@ -756,7 +798,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.40';
+const APP_VERSION = 'v1.41';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2020,6 +2062,8 @@ async function ensureAllTables() {
   await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
   await ensureFieldsExist(TBL_HALLS, HALL_FIELDS);
+  // User-Tabelle existiert bereits — nur Felder ggf. nachpflegen (für Customer-Registrierung)
+  await ensureFieldsExist(TBL_USERS, USER_FIELDS);
 }
 
 async function ensureFieldsExist(tableName, expectedFields) {
@@ -2049,6 +2093,7 @@ async function ensureFieldsExist(tableName, expectedFields) {
 // Erwartete Werte: 'admin' | 'user' (oder leer/undefiniert → user). Case-insensitiv.
 function userRole() { return String(APP_KEYS.user?.role || 'user').toLowerCase(); }
 function isAdmin() { return userRole() === 'admin'; }
+function isCustomer() { return userRole() === 'customer'; }
 
 // Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
 // und ist gleichzeitig der Filter beim Laden. Mehrere User können sich Daten teilen,
@@ -2069,6 +2114,23 @@ function shortId(prefix) { return (prefix || '') + Math.random().toString(36).sl
    ============================================================ */
 const TBL_USERS = 'User';
 
+// Schema für die User-Tabelle — wird via ensureFieldsExist nachgepflegt.
+// Rollen: 'admin' | 'user' | 'customer'
+const USER_FIELDS = [
+  { name: 'name', type: 'singleLineText' },
+  { name: 'role', type: 'singleLineText' },         // admin / user / customer
+  { name: 'status', type: 'singleLineText' },       // aktiv / gesperrt
+  { name: 'api_key', type: 'singleLineText' },
+  { name: 'email', type: 'singleLineText' },
+  { name: 'tenant_key', type: 'singleLineText' },
+  // Customer-spezifisch (öffentliche Selbst-Registrierung)
+  { name: 'first_name', type: 'singleLineText' },
+  { name: 'last_name', type: 'singleLineText' },
+  { name: 'phone', type: 'singleLineText' },
+  { name: 'company_name', type: 'singleLineText' },
+  { name: 'created', type: 'singleLineText' },
+];
+
 // Generiert einen zufälligen api_key wie "flp_xxxxxxxxxxxxxxxx"
 function generateApiKey() {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // ohne ähnliche Zeichen (0,O,1,l,i)
@@ -2088,6 +2150,12 @@ function recordToUser(rec) {
     apiKey: f.api_key || '',
     email: f.email || '',
     tenantKey: f.tenant_key || f.team_key || f.tenantKey || '',
+    // Customer-spezifisch
+    firstName: f.first_name || '',
+    lastName: f.last_name || '',
+    phone: f.phone || '',
+    companyName: f.company_name || '',
+    created: f.created || '',
   };
 }
 
@@ -2110,6 +2178,11 @@ async function persistUser(u) {
   // Optionale Felder nur mitsenden wenn gesetzt — vermeidet Airtable-Fehler bei nicht existierenden Spalten
   if (u.email) fields.email = u.email;
   if (u.tenantKey) fields.tenant_key = u.tenantKey;
+  if (u.firstName) fields.first_name = u.firstName;
+  if (u.lastName) fields.last_name = u.lastName;
+  if (u.phone) fields.phone = u.phone;
+  if (u.companyName) fields.company_name = u.companyName;
+  if (u.created) fields.created = u.created;
   if (u._recordId) {
     return await airUpdate(TBL_USERS, u._recordId, fields);
   }
@@ -4592,7 +4665,104 @@ async function snapTrackerFromCamera() {
   }
 }
 
+// Fancy Home für Customer-Rolle — keine Bestandsliste, nur Foto-Suche und „Letzte Anfragen"
+function renderCustomerHome() {
+  const u = APP_KEYS.user || {};
+  const first = u.firstName || (u.name || '').split(' ')[0] || '';
+  const recents = (state.itemList || []).map(id => (inventory || []).find(it => it.id === id)).filter(Boolean).slice(0, 4);
+  return `
+<div class="screen customer-home">
+  <div class="header">
+    <div class="header__slot"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${svg('package', 14, 2.4)}
+      <span style="font-size:13px;font-weight:600;letter-spacing:-.005em">Stockmanager</span>
+    </div>
+    <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
+  </div>
+
+  <div class="scroll" style="padding-bottom:24px">
+    <!-- Hero-Begrüßung -->
+    <div class="customer-hero">
+      <div class="customer-hero__sparkle">${svg('sparkles', 14, 2.5)}</div>
+      <div style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,.8);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Hallo${first ? ', ' + first.replace(/</g, '&lt;') : ''}</div>
+      <h1 class="customer-hero__title">Welches Ersatzteil<br>suchst du?</h1>
+      <p class="customer-hero__sub">Mach ein Foto vom Typenschild — wir finden den passenden Artikel in unserem Lager.</p>
+    </div>
+
+    <!-- Foto-Suche-Kachel — dominant -->
+    <button class="customer-action customer-action--primary" data-action="go-photo-search">
+      <div class="customer-action__icon">${svg('camera', 26, 2.2)}</div>
+      <div style="flex:1;min-width:0">
+        <h3 class="customer-action__title">Typenschild scannen</h3>
+        <p class="customer-action__sub">KI liest Hersteller, Modell und Code automatisch aus.</p>
+      </div>
+      <span style="color:rgba(255,255,255,.8);display:flex">${svg('arrow-right', 18, 2.4)}</span>
+    </button>
+
+    <!-- Sekundär: manuelle Suche per Modell-Eingabe -->
+    <div style="margin-bottom:6px">
+      <div class="search-input" style="position:relative">
+        <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
+        <input type="text" placeholder="Modellname / Hersteller eintippen ..." data-action="customer-search-input" value="${(state.customerSearch || '').replace(/"/g, '&quot;')}" autocomplete="off" inputmode="search">
+      </div>
+      ${(() => {
+        const q = (state.customerSearch || '').trim();
+        if (q.length < 2) return '';
+        const matches = (inventory || []).filter(it => {
+          if (it.sold) return false;
+          const hay = `${it.title} ${it.maker} ${it.id} ${it.cat || ''}`;
+          return searchMatch(q, hay);
+        }).slice(0, 8);
+        if (matches.length === 0) return `<div style="margin-top:10px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12px;color:var(--c-ink-mute)">Keine Treffer. Versuch's mit dem Typenschild-Foto oben.</div>`;
+        return `<div class="item-list" style="margin-top:12px">${matches.map(it => itemCard(it)).join('')}</div>`;
+      })()}
+    </div>
+
+    ${recents.length > 0 ? `
+      <div style="margin-top:24px">
+        <div class="section-head"><h2 class="section-head__title">${svg('bookmark', 12, 2.5)} Gemerkt</h2></div>
+        <div class="item-list">
+          ${recents.map(it => itemCard(it)).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Anleitung -->
+    <div style="margin-top:24px">
+      <div class="section-head"><h2 class="section-head__title">${svg('sparkles', 12, 2.5)} So geht's</h2></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${[
+          ['1', 'camera', 'Foto machen', 'Typenschild deines Antriebs oder Bauteils klar abfotografieren.'],
+          ['2', 'scan-text', 'Wir scannen', 'Unsere KI liest Hersteller, Modell und Daten aus dem Foto.'],
+          ['3', 'boxes', 'Treffer prüfen', 'Du siehst was wir lagernd haben mit Foto und Details.'],
+          ['4', 'message-circle', 'Anfrage stellen', 'Mit einem Tap eine Email mit allen Daten an uns senden.'],
+        ].map(([n, icon, title, sub]) => `
+          <div class="customer-step">
+            <div class="customer-step__num">${n}</div>
+            <div class="customer-step__icon">${svg(icon, 16, 2.4)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="customer-step__title">${title}</div>
+              <div class="customer-step__sub">${sub}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Kontakt-Fallback -->
+    <div style="margin-top:24px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);text-align:center">
+      <div style="font-size:13px;font-weight:600;color:var(--c-ink)">Klappt's mit dem Foto nicht?</div>
+      <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px;line-height:1.5">Schreib uns direkt — wir melden uns schnell zurück.</div>
+      <a href="mailto:service@flp-shop.com?subject=Anfrage%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:10px 16px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
+    </div>
+  </div>
+</div>`;
+}
+
 function renderHome() {
+  // Kunden bekommen einen komplett anderen Home-Screen — Foto-Suche dominant, kein Bestand-Browse
+  if (isCustomer()) return renderCustomerHome();
   const q = (state.query || '').trim();
   const condF = state.homeFilterCond || 'all';
   const funcF = state.homeFilterFunc || 'all';
@@ -5437,15 +5607,83 @@ function renderDetail() {
     </div><!-- /detail-grid__right -->
     </div><!-- /detail-grid -->
   </div>
-  <div class="action-bar" style="grid-template-columns:${(isAdmin() && (!it.sold || isPendingReturn(it))) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
-    <button class="action-bar__btn" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
-    ${(isAdmin() && !it.sold) ? `
-      <button class="action-bar__btn action-bar__btn--primary" data-action="open-sale-sheet" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 2.7)} Verkauf eintragen</button>
-    ` : ''}
-    ${(isAdmin() && isPendingReturn(it)) ? `
-      <button class="action-bar__btn action-bar__btn--primary" data-action="open-return-sheet" style="padding:14px;background:#FB923C;border-color:#FB923C;color:#fff">${svg('rotate-ccw', 14, 2.7)} Rücksendung erhalten</button>
-    ` : ''}
-  </div>
+  ${isCustomer() ? `
+    <div class="action-bar" style="grid-template-columns:1fr;padding:6px;gap:6px">
+      <button class="action-bar__btn action-bar__btn--primary" data-action="open-inquiry-sheet" data-id="${it.id}" style="padding:16px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;box-shadow:var(--elev-blue);font-size:14.5px">
+        ${svg('message-circle', 15, 2.5)} Anfrage stellen
+      </button>
+    </div>
+  ` : `
+    <div class="action-bar" style="grid-template-columns:${(isAdmin() && (!it.sold || isPendingReturn(it))) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
+      <button class="action-bar__btn" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
+      ${(isAdmin() && !it.sold) ? `
+        <button class="action-bar__btn action-bar__btn--primary" data-action="open-sale-sheet" style="padding:14px;background:#0A6B2C;border-color:#0A6B2C">${svg('check', 14, 2.7)} Verkauf eintragen</button>
+      ` : ''}
+      ${(isAdmin() && isPendingReturn(it)) ? `
+        <button class="action-bar__btn action-bar__btn--primary" data-action="open-return-sheet" style="padding:14px;background:#FB923C;border-color:#FB923C;color:#fff">${svg('rotate-ccw', 14, 2.7)} Rücksendung erhalten</button>
+      ` : ''}
+    </div>
+  `}
+
+  ${state.quickEdit === 'inquiry' ? (() => {
+    const u = APP_KEYS.user || {};
+    const customerName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || '';
+    const subj = `Anfrage zu Artikel #${it.id} — ${it.title}`;
+    const bodyParts = [
+      `Hallo FLP-Team,`,
+      ``,
+      `ich interessiere mich für folgenden Artikel aus Ihrem Lagerbestand:`,
+      ``,
+      `Artikel:  ${it.title}`,
+      it.maker ? `Hersteller: ${it.maker}` : '',
+      it.cat ? `Kategorie: ${it.cat}` : '',
+      `Artikel-Nr.: #${it.id}`,
+      it.tracker ? `Tracker: ${it.tracker}` : '',
+      ``,
+      `Bitte teilen Sie mir mit:`,
+      `· Verfügbarkeit / aktueller Status`,
+      `· Preis und Lieferzeit`,
+      `· Mögliche Versandoptionen`,
+      ``,
+      `Mit freundlichen Grüßen,`,
+      customerName,
+      u.companyName ? u.companyName : '',
+      u.email ? u.email : '',
+      u.phone ? u.phone : '',
+    ].filter(Boolean);
+    const body = bodyParts.join('\n');
+    const mailto = `mailto:service@flp-shop.com?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+    return `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Anfrage stellen</div>
+      <div style="padding:4px 16px 0;font-size:12.5px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Wir haben den Anfragetext für dich vorbereitet — entweder in deinem Email-Programm öffnen oder kopieren.</div>
+      <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+        <!-- Artikel-Zusammenfassung -->
+        <div style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;gap:12px;align-items:center">
+          <div style="flex-shrink:0;width:56px;height:56px;border-radius:var(--r-md);background:#0F1830;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute)">
+            ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 24, 2.2)}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--f-mono);font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em">#${it.id}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--c-ink);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.title}</div>
+            <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:2px">${it.maker || '—'} · ${it.cat || '—'}</div>
+          </div>
+        </div>
+        <!-- Vorschau Anfragetext -->
+        <div>
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Anfragetext-Vorschau</div>
+          <textarea readonly id="inquiryText" style="width:100%;min-height:200px;padding:12px 14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);font-family:var(--f-display);font-size:12.5px;line-height:1.5;color:var(--c-ink-soft);resize:vertical">${body.replace(/</g, '&lt;')}</textarea>
+        </div>
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0">
+        <button data-action="copy-text" data-text="${body.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')}" class="action-bar__btn" style="padding:14px;background:var(--c-surface);border:1px solid var(--c-border);color:var(--c-ink)">${svg('copy', 14, 2.5)} Text kopieren</button>
+        <a href="${mailto}" class="action-bar__btn action-bar__btn--primary" style="padding:14px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:600">${svg('message-circle', 14, 2.5)} Email öffnen</a>
+      </div>
+    </div>
+    `;
+  })() : ''}
 
   ${state.quickEdit === 'sale' ? (() => {
     const d = state.saleDraft || { saleType: 'sale', orderNumber: '', vp: it.vp != null ? String(it.vp).replace('.', ',') : '' };
@@ -7689,6 +7927,98 @@ function renderBoot(label) {
 </div>`;
 }
 
+// Öffentliche Selbst-Registrierung für Kunden (vor Login erreichbar)
+function renderRegister() {
+  const d = state.registerDraft || { firstName: '', lastName: '', email: '', phone: '', company: '' };
+  const errors = state.registerErrors || {};
+  const pending = !!state.registerPending;
+  const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim());
+  return `
+<div class="login-screen">
+  <div class="login-card" style="max-width:520px;text-align:left;padding:32px 28px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <button class="icon-btn" data-action="go-login" title="Zurück zum Login">${svg('arrow-left', 16, 2.4)}</button>
+      <div style="flex:1">
+        <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0">Als Kunde anmelden</h1>
+        <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:4px 0 0;line-height:1.4">Trag deine Daten ein — wir schicken dir den persönlichen Zugangs-Code zu.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field">
+          <label class="field__label">Vorname *</label>
+          <input class="field__input" data-action="register-input" data-key="firstName" value="${(d.firstName || '').replace(/"/g, '&quot;')}" placeholder="Max" autocomplete="given-name" ${pending ? 'disabled' : ''}>
+        </div>
+        <div class="field">
+          <label class="field__label">Nachname *</label>
+          <input class="field__input" data-action="register-input" data-key="lastName" value="${(d.lastName || '').replace(/"/g, '&quot;')}" placeholder="Mustermann" autocomplete="family-name" ${pending ? 'disabled' : ''}>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label">Email *</label>
+        <input class="field__input" data-action="register-input" data-key="email" value="${(d.email || '').replace(/"/g, '&quot;')}" placeholder="max@firma.de" type="email" inputmode="email" autocomplete="email" ${pending ? 'disabled' : ''} style="${errors.email ? 'border-color:var(--c-red)' : ''}">
+        ${errors.email ? `<div style="font-size:11px;color:var(--c-red);margin-top:5px">${errors.email}</div>` : ''}
+      </div>
+      <div class="field">
+        <label class="field__label">Handynummer</label>
+        <input class="field__input" data-action="register-input" data-key="phone" value="${(d.phone || '').replace(/"/g, '&quot;')}" placeholder="+49 170 1234567" type="tel" inputmode="tel" autocomplete="tel" ${pending ? 'disabled' : ''}>
+      </div>
+      <div class="field">
+        <label class="field__label">Firma</label>
+        <input class="field__input" data-action="register-input" data-key="company" value="${(d.company || '').replace(/"/g, '&quot;')}" placeholder="Aufzug-Service GmbH" autocomplete="organization" ${pending ? 'disabled' : ''}>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;padding:12px 14px;background:var(--c-blue-soft);border-radius:var(--r-md);font-size:12px;color:var(--c-blue-deep);display:flex;align-items:flex-start;gap:10px">
+      <span style="flex-shrink:0;margin-top:2px">${svg('sparkles', 13, 2.5)}</span>
+      <span>Nach der Registrierung bekommst du sofort einen persönlichen Zugangs-Code angezeigt. Damit kannst du Artikel per Foto suchen und Anfragen stellen.</span>
+    </div>
+
+    ${state.registerError ? `<div class="login-error" style="margin-top:14px">${svg('alert-triangle', 13, 2.5)}<span>${state.registerError}</span></div>` : ''}
+
+    <button data-action="register-submit" class="login-btn" style="margin-top:18px;width:100%;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);${(!valid || pending) ? 'opacity:.55;cursor:not-allowed' : ''}" ${pending ? 'disabled' : ''}>
+      ${pending ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lege Zugang an …' : svg('arrow-right', 14, 2.5) + ' Zugang anlegen'}
+    </button>
+
+    <div style="margin-top:14px;font-size:11px;color:var(--c-ink-mute);text-align:center">Schon einen Code? <button data-action="go-login" style="color:var(--c-blue);font-weight:600">Hier einloggen</button></div>
+  </div>
+</div>`;
+}
+
+// Erfolgsscreen direkt nach der Registrierung — zeigt den Zugangs-Code groß an
+function renderRegisterSuccess() {
+  const u = state.registerCreatedUser;
+  if (!u) return renderLogin();
+  return `
+<div class="login-screen">
+  <div class="login-card" style="max-width:540px;padding:36px 28px;text-align:center">
+    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 12px 32px rgba(16,185,129,.35)">
+      ${svg('check', 32, 3)}
+    </div>
+    <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0">Willkommen, ${(u.firstName || '').replace(/</g, '&lt;')}!</h1>
+    <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:8px 0 22px;line-height:1.4">Dein persönlicher Zugangs-Code ist bereit. Wir haben ihn zusätzlich an <strong style="color:var(--c-ink)">${(u.email || '').replace(/</g, '&lt;')}</strong> versendet (sobald die E-Mail-Anbindung steht).</p>
+
+    <div style="background:linear-gradient(135deg,#EBF1FE 0%,#C5D4F2 100%);border:2px dashed var(--c-blue);border-radius:18px;padding:22px 16px;margin-bottom:18px">
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-blue-deep);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Dein Zugangs-Code</div>
+      <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:var(--c-blue-deep);letter-spacing:.05em;word-break:break-all;line-height:1.4">${(u.apiKey || '').replace(/</g, '&lt;')}</div>
+      <button data-action="copy-text" data-text="${(u.apiKey || '').replace(/"/g, '&quot;')}" style="margin-top:14px;padding:10px 16px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;box-shadow:var(--elev-blue)">
+        ${svg('copy', 13, 2.5)} Code kopieren
+      </button>
+    </div>
+
+    <div style="padding:12px 14px;background:var(--c-amber-soft);border-radius:var(--r-md);font-size:11.5px;color:#7C4A06;display:flex;align-items:flex-start;gap:10px;text-align:left;margin-bottom:18px">
+      <span style="flex-shrink:0;margin-top:2px">${svg('alert-triangle', 13, 2.4)}</span>
+      <span>Speichere den Code sicher ab. Du brauchst ihn jedes Mal zum Einloggen — wir können ihn nicht wiederherstellen.</span>
+    </div>
+
+    <button data-action="register-continue" class="login-btn" style="width:100%;background:linear-gradient(135deg,#10B981 0%,#059669 100%)">
+      ${svg('log-in', 14, 2.5)} Jetzt anmelden &amp; starten
+    </button>
+  </div>
+</div>`;
+}
+
 function renderLogin() {
   const err = state.loginError;
   const pending = state.loginPending;
@@ -7706,6 +8036,12 @@ function renderLogin() {
       </button>
     </form>
     ${err ? `<div class="login-error">${svg('alert-triangle', 13, 2.5)}<span>${err}</span></div>` : ''}
+    <div style="margin-top:18px;padding-top:18px;border-top:1px solid var(--c-divider)">
+      <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-bottom:8px">Noch keinen Zugang?</div>
+      <button data-action="go-register" style="width:100%;padding:11px 14px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;border-radius:14px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:var(--elev-blue)">
+        ${svg('sparkles', 13, 2.5)} Als Kunde registrieren
+      </button>
+    </div>
     <div class="login-foot">${APP_CONFIG.PROJECT_NAME} \u00b7 ${APP_VERSION}</div>
   </div>
 </div>`;
@@ -7730,6 +8066,9 @@ function updateUserBar() {
   const u = APP_KEYS.user;
   const name = u.name || 'User';
   const admin = isAdmin();
+  const customer = isCustomer();
+  const roleLabel = admin ? 'Admin' : (customer ? 'Kunde' : 'User');
+  const roleClass = admin ? 'user-bar__role--admin' : (customer ? 'user-bar__role--customer' : '');
   bar.classList.add('user-bar--shown');
   document.body.classList.add('has-user-bar');
   const reloading = !!state.reloadingAll;
@@ -7738,7 +8077,7 @@ function updateUserBar() {
     <div class="user-bar__user">
       ${svg('user', 11, 2.4)}
       <span class="user-bar__name">${String(name).replace(/</g, '&lt;')}</span>
-      <span class="user-bar__role ${admin ? 'user-bar__role--admin' : ''}">${admin ? 'Admin' : 'User'}</span>
+      <span class="user-bar__role ${roleClass}">${roleLabel}</span>
     </div>
     <button class="user-bar__reload" data-action="toggle-device-mode" title="${tablet ? 'Auf Mobil-Modus umschalten' : 'Auf iPad-Modus umschalten (kein Anlegen)'}">
       ${svg(tablet ? 'tablet' : 'smartphone', 11, 2.4)}
@@ -7758,10 +8097,25 @@ function render() {
   document.body.classList.toggle('mode-tablet', isTabletMode());
   document.body.classList.toggle('mode-phone', !isTabletMode());
 
-  // Auth-Gate: vor erfolgreichem Login werden ausschlie\u00dflich Boot/Login angezeigt
+  // Auth-Gate: vor erfolgreichem Login werden ausschlie\u00dflich Boot/Login/Register angezeigt
   if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
-  if (!state.loggedIn)  { app.innerHTML = renderLogin(); return; }
+  if (!state.loggedIn) {
+    // Public-Screens vor Login: register-flow f\u00fcr neue Kunden
+    if (state.view === 'register') { app.innerHTML = renderRegister(); return; }
+    if (state.view === 'registerSuccess') { app.innerHTML = renderRegisterSuccess(); return; }
+    app.innerHTML = renderLogin();
+    return;
+  }
   if (state.bootingData) { app.innerHTML = renderBoot('Daten werden geladen \u2026'); return; }
+
+  // Customer-Schutz: gesperrte Views auf customerHome (= renderHome\u2192renderCustomerHome) umleiten.
+  // Erlaubt f\u00fcr Customer: home, photoSearch, aiAnalyze, photoResults, detail, results, listen
+  if (isCustomer()) {
+    const allowed = new Set(['home','photoSearch','aiAnalyze','photoResults','detail','results','listen','camera','cropper']);
+    if (state.view && !allowed.has(state.view)) {
+      state.view = 'home';
+    }
+  }
 
   // Save scroll positions of scrollable containers (.scroll = main screen scroll area, .js-scroll = inner sheet scroll)
   const savedScrolls = {};
@@ -8280,6 +8634,110 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'reload-all-data': reloadAllData(); break;
+
+    /* ===== Kunden-Selbstregistrierung (öffentlich, vor Login) ===== */
+    case 'go-register': {
+      state.view = 'register';
+      state.registerDraft = state.registerDraft || { firstName: '', lastName: '', email: '', phone: '', company: '' };
+      state.registerError = '';
+      state.registerErrors = {};
+      render();
+      break;
+    }
+    case 'go-login': {
+      state.view = 'home'; // Default-View nach Login; renderLogin wird gezeigt weil nicht eingeloggt
+      state.registerError = '';
+      render();
+      break;
+    }
+    case 'register-submit': {
+      const d = state.registerDraft || {};
+      const errors = {};
+      const fn = (d.firstName || '').trim();
+      const ln = (d.lastName || '').trim();
+      const em = (d.email || '').trim();
+      if (!fn) errors.firstName = 'Vorname fehlt';
+      if (!ln) errors.lastName = 'Nachname fehlt';
+      if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errors.email = 'Bitte gültige Email-Adresse';
+      if (Object.keys(errors).length) {
+        state.registerErrors = errors;
+        state.registerError = 'Bitte alle Pflichtfelder ausfüllen';
+        render();
+        break;
+      }
+      state.registerPending = true;
+      state.registerError = '';
+      state.registerErrors = {};
+      render();
+      (async () => {
+        try {
+          // Existierende User mit gleicher Email prüfen (rate-limit + dup-Schutz)
+          let existing = [];
+          try {
+            const recs = await airRead(TBL_USERS);
+            existing = recs.map(recordToUser);
+          } catch(e) {}
+          const emailLower = em.toLowerCase();
+          if (existing.some(u => (u.email || '').toLowerCase() === emailLower)) {
+            state.registerPending = false;
+            state.registerError = 'Diese Email-Adresse ist schon registriert. Bitte mit dem bestehenden Code einloggen.';
+            render();
+            return;
+          }
+          // tenant_key vom ersten Admin übernehmen damit der Kunde auf dieselben Daten zugreift
+          const adminTenant = existing.find(u => u.role === 'admin' && u.tenantKey)?.tenantKey || '';
+          const apiKey = generateApiKey();
+          const newUser = {
+            name: `${fn} ${ln}`.trim(),
+            firstName: fn,
+            lastName: ln,
+            email: em,
+            phone: (d.phone || '').trim(),
+            companyName: (d.company || '').trim(),
+            role: 'customer',
+            status: 'aktiv',
+            apiKey,
+            tenantKey: adminTenant,
+            created: nowIso(),
+          };
+          const rec = await persistUser(newUser);
+          newUser._recordId = rec?.id || '';
+          state.registerCreatedUser = newUser;
+          state.registerPending = false;
+          state.view = 'registerSuccess';
+          render();
+        } catch (e) {
+          state.registerPending = false;
+          state.registerError = 'Anlegen fehlgeschlagen: ' + (e?.message || 'unbekannter Fehler');
+          render();
+        }
+      })();
+      break;
+    }
+    case 'register-continue': {
+      // Vom Success-Screen direkt einloggen mit dem frisch erzeugten Code
+      const u = state.registerCreatedUser;
+      const apiKey = u?.apiKey || '';
+      state.registerCreatedUser = null;
+      state.registerDraft = null;
+      if (!apiKey) { state.view = 'home'; render(); break; }
+      state.loginInput = apiKey;
+      state.view = 'home';
+      // Auto-Login mit dem persistierten Code
+      (async () => {
+        try {
+          await loginWithUserKey(apiKey);
+          state.loggedIn = true;
+          render();
+          await bootData();
+        } catch(e) {
+          showToast('Auto-Login fehlgeschlagen — bitte Code manuell eintragen', 'error', 3000);
+          render();
+        }
+      })();
+      render();
+      break;
+    }
     case 'toggle-device-mode': {
       const next = isTabletMode() ? 'phone' : 'tablet';
       setDeviceMode(next);
@@ -8846,6 +9304,24 @@ document.addEventListener('click', (e) => {
     case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
     case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; state.returnDraft = null; render(); break;
 
+    /* Customer-Anfrage-Sheet — öffnet vorausgefüllten Email-Text */
+    case 'open-inquiry-sheet': {
+      if (!state.item) break;
+      state.quickEdit = 'inquiry';
+      render();
+      break;
+    }
+    /* Customer-Manuell-Suche — geht zum Home und fokussiert das Search-Input */
+    case 'go-manual-search': {
+      state.query = '';
+      go('home');
+      setTimeout(() => {
+        const inp = document.querySelector('[data-action="manual-search-input"], [data-action="query-input"]');
+        if (inp) inp.focus();
+      }, 80);
+      break;
+    }
+
     /* Service-Tausch / Verkauf eintragen aus Detail-Screen (Iteration 1) */
     case 'open-sale-sheet': {
       if (!isAdmin()) { showToast('Nur Admins dürfen Verkäufe eintragen', 'info', 2400); break; }
@@ -9388,6 +9864,19 @@ document.addEventListener('input', (e) => {
   else if (a === 'wiz-desc-text') state.voiceTranscript = t.value;
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'owner-add-input') state.ownerAddDraft = t.value;
+  else if (a === 'customer-search-input') {
+    state.customerSearch = t.value;
+    if (state.view === 'home' && isCustomer()) render();
+  }
+  else if (a === 'register-input') {
+    if (!state.registerDraft) state.registerDraft = { firstName:'', lastName:'', email:'', phone:'', company:'' };
+    state.registerDraft[t.dataset.key] = t.value;
+    // Live-Button-State updaten ohne kompletten Re-Render (Fokus halten)
+    const d = state.registerDraft;
+    const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim());
+    const btn = document.querySelector('[data-action="register-submit"]');
+    if (btn) btn.style.opacity = valid ? '1' : '.55';
+  }
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
   else if (a === 'sale-order-input') { if (state.saleDraft) state.saleDraft.orderNumber = t.value; }
