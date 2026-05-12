@@ -1,6 +1,6 @@
 {
-  "name": "Stockmanager",
-  "short_name": "Stockmanager",
+  "name": "FLP Stockmanager",
+  "short_name": "FLP Stockmanager",
   "description": "Lager- und Bestandsverwaltung für FLP Lift Parts GmbH",
   "start_url": "./",
   "scope": "./",
