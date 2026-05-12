@@ -65,7 +65,7 @@ svg{display:inline-block;vertical-align:middle;flex-shrink:0}
   .header{padding-top:14px;padding-left:calc(28px + env(safe-area-inset-left));padding-right:calc(28px + env(safe-area-inset-right));max-width:1096px;width:100%;margin:0 auto}
   .scroll{padding-left:max(28px, calc((100vw - 1040px) / 2 + env(safe-area-inset-left)));padding-right:max(28px, calc((100vw - 1040px) / 2 + env(safe-area-inset-right)));padding-bottom:24px}
   .bottom-bar,.action-bar{max-width:1040px;margin:8px auto calc(14px + env(safe-area-inset-bottom));width:calc(100% - 56px)}
-  .toast-stack{top:calc(16px + env(safe-area-inset-top));left:50%;right:auto;transform:translateX(-50%);width:min(560px, calc(100% - 32px))}
+  .toast-stack{top:calc(16px + env(safe-area-inset-top)) !important;left:50% !important;right:auto !important;transform:translateX(-50%) !important;width:min(560px, calc(100% - 32px)) !important}
   .user-bar{padding:7px 18px;font-size:11px;padding-top:max(7px, env(safe-area-inset-top));padding-left:max(18px, env(safe-area-inset-left));padding-right:max(18px, env(safe-area-inset-right))}
   .user-bar__user{justify-content:center}
   .user-bar__name{flex:0 1 auto}
@@ -799,7 +799,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.44';
+const APP_VERSION = 'v1.45';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
