@@ -902,7 +902,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.48';
+const APP_VERSION = 'v1.49';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3571,7 +3571,7 @@ const itemCard = (it, opts = {}) => {
   return `
 <button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${owner ? 'border-left:3px solid #FB923C' : ''}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-    ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
+    ${it.photoUrl ? `<img src="${photoSrc(it, 'large')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
     <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
     ${it.sold ? `<span class="sold-stamp">Verkauft</span>` : ''}
   </div>
@@ -5095,7 +5095,7 @@ function renderCustomerHomeMain() {
         <div class="browse-grid">
           ${browseSample.map(it => `
             <button data-action="select-item" data-id="${it.id}" class="browse-card">
-              <div class="browse-card__photo" style="${it.photoUrl ? `background-image:url('${photoSrc(it, 'small')}')` : ''}">
+              <div class="browse-card__photo" style="${it.photoUrl ? `background-image:url('${photoSrc(it, 'large')}')` : ''}">
                 ${!it.photoUrl ? `<div style="color:rgba(255,255,255,.6);display:flex">${svg('package', 28, 2)}</div>` : ''}
               </div>
               <div class="browse-card__body">
@@ -6097,7 +6097,7 @@ function renderDetail() {
         <!-- Artikel-Zusammenfassung -->
         <div style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;gap:12px;align-items:center">
           <div style="flex-shrink:0;width:56px;height:56px;border-radius:var(--r-md);background:#0F1830;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--c-ink-mute)">
-            ${it.photoUrl ? `<img src="${photoSrc(it, 'small')}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 24, 2.2)}
+            ${it.photoUrl ? `<img src="${photoSrc(it, 'large')}" alt="" style="width:100%;height:100%;object-fit:cover">` : svg('package', 24, 2.2)}
           </div>
           <div style="flex:1;min-width:0">
             <div style="font-family:var(--f-mono);font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em">#${it.id}</div>
