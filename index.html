@@ -798,7 +798,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.41';
+const APP_VERSION = 'v1.42';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -8671,12 +8671,35 @@ document.addEventListener('click', (e) => {
       render();
       (async () => {
         try {
-          // Existierende User mit gleicher Email prüfen (rate-limit + dup-Schutz)
+          // Schritt 1: Public-Read-Token nutzen um den Customer-Register-Schreibtoken zu holen
+          // (separater Key, der nur User-Anlegen darf — kein voller Write-Zugang vor Login)
+          const readHeaders = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+          const registerKeyRes = await fetch(
+            'https://api.airtable.com/v0/' + APP_CONFIG.MASTER_BASE_ID + '/Keys?filterByFormula=' + encodeURIComponent(`AND({project_id}='${APP_CONFIG.PROJECT_ID}',{key_name}='customerRegisterKey')`),
+            { headers: readHeaders }
+          );
+          let registerKey = '';
+          if (registerKeyRes.ok) {
+            const data = await registerKeyRes.json();
+            registerKey = data.records?.[0]?.fields?.key_value || '';
+          }
+          if (!registerKey) {
+            state.registerPending = false;
+            state.registerError = 'Registrierung aktuell nicht eingerichtet. Bitte FLP-Team kontaktieren: service@flp-shop.com';
+            render();
+            return;
+          }
+
+          // Schritt 2: Existierende User prüfen — öffentlich lesbar
+          const userListRes = await fetch(
+            'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User',
+            { headers: readHeaders }
+          );
           let existing = [];
-          try {
-            const recs = await airRead(TBL_USERS);
-            existing = recs.map(recordToUser);
-          } catch(e) {}
+          if (userListRes.ok) {
+            const ulData = await userListRes.json();
+            existing = (ulData.records || []).map(recordToUser);
+          }
           const emailLower = em.toLowerCase();
           if (existing.some(u => (u.email || '').toLowerCase() === emailLower)) {
             state.registerPending = false;
@@ -8684,10 +8707,44 @@ document.addEventListener('click', (e) => {
             render();
             return;
           }
-          // tenant_key vom ersten Admin übernehmen damit der Kunde auf dieselben Daten zugreift
+
+          // Schritt 3: tenant_key vom ersten Admin übernehmen, damit Customer Inventory sieht
           const adminTenant = existing.find(u => u.role === 'admin' && u.tenantKey)?.tenantKey || '';
           const apiKey = generateApiKey();
-          const newUser = {
+          const newUserFields = {
+            name: `${fn} ${ln}`.trim(),
+            first_name: fn,
+            last_name: ln,
+            email: em,
+            role: 'customer',
+            status: 'aktiv',
+            api_key: apiKey,
+            created: nowIso(),
+          };
+          if ((d.phone || '').trim()) newUserFields.phone = (d.phone || '').trim();
+          if ((d.company || '').trim()) newUserFields.company_name = (d.company || '').trim();
+          if (adminTenant) newUserFields.tenant_key = adminTenant;
+
+          // Schritt 4: Mit Customer-Register-Token schreiben
+          const writeRes = await fetch(
+            'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User',
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + registerKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ fields: newUserFields }),
+            }
+          );
+          if (!writeRes.ok) {
+            const errText = await writeRes.text();
+            throw new Error('User konnte nicht angelegt werden (HTTP ' + writeRes.status + ')' + (errText ? ': ' + errText.slice(0, 200) : ''));
+          }
+          const writeData = await writeRes.json();
+
+          state.registerCreatedUser = {
+            _recordId: writeData.id || '',
             name: `${fn} ${ln}`.trim(),
             firstName: fn,
             lastName: ln,
@@ -8698,11 +8755,7 @@ document.addEventListener('click', (e) => {
             status: 'aktiv',
             apiKey,
             tenantKey: adminTenant,
-            created: nowIso(),
           };
-          const rec = await persistUser(newUser);
-          newUser._recordId = rec?.id || '';
-          state.registerCreatedUser = newUser;
           state.registerPending = false;
           state.view = 'registerSuccess';
           render();
