@@ -208,6 +208,109 @@ body.mode-tablet .user-bar__user::after{
   .customer-action__title{font-size:20px}
   .customer-action__sub{font-size:13.5px}
 }
+
+/* ============================================================
+   ONBOARDING (3 Schritte) für neue Customer
+   ============================================================ */
+.onboard-shell{position:relative;display:flex;flex-direction:column;min-height:100%;padding:20px 18px 24px}
+.onboard-progress{display:flex;justify-content:center;gap:8px;margin-bottom:12px}
+.onboard-progress__dot{width:8px;height:8px;border-radius:50%;background:rgba(15,24,48,0.15);transition:all .2s}
+.onboard-progress__dot--active{background:var(--c-blue);width:22px;border-radius:4px}
+.onboard-skip{position:absolute;top:18px;right:18px;font-size:12px;font-weight:600;color:var(--c-ink-mute);padding:6px 10px;border-radius:var(--r-pill)}
+.onboard-skip:active{background:var(--c-surface-alt)}
+.onboard-card{flex:1;background:var(--c-surface);border-radius:24px;box-shadow:0 12px 40px rgba(15,24,48,0.10);padding:28px 22px;text-align:center;margin-top:8px;display:flex;flex-direction:column;align-items:center}
+.onboard-card__icon{width:88px;height:88px;border-radius:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:#fff}
+.onboard-card__icon--blue{background:linear-gradient(135deg,#2456E5 0%,#1D7CAF 100%);box-shadow:0 8px 24px rgba(36,86,229,.35)}
+.onboard-card__icon--green{background:linear-gradient(135deg,#10B981 0%,#0F766E 100%);box-shadow:0 8px 24px rgba(16,185,129,.35)}
+.onboard-card__icon--orange{background:linear-gradient(135deg,#FB923C 0%,#EA580C 100%);box-shadow:0 8px 24px rgba(234,88,12,.35)}
+.onboard-card__title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px}
+.onboard-card__sub{font-size:13.5px;font-weight:500;color:var(--c-ink-mute);line-height:1.5;margin:0 0 18px;max-width:340px}
+.onboard-install{width:100%;max-width:360px;padding:16px 16px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:left;margin-top:6px}
+.onboard-install__title{font-size:11.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.onboard-install__steps{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.onboard-install__steps li{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--c-ink-soft);line-height:1.45}
+.onboard-install__num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--c-blue);color:#fff;font-family:var(--f-mono);font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.onboard-install__more{margin-top:12px;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--c-blue);padding:4px 0}
+.onboard-steps{width:100%;display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.onboard-step{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:left}
+.onboard-step__icon{flex-shrink:0;width:42px;height:42px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center}
+.onboard-step__title{font-size:14px;font-weight:600;color:var(--c-ink);letter-spacing:-.005em}
+.onboard-step__sub{font-size:11.5px;color:var(--c-ink-mute);margin-top:3px;line-height:1.4}
+.onboard-lager-grid{width:100%;display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.onboard-lager{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--c-surface);border:2px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);cursor:pointer;transition:transform .12s}
+.onboard-lager:active{transform:scale(.99)}
+.onboard-lager--active{background:var(--c-bg-soft)}
+.onboard-lager__icon{flex-shrink:0;width:48px;height:48px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center}
+.onboard-lager__name{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.onboard-lager__meta{font-family:var(--f-mono);font-size:11px;color:var(--c-ink-mute);margin-top:3px}
+.onboard-actions{display:flex;gap:8px;margin-top:16px}
+.onboard-btn{flex:1;padding:14px 16px;font-size:14px;font-weight:600;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;transition:transform .1s}
+.onboard-btn:active{transform:scale(.98)}
+.onboard-btn--primary{background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;box-shadow:var(--elev-blue);border:0}
+.onboard-btn--ghost{background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);box-shadow:var(--elev-1);flex:0 1 auto;min-width:110px}
+
+@media (min-width:768px){
+  .onboard-shell{padding:28px 24px;max-width:560px;margin:0 auto}
+  .onboard-card{padding:36px 28px}
+  .onboard-card__title{font-size:30px}
+  .onboard-card__sub{font-size:15px}
+}
+
+/* ============================================================
+   INSTALL-BANNER + LAGER-KARUSSELL + FOTO-CTA + BROWSE-GRID
+   ============================================================ */
+.install-banner{display:flex;align-items:center;gap:10px;padding:11px 12px;margin:0 0 14px;background:linear-gradient(135deg,#EBF1FE 0%,#C5D4F2 100%);border:1px solid rgba(36,86,229,.18);border-radius:14px;color:var(--c-blue-deep)}
+.install-banner__icon{flex-shrink:0;width:34px;height:34px;border-radius:10px;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center}
+.install-banner__title{font-size:13px;font-weight:700;letter-spacing:-.005em}
+.install-banner__sub{font-size:11px;font-weight:500;opacity:.85;margin-top:1px}
+.install-banner__btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:0}
+.install-banner__close{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(15,24,48,0.08);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;cursor:pointer;border:0;margin-left:-4px}
+
+.lager-section{margin-bottom:18px}
+.lager-section__head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;gap:10px}
+.lager-section__label{font-family:var(--f-mono);font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;display:inline-flex;align-items:center;gap:5px;margin-bottom:3px}
+.lager-section__title{font-size:18px;font-weight:700;letter-spacing:-.02em;color:var(--c-ink)}
+.lager-section__count{font-family:var(--f-mono);font-size:11px;font-weight:600;color:var(--c-ink-mute);background:var(--c-surface-alt);padding:3px 10px;border-radius:var(--r-pill);white-space:nowrap}
+.lager-section__meta{font-family:var(--f-mono);font-size:12px;color:var(--c-ink-mute);margin-top:6px}
+.lager-section--single{padding:14px 16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)}
+
+.lager-carousel{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;margin:0 -18px;padding-left:18px;padding-right:18px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.lager-carousel::-webkit-scrollbar{display:none}
+.lager-tile{flex-shrink:0;width:148px;display:flex;flex-direction:column;gap:6px;padding:14px 14px 16px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-1);text-align:left;cursor:pointer;transition:transform .12s;position:relative}
+.lager-tile:active{transform:scale(.97)}
+.lager-tile--active{background:var(--c-bg-soft)}
+.lager-tile__icon{width:42px;height:42px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.lager-tile__name{font-size:14px;font-weight:600;letter-spacing:-.01em;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lager-tile__meta{font-family:var(--f-mono);font-size:10.5px;color:var(--c-ink-mute);margin-top:auto}
+.lager-tile__active-pill{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;color:#fff;font-size:9.5px;font-weight:700;border-radius:var(--r-pill);letter-spacing:.04em;text-transform:uppercase}
+
+.photo-cta{width:100%;background:linear-gradient(135deg,#0F1830 0%,#1740B8 60%,#7C3AED 100%);color:#fff;border-radius:24px;padding:0;text-align:left;cursor:pointer;border:0;box-shadow:0 14px 40px rgba(36,86,229,.32);overflow:hidden;position:relative;transition:transform .12s}
+.photo-cta:active{transform:scale(.985)}
+.photo-cta::before{content:"";position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.18) 0%,rgba(255,255,255,0) 70%);pointer-events:none}
+.photo-cta__inner{display:flex;align-items:center;gap:14px;padding:20px 18px 12px;position:relative;z-index:1}
+.photo-cta__camera{position:relative;flex-shrink:0;width:64px;height:64px;display:flex;align-items:center;justify-content:center}
+.photo-cta__ring{position:absolute;inset:0;border:2px solid rgba(255,255,255,0.25);border-radius:50%;animation:photoRing 2.4s ease-in-out infinite}
+.photo-cta__camera-icon{position:relative;width:52px;height:52px;background:rgba(255,255,255,0.16);backdrop-filter:blur(6px);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff}
+@keyframes photoRing{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.1);opacity:.2}}
+.photo-cta__title{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:0}
+.photo-cta__sub{font-size:12.5px;font-weight:500;color:rgba(255,255,255,.78);margin:5px 0 0;line-height:1.4}
+.photo-cta__arrow{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;color:#fff}
+.photo-cta__hint{padding:10px 18px 14px;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,.7);letter-spacing:.02em;border-top:1px solid rgba(255,255,255,0.12)}
+
+.browse-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:768px){.browse-grid{grid-template-columns:repeat(3,1fr);gap:12px}}
+.browse-card{display:flex;flex-direction:column;background:var(--c-surface);border:1px solid var(--c-border);border-radius:16px;overflow:hidden;cursor:pointer;text-align:left;box-shadow:var(--elev-1);transition:transform .12s;padding:0}
+.browse-card:active{transform:scale(.98)}
+.browse-card__photo{aspect-ratio:5/4;background-color:#0F1830;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center}
+.browse-card__body{padding:10px 12px 12px}
+.browse-card__title{font-size:12.5px;font-weight:600;color:var(--c-ink);letter-spacing:-.005em;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.browse-card__sub{font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;font-weight:500}
+
+.install-help-step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--c-divider)}
+.install-help-step:last-child{border-bottom:0}
+.install-help-step__num{flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--c-blue);color:#fff;font-family:var(--f-mono);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.install-help-step__title{font-size:13.5px;font-weight:600;color:var(--c-ink)}
+.install-help-step__sub{font-size:12px;color:var(--c-ink-soft);line-height:1.5;margin-top:4px;display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap}
 .user-bar__version{opacity:.55;flex-shrink:0;white-space:nowrap}
 .user-bar__reload{flex-shrink:0;width:24px;height:20px;border-radius:6px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,opacity .15s;padding:0}
 .user-bar__reload:active{background:rgba(255,255,255,0.22)}
@@ -799,7 +902,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.46';
+const APP_VERSION = 'v1.47';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1860,6 +1963,9 @@ const ICONS = {
   bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
   tablet: '<rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/>',
   smartphone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  share: '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
 };
 
 function svg(name, size = 16, sw = 2.4) {
@@ -1916,6 +2022,8 @@ const state = {
   catAdding: false, catAddDraft: '', catManageMode: false,
   itemList: [],                              // Persönliche Merkliste — Array mit Item-IDs (item.id, nicht _recordId)
   deviceMode: 'phone',                       // 'phone' | 'tablet' — steuert ob Anlegen-UI sichtbar ist
+  customerOnboardStep: 0,                    // 0 = nicht im Onboarding, 1-3 = aktiver Schritt
+  customerOnboarding: false,                 // aktiv = Customer-Onboarding-Screen anzeigen
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
   cameraShowLive: true,      // true = Live-Cam im Camera-Screen zeigen, false = Preview eines bereits aufgenommenen Fotos
@@ -2284,6 +2392,42 @@ function setDeviceMode(mode) {
   try { localStorage.setItem('flp_device_mode', state.deviceMode); } catch(e) {}
 }
 function isTabletMode() { return state.deviceMode === 'tablet'; }
+
+/* ============================================================
+   PWA-Installation + Onboarding
+   Erkennt Standalone-Modus, mobiles OS und ob der Customer schon
+   das Onboarding gesehen hat.
+   ============================================================ */
+function isStandalone() {
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.matchMedia('(display-mode: fullscreen)').matches
+        || window.navigator.standalone === true;
+  } catch(e) { return false; }
+}
+function detectMobileOS() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua) && !window.MSStream) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  // Moderne iPads melden sich als Mac mit Touch
+  if (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1) return 'ios';
+  return 'desktop';
+}
+function customerOnboardKey() {
+  return 'flp_customer_onboarded_' + (APP_KEYS.user?._recordId || 'anon');
+}
+function isCustomerOnboarded() {
+  try { return localStorage.getItem(customerOnboardKey()) === '1'; } catch(e) { return false; }
+}
+function markCustomerOnboarded() {
+  try { localStorage.setItem(customerOnboardKey(), '1'); } catch(e) {}
+}
+function isInstallBannerDismissed() {
+  try { return localStorage.getItem('flp_install_dismissed') === '1'; } catch(e) { return false; }
+}
+function dismissInstallBanner() {
+  try { localStorage.setItem('flp_install_dismissed', '1'); } catch(e) {}
+}
 function relTime(iso) {
   if (!iso) return '\u2014';
   const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
@@ -4666,56 +4810,267 @@ async function snapTrackerFromCamera() {
   }
 }
 
-// Fancy Home für Customer-Rolle — keine Bestandsliste, nur Foto-Suche und „Letzte Anfragen"
+// =============================================================
+// CUSTOMER-UX: Onboarding + neues Home
+// Beim ersten Login bekommt der Customer ein 3-Schritte-Onboarding,
+// danach das neue Home mit Lager-Karussell und großem Foto-CTA.
+// =============================================================
+
 function renderCustomerHome() {
+  // Onboarding beim ersten Mal (oder explizit getriggert)
+  if (state.customerOnboarding || (!isCustomerOnboarded() && !state.customerOnboardSkipped)) {
+    return renderCustomerOnboarding();
+  }
+  return renderCustomerHomeMain();
+}
+
+function renderCustomerOnboarding() {
+  const step = state.customerOnboardStep || 1;
   const u = APP_KEYS.user || {};
   const first = u.firstName || (u.name || '').split(' ')[0] || '';
-  const recents = (state.itemList || []).map(id => (inventory || []).find(it => it.id === id)).filter(Boolean).slice(0, 4);
+  if (step === 1) return renderOnboardInstall(first);
+  if (step === 2) return renderOnboardExplain(first);
+  return renderOnboardChooseLager(first);
+}
+
+function renderOnboardInstall(first) {
+  const os = detectMobileOS();
+  const standalone = isStandalone();
+  return `
+<div class="screen customer-home">
+  <div class="onboard-shell">
+    <div class="onboard-progress">
+      <span class="onboard-progress__dot onboard-progress__dot--active"></span>
+      <span class="onboard-progress__dot"></span>
+      <span class="onboard-progress__dot"></span>
+    </div>
+    <button data-action="onboard-skip" class="onboard-skip">Überspringen</button>
+
+    <div class="onboard-card">
+      <div class="onboard-card__icon onboard-card__icon--blue">
+        ${standalone ? svg('check', 38, 2.8) : svg('smartphone', 38, 2.4)}
+      </div>
+      <h1 class="onboard-card__title">Hallo${first ? ', ' + first.replace(/</g, '&lt;') : ''} 👋</h1>
+      <p class="onboard-card__sub">${standalone ? 'Stockmanager ist bei dir installiert — perfekt.' : 'Speichere Stockmanager auf deinem Startbildschirm. Dann hast du uns immer mit einem Tap zur Hand.'}</p>
+
+      ${standalone ? '' : `
+        <div class="onboard-install">
+          ${os === 'ios' ? `
+            <div class="onboard-install__title">${svg('share', 14, 2.4)} So geht's auf dem iPhone / iPad</div>
+            <ol class="onboard-install__steps">
+              <li><span class="onboard-install__num">1</span>Tippe unten / oben in Safari auf das <strong>Teilen-Symbol</strong> ${svg('share', 12, 2.4)}</li>
+              <li><span class="onboard-install__num">2</span>Wische nach unten und wähle <strong>„Zum Home-Bildschirm"</strong></li>
+              <li><span class="onboard-install__num">3</span>Tippe oben rechts auf <strong>„Hinzufügen"</strong></li>
+            </ol>
+          ` : os === 'android' ? `
+            <div class="onboard-install__title">${svg('more-vertical', 14, 2.4)} So geht's auf Android</div>
+            <ol class="onboard-install__steps">
+              <li><span class="onboard-install__num">1</span>Tippe in Chrome oben rechts auf die <strong>drei Punkte</strong></li>
+              <li><span class="onboard-install__num">2</span>Wähle <strong>„Zum Startbildschirm hinzufügen"</strong></li>
+              <li><span class="onboard-install__num">3</span>Bestätige mit <strong>„Hinzufügen"</strong></li>
+            </ol>
+          ` : `
+            <div class="onboard-install__title">${svg('smartphone', 14, 2.4)} Auf dem Handy installieren</div>
+            <p style="font-size:12.5px;color:var(--c-ink-mute);line-height:1.5;margin:0">Öffne diese Seite am besten auf deinem Smartphone in Safari (iPhone) oder Chrome (Android). Dort findest du im Menü die Option „Zum Startbildschirm hinzufügen".</p>
+          `}
+          <button data-action="show-install-help" class="onboard-install__more">
+            ${svg('info', 12, 2.4)} Genaue Anleitung mit Bildern
+          </button>
+        </div>
+      `}
+    </div>
+
+    <div class="onboard-actions">
+      <button data-action="onboard-next" class="onboard-btn onboard-btn--primary">
+        ${standalone ? 'Weiter' : 'Hab ich gemacht'} ${svg('arrow-right', 14, 2.5)}
+      </button>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderOnboardExplain(first) {
+  return `
+<div class="screen customer-home">
+  <div class="onboard-shell">
+    <div class="onboard-progress">
+      <span class="onboard-progress__dot"></span>
+      <span class="onboard-progress__dot onboard-progress__dot--active"></span>
+      <span class="onboard-progress__dot"></span>
+    </div>
+    <button data-action="onboard-skip" class="onboard-skip">Überspringen</button>
+
+    <div class="onboard-card">
+      <div class="onboard-card__icon onboard-card__icon--green">${svg('sparkles', 38, 2.4)}</div>
+      <h1 class="onboard-card__title">So einfach geht's</h1>
+      <p class="onboard-card__sub">Du brauchst nichts zu tippen — ein Foto reicht.</p>
+
+      <div class="onboard-steps">
+        ${[
+          { n: 1, icon: 'camera', title: 'Foto vom Typenschild', sub: 'Halt dein Handy aufs Typenschild oder den Aufkleber des Geräts.', color: '#2456E5' },
+          { n: 2, icon: 'scan-text', title: 'Wir erkennen es', sub: 'Unsere KI liest Hersteller, Modell und Code automatisch aus.', color: '#7C3AED' },
+          { n: 3, icon: 'boxes', title: 'Treffer im Lager', sub: 'Du siehst sofort, ob wir es haben — mit Foto und allen Details.', color: '#0F766E' },
+          { n: 4, icon: 'message-circle', title: 'Anfrage stellen', sub: 'Ein Tap → Email mit allen Daten landet bei uns.', color: '#D97706' },
+        ].map(s => `
+          <div class="onboard-step">
+            <div class="onboard-step__icon" style="background:${s.color}">${svg(s.icon, 18, 2.4)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="onboard-step__title">${s.n}. ${s.title}</div>
+              <div class="onboard-step__sub">${s.sub}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="onboard-actions">
+      <button data-action="onboard-back" class="onboard-btn onboard-btn--ghost">${svg('arrow-left', 14, 2.5)} Zurück</button>
+      <button data-action="onboard-next" class="onboard-btn onboard-btn--primary">Klingt gut ${svg('arrow-right', 14, 2.5)}</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderOnboardChooseLager(first) {
+  const companies = state.companies || [];
+  const activeId = state.activeCompanyId;
+  return `
+<div class="screen customer-home">
+  <div class="onboard-shell">
+    <div class="onboard-progress">
+      <span class="onboard-progress__dot"></span>
+      <span class="onboard-progress__dot"></span>
+      <span class="onboard-progress__dot onboard-progress__dot--active"></span>
+    </div>
+
+    <div class="onboard-card">
+      <div class="onboard-card__icon onboard-card__icon--orange">${svg('boxes', 38, 2.4)}</div>
+      <h1 class="onboard-card__title">Wähle dein Lager</h1>
+      <p class="onboard-card__sub">${companies.length > 1 ? `Wir haben ${companies.length} Lagerorte. Tipp einfach den passenden an — du kannst später jederzeit wechseln.` : 'Hier ist dein Lagerbestand. Los geht's!'}</p>
+
+      <div class="onboard-lager-grid">
+        ${companies.map(c => {
+          const active = c.id === activeId;
+          const itemCount = (c.inventory || []).length;
+          return `
+            <button data-action="onboard-pick-lager" data-id="${c.id}" class="onboard-lager ${active ? 'onboard-lager--active' : ''}" style="${active ? `border-color:${c.color};box-shadow:0 4px 18px ${c.color}33` : ''}">
+              <div class="onboard-lager__icon" style="background:${c.color}">${svg('boxes', 22, 2.2)}</div>
+              <div style="flex:1;min-width:0;text-align:left">
+                <div class="onboard-lager__name">${c.name}</div>
+                <div class="onboard-lager__meta">${itemCount} Artikel · ${c.halls.length} ${c.halls.length === 1 ? 'Lager' : 'Lager'}</div>
+              </div>
+              ${active ? `<div style="width:28px;height:28px;border-radius:50%;background:${c.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('check', 14, 3.5)}</div>` : `<span style="color:var(--c-ink-subtle)">${svg('arrow-right', 16, 2.4)}</span>`}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="onboard-actions">
+      <button data-action="onboard-back" class="onboard-btn onboard-btn--ghost">${svg('arrow-left', 14, 2.5)} Zurück</button>
+      <button data-action="onboard-finish" class="onboard-btn onboard-btn--primary">Loslegen ${svg('sparkles', 14, 2.5)}</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderCustomerHomeMain() {
+  const u = APP_KEYS.user || {};
+  const first = u.firstName || (u.name || '').split(' ')[0] || '';
   const activeCo = state.company || state.companies?.find(c => c.id === state.activeCompanyId) || state.companies?.[0];
-  const coCount = (state.companies || []).length;
+  const companies = state.companies || [];
+  const coCount = companies.length;
+  const standalone = isStandalone();
+  const showInstall = !standalone && !isInstallBannerDismissed();
+  // Stöbern: zufällige Artikel aus aktivem Bestand (nicht verkauft, mit Foto)
+  const browseSample = (() => {
+    const pool = (inventory || []).filter(it => !it.sold && it.photoUrl);
+    if (pool.length === 0) return (inventory || []).filter(it => !it.sold).slice(0, 6);
+    // Stabiler "Random" pro Session: erste 6 nach hash der item.id
+    const sorted = [...pool].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+    return sorted.slice(0, 6);
+  })();
+
   return `
 <div class="screen customer-home">
   <div class="header">
-    <div class="header__slot"></div>
-    ${coCount > 1 ? `
-      <button data-action="open-company-switcher" style="display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-pill);cursor:pointer;max-width:240px">
-        <div style="width:26px;height:26px;border-radius:8px;background:${activeCo?.color || '#2456E5'};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('boxes', 12, 2.4)}</div>
-        <span style="font-size:12.5px;font-weight:600;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${activeCo?.name || 'Firma wählen'}</span>
-        ${svg('chevron-down', 11, 2.5)}
-      </button>
-    ` : `
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:24px;height:24px;border-radius:7px;background:${activeCo?.color || '#2456E5'};color:#fff;display:flex;align-items:center;justify-content:center">${svg('boxes', 11, 2.4)}</div>
-        <span style="font-size:13px;font-weight:600;letter-spacing:-.005em">${activeCo?.name || 'Stockmanager'}</span>
-      </div>
-    `}
     <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${svg('package', 14, 2.4)}
+      <span style="font-size:13px;font-weight:600;letter-spacing:-.005em">Stockmanager</span>
+    </div>
+    <button class="icon-btn" data-action="show-onboard-again" title="Hilfe anzeigen">${svg('info', 16, 2.4)}</button>
   </div>
 
   <div class="scroll" style="padding-bottom:24px">
-    <!-- Hero-Begrüßung -->
-    <div class="customer-hero">
-      <div class="customer-hero__sparkle">${svg('sparkles', 14, 2.5)}</div>
-      <div style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,.8);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Hallo${first ? ', ' + first.replace(/</g, '&lt;') : ''}</div>
-      <h1 class="customer-hero__title">Welches Ersatzteil<br>suchst du?</h1>
-      <p class="customer-hero__sub">${coCount > 1 ? `Du suchst gerade im Bestand von <strong style="color:#fff">${activeCo?.name || ''}</strong>. <button data-action="open-company-switcher" style="color:#fff;text-decoration:underline;font-weight:600">Firma wechseln →</button><br>` : ''}Mach ein Foto vom Typenschild — wir finden den passenden Artikel in unserem Lager.</p>
-    </div>
-
-    <!-- Foto-Suche-Kachel — dominant -->
-    <button class="customer-action customer-action--primary" data-action="go-photo-search">
-      <div class="customer-action__icon">${svg('camera', 26, 2.2)}</div>
-      <div style="flex:1;min-width:0">
-        <h3 class="customer-action__title">Typenschild scannen</h3>
-        <p class="customer-action__sub">KI liest Hersteller, Modell und Code automatisch aus.</p>
+    ${showInstall ? `
+      <div class="install-banner">
+        <div class="install-banner__icon">${svg('smartphone', 18, 2.4)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="install-banner__title">App auf Startbildschirm</div>
+          <div class="install-banner__sub">Damit du uns mit einem Tap erreichst</div>
+        </div>
+        <button data-action="show-install-help" class="install-banner__btn">${svg('arrow-right', 14, 2.4)}</button>
+        <button data-action="dismiss-install" class="install-banner__close" title="Hinweis ausblenden">${svg('x', 12, 2.5)}</button>
       </div>
-      <span style="color:rgba(255,255,255,.8);display:flex">${svg('arrow-right', 18, 2.4)}</span>
+    ` : ''}
+
+    <!-- LAGER-KARUSSELL: prominent, scrollbar, animiert zum Wechseln -->
+    ${coCount > 1 ? `
+      <div class="lager-section">
+        <div class="lager-section__head">
+          <div>
+            <div class="lager-section__label">${svg('boxes', 12, 2.5)} Du bist gerade hier</div>
+            <div class="lager-section__title">${activeCo?.name || '—'}</div>
+          </div>
+          <span class="lager-section__count">${coCount} Lager</span>
+        </div>
+        <div class="lager-carousel">
+          ${companies.map(c => {
+            const active = c.id === state.activeCompanyId;
+            const itemCount = (c.inventory || []).length;
+            return `
+              <button data-action="select-company" data-id="${c.id}" class="lager-tile ${active ? 'lager-tile--active' : ''}" style="${active ? `border-color:${c.color};box-shadow:0 4px 18px ${c.color}33` : ''}">
+                <div class="lager-tile__icon" style="background:${c.color}">${svg('boxes', 22, 2.2)}</div>
+                <div class="lager-tile__name">${c.name}</div>
+                <div class="lager-tile__meta">${itemCount} Artikel</div>
+                ${active ? `<div class="lager-tile__active-pill" style="background:${c.color}">${svg('check', 9, 3.5)} aktiv</div>` : ''}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : `
+      <div class="lager-section lager-section--single">
+        <div class="lager-section__label">${svg('boxes', 12, 2.5)} Lager</div>
+        <div class="lager-section__title">${activeCo?.name || '—'}</div>
+        <div class="lager-section__meta">${(activeCo?.inventory || []).length} Artikel verfügbar</div>
+      </div>
+    `}
+
+    <!-- FOTO-CTA HERO -->
+    <button class="photo-cta" data-action="go-photo-search">
+      <div class="photo-cta__inner">
+        <div class="photo-cta__camera">
+          <div class="photo-cta__ring"></div>
+          <div class="photo-cta__camera-icon">${svg('camera', 36, 2.2)}</div>
+        </div>
+        <div class="photo-cta__text">
+          <h2 class="photo-cta__title">Foto vom Typenschild</h2>
+          <p class="photo-cta__sub">Tipp drauf und wir scannen es für dich.</p>
+        </div>
+        <div class="photo-cta__arrow">${svg('arrow-right', 22, 2.5)}</div>
+      </div>
+      <div class="photo-cta__hint">
+        ${svg('sparkles', 11, 2.5)} <span>KI erkennt Hersteller &amp; Modell automatisch</span>
+      </div>
     </button>
 
-    <!-- Sekundär: manuelle Suche per Modell-Eingabe -->
-    <div style="margin-bottom:6px">
+    <!-- TEXT-SUCHE als Alternative -->
+    <div style="margin-top:14px">
       <div class="search-input" style="position:relative">
         <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
-        <input type="text" placeholder="Modellname / Hersteller eintippen ..." data-action="customer-search-input" value="${(state.customerSearch || '').replace(/"/g, '&quot;')}" autocomplete="off" inputmode="search">
+        <input type="text" placeholder="Oder Modellname tippen ..." data-action="customer-search-input" value="${(state.customerSearch || '').replace(/"/g, '&quot;')}" autocomplete="off" inputmode="search">
       </div>
       ${(() => {
         const q = (state.customerSearch || '').trim();
@@ -4725,50 +5080,118 @@ function renderCustomerHome() {
           const hay = `${it.title} ${it.maker} ${it.id} ${it.cat || ''}`;
           return searchMatch(q, hay);
         }).slice(0, 8);
-        if (matches.length === 0) return `<div style="margin-top:10px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12px;color:var(--c-ink-mute)">Keine Treffer. Versuch's mit dem Typenschild-Foto oben.</div>`;
+        if (matches.length === 0) return `<div style="margin-top:10px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12px;color:var(--c-ink-mute)">Hier nicht gefunden — vielleicht in einem anderen Lager?${coCount > 1 ? ' <button data-action="open-company-switcher" style="color:var(--c-blue);font-weight:600">Lager wechseln</button>' : ''}</div>`;
         return `<div class="item-list" style="margin-top:12px">${matches.map(it => itemCard(it)).join('')}</div>`;
       })()}
     </div>
 
-    ${recents.length > 0 ? `
-      <div style="margin-top:24px">
-        <div class="section-head"><h2 class="section-head__title">${svg('bookmark', 12, 2.5)} Gemerkt</h2></div>
-        <div class="item-list">
-          ${recents.map(it => itemCard(it)).join('')}
+    <!-- STÖBERN -->
+    ${browseSample.length > 0 ? `
+      <div style="margin-top:28px">
+        <div class="section-head" style="margin-bottom:10px">
+          <h2 class="section-head__title">${svg('eye', 13, 2.5)} Stöbern</h2>
+          <span style="font-size:11px;color:var(--c-ink-mute);font-weight:500">Beispiele aus ${activeCo?.name || 'dem Lager'}</span>
+        </div>
+        <div class="browse-grid">
+          ${browseSample.map(it => `
+            <button data-action="select-item" data-id="${it.id}" class="browse-card">
+              <div class="browse-card__photo" style="${it.photoUrl ? `background-image:url('${photoSrc(it, 'small')}')` : ''}">
+                ${!it.photoUrl ? `<div style="color:rgba(255,255,255,.6);display:flex">${svg('package', 28, 2)}</div>` : ''}
+              </div>
+              <div class="browse-card__body">
+                <div class="browse-card__title">${it.title}</div>
+                <div class="browse-card__sub">${it.maker || it.cat || '—'}</div>
+              </div>
+            </button>
+          `).join('')}
         </div>
       </div>
     ` : ''}
 
-    <!-- Anleitung -->
-    <div style="margin-top:24px">
-      <div class="section-head"><h2 class="section-head__title">${svg('sparkles', 12, 2.5)} So geht's</h2></div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        ${[
-          ['1', 'camera', 'Foto machen', 'Typenschild deines Antriebs oder Bauteils klar abfotografieren.'],
-          ['2', 'scan-text', 'Wir scannen', 'Unsere KI liest Hersteller, Modell und Daten aus dem Foto.'],
-          ['3', 'boxes', 'Treffer prüfen', 'Du siehst was wir lagernd haben mit Foto und Details.'],
-          ['4', 'message-circle', 'Anfrage stellen', 'Mit einem Tap eine Email mit allen Daten an uns senden.'],
-        ].map(([n, icon, title, sub]) => `
-          <div class="customer-step">
-            <div class="customer-step__num">${n}</div>
-            <div class="customer-step__icon">${svg(icon, 16, 2.4)}</div>
-            <div style="flex:1;min-width:0">
-              <div class="customer-step__title">${title}</div>
-              <div class="customer-step__sub">${sub}</div>
-            </div>
-          </div>
-        `).join('')}
+    <!-- HILFE -->
+    <div style="margin-top:24px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center">${svg('message-circle', 16, 2.4)}</div>
+        <div>
+          <div style="font-size:13.5px;font-weight:600">Nichts passendes gefunden?</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:2px">Schreib uns direkt — wir melden uns schnell zurück.</div>
+        </div>
       </div>
-    </div>
-
-    <!-- Kontakt-Fallback -->
-    <div style="margin-top:24px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);text-align:center">
-      <div style="font-size:13px;font-weight:600;color:var(--c-ink)">Klappt's mit dem Foto nicht?</div>
-      <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px;line-height:1.5">Schreib uns direkt — wir melden uns schnell zurück.</div>
-      <a href="mailto:service@flp-shop.com?subject=Anfrage%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:10px 16px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
+      <a href="mailto:service@flp-shop.com?subject=Anfrage%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:10px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
     </div>
   </div>
+
+  ${state.installHelpOpen ? renderInstallHelpSheet() : ''}
 </div>`;
+}
+
+function renderInstallHelpSheet() {
+  const os = detectMobileOS();
+  return `
+    <div class="sheet-backdrop" data-action="close-install-help"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">App auf den Startbildschirm</div>
+      <div class="js-scroll" style="padding:12px 18px 18px;overflow-y:auto;flex:1;min-height:0">
+        ${os === 'ios' ? `
+          <p style="font-size:13px;color:var(--c-ink-soft);line-height:1.5;margin:0 0 16px">Auf dem iPhone bzw. iPad geht das in 3 Schritten:</p>
+          <div class="install-help-step">
+            <div class="install-help-step__num">1</div>
+            <div>
+              <div class="install-help-step__title">Teilen-Symbol antippen</div>
+              <div class="install-help-step__sub">Das Quadrat mit dem Pfeil nach oben ${svg('share', 12, 2.4)} — unten in der Safari-Leiste (iPhone) oder oben rechts (iPad).</div>
+            </div>
+          </div>
+          <div class="install-help-step">
+            <div class="install-help-step__num">2</div>
+            <div>
+              <div class="install-help-step__title">„Zum Home-Bildschirm" wählen</div>
+              <div class="install-help-step__sub">Wische in der erscheinenden Liste etwas nach unten — der Eintrag erscheint mit einem Plus-Symbol ⊕.</div>
+            </div>
+          </div>
+          <div class="install-help-step">
+            <div class="install-help-step__num">3</div>
+            <div>
+              <div class="install-help-step__title">„Hinzufügen" bestätigen</div>
+              <div class="install-help-step__sub">Oben rechts — der Stockmanager landet jetzt mit dem Paket-Icon auf deinem Startbildschirm.</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:12px 14px;background:var(--c-amber-soft);border-radius:var(--r-md);font-size:11.5px;color:#7C4A06;line-height:1.5">
+            ${svg('alert-triangle', 12, 2.4)} <strong>Wichtig:</strong> Funktioniert nur in <strong>Safari</strong> — nicht in Chrome auf iOS.
+          </div>
+        ` : os === 'android' ? `
+          <p style="font-size:13px;color:var(--c-ink-soft);line-height:1.5;margin:0 0 16px">In Chrome auf Android geht das so:</p>
+          <div class="install-help-step">
+            <div class="install-help-step__num">1</div>
+            <div>
+              <div class="install-help-step__title">Menü öffnen</div>
+              <div class="install-help-step__sub">Oben rechts in Chrome auf die drei Punkte ⋮ tippen.</div>
+            </div>
+          </div>
+          <div class="install-help-step">
+            <div class="install-help-step__num">2</div>
+            <div>
+              <div class="install-help-step__title">„Zum Startbildschirm hinzufügen"</div>
+              <div class="install-help-step__sub">Bei manchen Geräten heißt es auch „App installieren".</div>
+            </div>
+          </div>
+          <div class="install-help-step">
+            <div class="install-help-step__num">3</div>
+            <div>
+              <div class="install-help-step__title">Bestätigen</div>
+              <div class="install-help-step__sub">„Hinzufügen" antippen — Stockmanager erscheint mit Paket-Icon auf deinem Startbildschirm.</div>
+            </div>
+          </div>
+        ` : `
+          <p style="font-size:13px;color:var(--c-ink-soft);line-height:1.5">Öffne die Seite am besten auf deinem Smartphone in <strong>Safari</strong> (iPhone) oder <strong>Chrome</strong> (Android). Dort findest du im jeweiligen Menü die Option „Zum Startbildschirm hinzufügen".</p>
+          <p style="font-size:12px;color:var(--c-ink-mute);margin-top:12px">Direkter Link zum Teilen:<br><strong style="font-family:var(--f-mono);font-size:11.5px;word-break:break-all">${location.origin + location.pathname}</strong></p>
+        `}
+      </div>
+      <div style="padding:0 16px 12px;flex-shrink:0">
+        <button class="action-bar__btn action-bar__btn--primary" data-action="close-install-help" style="width:100%;padding:14px">${svg('check', 14, 2.5)} Verstanden</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderHome() {
@@ -9371,6 +9794,75 @@ document.addEventListener('click', (e) => {
     case 'quick-func': state.quickEdit = 'func'; render(); break;
     case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
     case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; state.returnDraft = null; render(); break;
+
+    /* ===== Customer-Onboarding (3 Schritte beim ersten Login) ===== */
+    case 'onboard-next': {
+      const step = state.customerOnboardStep || 1;
+      if (step < 3) {
+        state.customerOnboardStep = step + 1;
+        state.customerOnboarding = true;
+      } else {
+        markCustomerOnboarded();
+        state.customerOnboarding = false;
+        state.customerOnboardStep = 0;
+      }
+      render();
+      break;
+    }
+    case 'onboard-back': {
+      const step = state.customerOnboardStep || 1;
+      state.customerOnboardStep = Math.max(1, step - 1);
+      render();
+      break;
+    }
+    case 'onboard-skip': {
+      // Customer überspringt — wir merken uns das aber speichern Onboard nicht als „erledigt"
+      // damit der User es per Info-Button noch mal aufrufen kann
+      markCustomerOnboarded();
+      state.customerOnboarding = false;
+      state.customerOnboardStep = 0;
+      state.customerOnboardSkipped = true;
+      render();
+      break;
+    }
+    case 'onboard-pick-lager': {
+      const id = btn.dataset.id;
+      if (id) state.activeCompanyId = id;
+      render();
+      break;
+    }
+    case 'onboard-finish': {
+      markCustomerOnboarded();
+      state.customerOnboarding = false;
+      state.customerOnboardStep = 0;
+      state.customerOnboardSkipped = true;
+      render();
+      break;
+    }
+    case 'show-onboard-again': {
+      // Vom Info-Button im Customer-Home aufgerufen
+      state.customerOnboarding = true;
+      state.customerOnboardStep = 1;
+      render();
+      break;
+    }
+
+    /* ===== Install-to-Home Hilfe-Sheet ===== */
+    case 'show-install-help': {
+      state.installHelpOpen = true;
+      render();
+      break;
+    }
+    case 'close-install-help': {
+      state.installHelpOpen = false;
+      render();
+      break;
+    }
+    case 'dismiss-install': {
+      dismissInstallBanner();
+      render();
+      break;
+    }
 
     /* Customer-Anfrage-Sheet — öffnet vorausgefüllten Email-Text */
     case 'open-inquiry-sheet': {
