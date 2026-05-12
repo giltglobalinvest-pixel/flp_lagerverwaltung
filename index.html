@@ -902,7 +902,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.47';
+const APP_VERSION = 'v1.48';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4946,7 +4946,7 @@ function renderOnboardChooseLager(first) {
     <div class="onboard-card">
       <div class="onboard-card__icon onboard-card__icon--orange">${svg('boxes', 38, 2.4)}</div>
       <h1 class="onboard-card__title">Wähle dein Lager</h1>
-      <p class="onboard-card__sub">${companies.length > 1 ? `Wir haben ${companies.length} Lagerorte. Tipp einfach den passenden an — du kannst später jederzeit wechseln.` : 'Hier ist dein Lagerbestand. Los geht's!'}</p>
+      <p class="onboard-card__sub">${companies.length > 1 ? `Wir haben ${companies.length} Lagerorte. Tipp einfach den passenden an — du kannst später jederzeit wechseln.` : 'Hier ist dein Lagerbestand. Los geht’s!'}</p>
 
       <div class="onboard-lager-grid">
         ${companies.map(c => {
