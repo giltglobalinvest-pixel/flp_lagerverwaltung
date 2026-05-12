@@ -799,7 +799,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.43';
+const APP_VERSION = 'v1.44';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -7978,7 +7978,7 @@ function renderRegister() {
 
     ${state.registerError ? `<div class="login-error" style="margin-top:14px">${svg('alert-triangle', 13, 2.5)}<span>${state.registerError}</span></div>` : ''}
 
-    <button data-action="register-submit" class="login-btn" style="margin-top:18px;width:100%;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);${(!valid || pending) ? 'opacity:.55;cursor:not-allowed' : ''}" ${pending ? 'disabled' : ''}>
+    <button id="registerSubmitBtn" data-action="register-submit" class="login-btn" style="margin-top:18px;width:100%;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);opacity:${(valid && !pending) ? '1' : '.55'};cursor:${pending ? 'default' : 'pointer'}" ${pending ? 'disabled' : ''}>
       ${pending ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lege Zugang an …' : svg('arrow-right', 14, 2.5) + ' Zugang anlegen'}
     </button>
 
@@ -9927,9 +9927,12 @@ document.addEventListener('input', (e) => {
     state.registerDraft[t.dataset.key] = t.value;
     // Live-Button-State updaten ohne kompletten Re-Render (Fokus halten)
     const d = state.registerDraft;
-    const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim());
-    const btn = document.querySelector('[data-action="register-submit"]');
-    if (btn) btn.style.opacity = valid ? '1' : '.55';
+    const valid = !!((d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim()));
+    const btn = document.getElementById('registerSubmitBtn');
+    if (btn) {
+      btn.style.opacity = valid ? '1' : '.55';
+      btn.style.cursor = 'pointer';
+    }
   }
   else if (a === 'quick-loc-pos-input') { if (state.quickLocDraft) state.quickLocDraft.pos = t.value; }
   else if (a === 'quick-loc-box-input') { if (state.quickLocDraft) state.quickLocDraft.box = t.value; }
