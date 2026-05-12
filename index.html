@@ -799,7 +799,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.45';
+const APP_VERSION = 'v1.46';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4671,14 +4671,24 @@ function renderCustomerHome() {
   const u = APP_KEYS.user || {};
   const first = u.firstName || (u.name || '').split(' ')[0] || '';
   const recents = (state.itemList || []).map(id => (inventory || []).find(it => it.id === id)).filter(Boolean).slice(0, 4);
+  const activeCo = state.company || state.companies?.find(c => c.id === state.activeCompanyId) || state.companies?.[0];
+  const coCount = (state.companies || []).length;
   return `
 <div class="screen customer-home">
   <div class="header">
     <div class="header__slot"></div>
-    <div style="display:flex;align-items:center;gap:8px">
-      ${svg('package', 14, 2.4)}
-      <span style="font-size:13px;font-weight:600;letter-spacing:-.005em">Stockmanager</span>
-    </div>
+    ${coCount > 1 ? `
+      <button data-action="open-company-switcher" style="display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);border-radius:var(--r-pill);cursor:pointer;max-width:240px">
+        <div style="width:26px;height:26px;border-radius:8px;background:${activeCo?.color || '#2456E5'};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('boxes', 12, 2.4)}</div>
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${activeCo?.name || 'Firma wählen'}</span>
+        ${svg('chevron-down', 11, 2.5)}
+      </button>
+    ` : `
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:24px;height:24px;border-radius:7px;background:${activeCo?.color || '#2456E5'};color:#fff;display:flex;align-items:center;justify-content:center">${svg('boxes', 11, 2.4)}</div>
+        <span style="font-size:13px;font-weight:600;letter-spacing:-.005em">${activeCo?.name || 'Stockmanager'}</span>
+      </div>
+    `}
     <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
   </div>
 
@@ -4688,7 +4698,7 @@ function renderCustomerHome() {
       <div class="customer-hero__sparkle">${svg('sparkles', 14, 2.5)}</div>
       <div style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,.8);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Hallo${first ? ', ' + first.replace(/</g, '&lt;') : ''}</div>
       <h1 class="customer-hero__title">Welches Ersatzteil<br>suchst du?</h1>
-      <p class="customer-hero__sub">Mach ein Foto vom Typenschild — wir finden den passenden Artikel in unserem Lager.</p>
+      <p class="customer-hero__sub">${coCount > 1 ? `Du suchst gerade im Bestand von <strong style="color:#fff">${activeCo?.name || ''}</strong>. <button data-action="open-company-switcher" style="color:#fff;text-decoration:underline;font-weight:600">Firma wechseln →</button><br>` : ''}Mach ein Foto vom Typenschild — wir finden den passenden Artikel in unserem Lager.</p>
     </div>
 
     <!-- Foto-Suche-Kachel — dominant -->
@@ -7825,11 +7835,13 @@ function renderCompanyOverlay() {
 
 function renderCompanySwitcher() {
   const total = state.companies.length;
+  // Customer dürfen Firmen nur auswählen, nicht editieren oder anlegen
+  const canManageCompanies = !isCustomer();
   return `
     <div class="sheet-backdrop" data-action="close-company-switcher"></div>
     <div class="action-sheet" style="max-height:80vh;display:flex;flex-direction:column">
       <div class="action-sheet__handle"></div>
-      <div class="action-sheet__title">Firma wechseln · ${total}</div>
+      <div class="action-sheet__title">${isCustomer() ? 'Bestand auswählen' : 'Firma wechseln'} · ${total}</div>
       <div class="js-scroll" data-scroll-key="company-switcher" style="padding:10px 14px 8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;min-height:0">
         ${state.companies.map(c => {
           const active = c.id === state.activeCompanyId;
@@ -7844,13 +7856,15 @@ function renderCompanySwitcher() {
                 </div>
                 ${active ? `<div style="width:24px;height:24px;border-radius:50%;background:${c.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('check', 13, 3.5)}</div>` : ''}
               </button>
-              <button data-action="edit-company" data-id="${c.id}" style="width:42px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer">${svg('pencil', 14, 2.4)}</button>
+              ${canManageCompanies ? `<button data-action="edit-company" data-id="${c.id}" style="width:42px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer">${svg('pencil', 14, 2.4)}</button>` : ''}
             </div>
           `;
         }).join('')}
-        <button data-action="add-company" style="margin-top:6px;padding:14px;background:transparent;border:1.5px dashed var(--c-blue-light);color:var(--c-blue);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
-          ${svg('plus', 14, 2.5)} Neue Firma anlegen
-        </button>
+        ${canManageCompanies ? `
+          <button data-action="add-company" style="margin-top:6px;padding:14px;background:transparent;border:1.5px dashed var(--c-blue-light);color:var(--c-blue);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+            ${svg('plus', 14, 2.5)} Neue Firma anlegen
+          </button>
+        ` : ''}
       </div>
       <div style="padding:10px 14px 12px;flex-shrink:0">
         <button class="action-bar__btn" data-action="close-company-switcher" style="width:100%;padding:13px">Schließen</button>
