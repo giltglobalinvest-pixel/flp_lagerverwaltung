@@ -6,10 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Stockmanager">
-<meta name="application-name" content="Stockmanager">
+<meta name="apple-mobile-web-app-title" content="FLP Stockmanager">
+<meta name="application-name" content="FLP Stockmanager">
 <meta name="theme-color" content="#1D7CAF">
-<title>Stockmanager · FLP Lift Parts</title>
+<title>FLP Stockmanager</title>
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=3">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=3">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=3">
@@ -758,6 +758,7 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .login-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;background:linear-gradient(160deg,#C5D4F2 0%,#DDE7F0 50%,#B8C9E2 100%);z-index:200}
 .login-card{width:100%;max-width:340px;padding:28px 24px;background:var(--c-surface);border-radius:24px;box-shadow:0 20px 60px rgba(15,24,48,0.18);text-align:center}
 .login-logo{width:64px;height:64px;border-radius:18px;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:var(--elev-blue)}
+.login-logo-img{display:block;width:80px;height:80px;border-radius:20px;margin:0 auto 16px;box-shadow:var(--elev-1);object-fit:cover;background:#fff}
 .login-title{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0 0 4px}
 .login-sub{font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:0 0 24px}
 .login-input{width:100%;padding:14px 16px;background:var(--c-surface-alt);border:1.5px solid var(--c-border);border-radius:14px;font-size:14px;font-weight:500;font-family:var(--f-mono);color:var(--c-ink);text-align:center;letter-spacing:.02em;outline:none;transition:border-color .15s}
@@ -904,13 +905,13 @@ body.mode-tablet .bottom-bar>*{flex:1}
     <path d="M12 18h.01"/>
   </svg>
   <div class="rotate-prompt__title">Bitte hochkant halten</div>
-  <div class="rotate-prompt__sub">Stockmanager funktioniert nur im Hochformat.</div>
+  <div class="rotate-prompt__sub">FLP Stockmanager funktioniert nur im Hochformat.</div>
 </div>
 <script>
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.50';
+const APP_VERSION = 'v1.51';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -920,7 +921,7 @@ const APP_CONFIG = {
   MASTER_BASE_ID: 'appzhNrhkLSTEaNFW',
   APP_BASE_ID: 'appc4YGv2X1v4O1eO',
   PROJECT_ID: 'p_1777628997641',
-  PROJECT_NAME: 'Stockmanager',
+  PROJECT_NAME: 'FLP Stockmanager',
   GITHUB_REPO: 'giltglobalinvest-pixel/flp_lagerverwaltung',
 };
 
@@ -2319,7 +2320,7 @@ function buildUserWelcomeMessage(u) {
   return [
     `${greeting},`,
     ``,
-    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'Stockmanager'}-App von FLP Lift Parts ist eingerichtet:`,
+    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'FLP Stockmanager'}-App von FLP Lift Parts ist eingerichtet:`,
     ``,
     `🌐 ${appUrl}`,
     `🔑 ${u.apiKey}`,
@@ -4859,7 +4860,7 @@ function renderOnboardInstall(first) {
         ${standalone ? svg('check', 38, 2.8) : svg('smartphone', 38, 2.4)}
       </div>
       <h1 class="onboard-card__title">Hallo${first ? ', ' + first.replace(/</g, '&lt;') : ''} 👋</h1>
-      <p class="onboard-card__sub">${standalone ? 'Stockmanager ist bei dir installiert — perfekt.' : 'Speichere Stockmanager auf deinem Startbildschirm. Dann hast du uns immer mit einem Tap zur Hand.'}</p>
+      <p class="onboard-card__sub">${standalone ? 'FLP Stockmanager ist bei dir installiert — perfekt.' : 'Speichere FLP Stockmanager auf deinem Startbildschirm. Dann hast du uns immer mit einem Tap zur Hand.'}</p>
 
       ${standalone ? '' : `
         <div class="onboard-install">
@@ -5125,7 +5126,7 @@ function renderCustomerHomeMain() {
           <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:2px">Schreib uns direkt — wir melden uns schnell zurück.</div>
         </div>
       </div>
-      <a href="mailto:service@flp-shop.com?subject=Anfrage%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:10px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
+      <a href="mailto:service@flp-shop.com?subject=Anfrage%20FLP%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:10px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
     </div>
   </div>
 
@@ -5161,7 +5162,7 @@ function renderInstallHelpSheet() {
             <div class="install-help-step__num">3</div>
             <div>
               <div class="install-help-step__title">„Hinzufügen" bestätigen</div>
-              <div class="install-help-step__sub">Oben rechts — der Stockmanager landet jetzt mit dem Paket-Icon auf deinem Startbildschirm.</div>
+              <div class="install-help-step__sub">Oben rechts — FLP Stockmanager landet jetzt mit dem FLP-Icon auf deinem Startbildschirm.</div>
             </div>
           </div>
           <div style="margin-top:14px;padding:12px 14px;background:var(--c-amber-soft);border-radius:var(--r-md);font-size:11.5px;color:#7C4A06;line-height:1.5">
@@ -5187,7 +5188,7 @@ function renderInstallHelpSheet() {
             <div class="install-help-step__num">3</div>
             <div>
               <div class="install-help-step__title">Bestätigen</div>
-              <div class="install-help-step__sub">„Hinzufügen" antippen — Stockmanager erscheint mit Paket-Icon auf deinem Startbildschirm.</div>
+              <div class="install-help-step__sub">„Hinzufügen" antippen — FLP Stockmanager erscheint mit FLP-Icon auf deinem Startbildschirm.</div>
             </div>
           </div>
         ` : `
@@ -8381,7 +8382,10 @@ function renderRegister() {
   const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim());
   return `
 <div class="login-screen">
-  <div class="login-card" style="max-width:520px;text-align:left;padding:32px 28px">
+  <div class="login-card" style="max-width:520px;text-align:left;padding:24px 28px 32px">
+    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
+      <img src="icon-180.png?v=3" alt="FLP Stockmanager" style="width:72px;height:72px;border-radius:18px;box-shadow:var(--elev-1);object-fit:cover;background:#fff">
+    </div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <button class="icon-btn" data-action="go-login" title="Zurück zum Login">${svg('arrow-left', 16, 2.4)}</button>
       <div style="flex:1">
@@ -8472,8 +8476,8 @@ function renderLogin() {
   return `
 <div class="login-screen">
   <div class="login-card">
-    <div class="login-logo">${svg('boxes', 28, 2.2)}</div>
-    <h1 class="login-title">Stockmanager</h1>
+    <img src="icon-180.png?v=3" alt="FLP Stockmanager" class="login-logo-img">
+    <h1 class="login-title">FLP Stockmanager</h1>
     <div class="login-sub">Bitte mit pers\u00f6nlichem Zugangs-Schl\u00fcssel anmelden</div>
     <form data-action="login-submit" autocomplete="off">
       <input type="password" class="login-input" data-action="login-input" value="${val}" placeholder="Pers\u00f6nlicher Schl\u00fcssel" autocomplete="off" ${pending ? 'disabled' : 'autofocus'}>
