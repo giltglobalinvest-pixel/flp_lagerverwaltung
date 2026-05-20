@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.53';
+const APP_VERSION = 'v1.54';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1023,7 +1023,15 @@ const APP_CONFIG = {
   GITHUB_REPO: 'giltglobalinvest-pixel/flp_lagerverwaltung',
 };
 
-let APP_KEYS = { airtableWriteKey: null, anthropicKey: null, appBaseId: null, user: null };
+let APP_KEYS = {
+  airtableWriteKey: null, anthropicKey: null, appBaseId: null, user: null,
+  // Inquiry-Proxy (Freshdesk) — wird über Integrationen-Settings gesetzt
+  inquiryProxyUrl: null, inquiryProxyToken: null,
+  // Val.town Setup (für Admin-UI um Proxy zu deployen/aktualisieren)
+  valtownKey: null, valtownValId: null,
+  // Freshdesk Settings (für val.town env vars)
+  freshdeskDomain: null, freshdeskApiKey: null, freshdeskGroupId: null,
+};
 
 const AIR_BASE = () => APP_KEYS.appBaseId || APP_CONFIG.APP_BASE_ID;
 const AIR_URL = (table) => 'https://api.airtable.com/v0/' + AIR_BASE() + '/' + encodeURIComponent(table);
@@ -1798,6 +1806,11 @@ async function loginWithUserKey(userKey) {
       if (f.key_name === 'airtableBaseId') APP_KEYS.appBaseId = f.key_value;
       if (f.key_name === 'inquiryProxyUrl') APP_KEYS.inquiryProxyUrl = f.key_value;
       if (f.key_name === 'inquiryProxyToken') APP_KEYS.inquiryProxyToken = f.key_value;
+      if (f.key_name === 'valtownKey') APP_KEYS.valtownKey = f.key_value;
+      if (f.key_name === 'valtownValId') APP_KEYS.valtownValId = f.key_value;
+      if (f.key_name === 'freshdeskDomain') APP_KEYS.freshdeskDomain = f.key_value;
+      if (f.key_name === 'freshdeskApiKey') APP_KEYS.freshdeskApiKey = f.key_value;
+      if (f.key_name === 'freshdeskGroupId') APP_KEYS.freshdeskGroupId = f.key_value;
     });
   }
 
@@ -2555,6 +2568,345 @@ async function loadPublicCompanies() {
     return (data.records || []).map(recordToCompany).filter(c => c.id);
   } catch(e) { return []; }
 }
+/* ============================================================
+   VAL.TOWN PROXY für Freshdesk-Anbindung
+   Pattern analog zu ERP Hero: Admin gibt vtwn_pat_ ein,
+   App deployt Proxy-Code via Val.town REST API.
+   ============================================================ */
+const VALTOWN_API_BASE = 'https://api.val.town';
+const VALTOWN_VAL_NAME = 'flpstockmanagerinquiry'; // muss lowercase sein
+const VALTOWN_FILE_PATH = 'main.tsx';
+
+// Proxy-Code — Freshdesk-Ticket-Creator. ENV: FRESHDESK_DOMAIN, FRESHDESK_API_KEY, FRESHDESK_GROUP_ID (optional), SHARED_TOKEN (optional)
+const VALTOWN_PROXY_CODE = `// FLP Stockmanager · Customer-Inquiry-Proxy
+// Empfängt JSON-POST mit Anfrage-Daten und erstellt Freshdesk-Ticket
+// mit dem Kunden als Requester. Kein OAuth, optionaler Shared-Token-Schutz.
+
+const FRESHDESK_DOMAIN  = Deno.env.get("FRESHDESK_DOMAIN")  || "";
+const FRESHDESK_API_KEY = Deno.env.get("FRESHDESK_API_KEY") || "";
+const FRESHDESK_GROUP_ID = Deno.env.get("FRESHDESK_GROUP_ID") || "";
+const SHARED_TOKEN      = Deno.env.get("SHARED_TOKEN")      || "";
+
+function cors() {
+  return {
+    "Access-Control-Allow-Origin":  "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+function json(d: unknown, s = 200) {
+  return new Response(JSON.stringify(d), { status: s, headers: { ...cors(), "Content-Type": "application/json" } });
+}
+
+export default async function (req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+  if (req.method === "GET") {
+    return json({
+      ok: true,
+      service: "flp-stockmanager-inquiry-proxy",
+      freshdeskDomain: FRESHDESK_DOMAIN || "(nicht konfiguriert)",
+      hasApiKey: !!FRESHDESK_API_KEY,
+      hasSharedToken: !!SHARED_TOKEN,
+    });
+  }
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  if (SHARED_TOKEN) {
+    const auth = (req.headers.get("authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+    if (auth !== SHARED_TOKEN) return json({ error: "Unauthorized" }, 401);
+  }
+
+  if (!FRESHDESK_DOMAIN || !FRESHDESK_API_KEY) {
+    return json({ error: "Proxy nicht konfiguriert — FRESHDESK_DOMAIN / FRESHDESK_API_KEY fehlt" }, 500);
+  }
+
+  let data: any;
+  try { data = await req.json(); }
+  catch { return json({ error: "Invalid JSON" }, 400); }
+
+  const subject     = String(data.subject || "Anfrage Stockmanager").slice(0, 250);
+  const description = String(data.description || "").slice(0, 50000);
+  const email       = String(data.email || "").trim();
+  const name        = String(data.name || "Kunde").slice(0, 100);
+  const phone       = String(data.phone || "").trim().slice(0, 30);
+
+  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    return json({ error: "Email fehlt oder ungültig" }, 400);
+  }
+
+  const ticket: any = {
+    subject,
+    description: description.replace(/\\n/g, "<br>"),
+    email,
+    name,
+    priority: 1,    // Low
+    status: 2,      // Open
+    source: 7,      // Feedback widget
+    type: "Question",
+  };
+  if (phone) ticket.phone = phone;
+  if (FRESHDESK_GROUP_ID) ticket.group_id = Number(FRESHDESK_GROUP_ID);
+
+  const auth = "Basic " + btoa(FRESHDESK_API_KEY + ":X");
+  const res = await fetch(\`https://\${FRESHDESK_DOMAIN}.freshdesk.com/api/v2/tickets\`, {
+    method: "POST",
+    headers: { "Authorization": auth, "Content-Type": "application/json" },
+    body: JSON.stringify(ticket),
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    return json({ error: "Freshdesk-Fehler", status: res.status, body: body.slice(0, 500) }, 502);
+  }
+  let parsed: any = null; try { parsed = JSON.parse(body); } catch(_) {}
+  return json({
+    ok: true,
+    ticket_id: parsed?.id || null,
+    freshdesk_url: parsed?.id ? \`https://\${FRESHDESK_DOMAIN}.freshdesk.com/a/tickets/\${parsed.id}\` : null,
+  });
+}
+`;
+
+/* ── Val.town REST API client ── */
+async function valtownApi(token, method, path, body) {
+  if (!token) throw new Error('Val.town API-Key fehlt');
+  const init = { method, headers: { 'Authorization':'Bearer '+token, 'Accept':'application/json' } };
+  if (body) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json'; }
+  const res = await fetch(VALTOWN_API_BASE + path, init);
+  let data = null; try { data = await res.json(); } catch(_){}
+  if (!res.ok) {
+    const msg = (data && (data.message || data.error)) || ('HTTP ' + res.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+async function valtownMe(token) { return valtownApi(token, 'GET', '/v1/me'); }
+async function valtownCreateVal(token, name, description = '', privacy = 'unlisted') {
+  const body = { name, privacy };
+  if (description) body.description = description;
+  return valtownApi(token, 'POST', '/v2/vals', body);
+}
+async function valtownAddHttpFile(token, valId, code) {
+  return valtownApi(token, 'POST', '/v2/vals/'+valId+'/files?path='+encodeURIComponent(VALTOWN_FILE_PATH), { content: code, type: 'http' });
+}
+async function valtownUpdateFile(token, valId, code) {
+  return valtownApi(token, 'PUT', '/v2/vals/'+valId+'/files?path='+encodeURIComponent(VALTOWN_FILE_PATH), { content: code });
+}
+async function valtownGetFile(token, valId, filePath = VALTOWN_FILE_PATH) {
+  return valtownApi(token, 'GET', '/v2/vals/'+valId+'/files?path='+encodeURIComponent(filePath));
+}
+async function valtownSetEnvVar(token, valId, key, value, description = '') {
+  try {
+    return await valtownApi(token, 'POST', '/v2/vals/'+valId+'/environment_variables', { key, value, description });
+  } catch (e) {
+    if (/already exists|409/.test(e.message)) {
+      return valtownApi(token, 'PUT', '/v2/vals/'+valId+'/environment_variables/'+encodeURIComponent(key), { value, description });
+    }
+    throw e;
+  }
+}
+
+/* ── Master-Base Keys schreiben (für Persistenz von valtown-Settings) ── */
+async function writeMasterBaseKey(keyName, keyValue, existingId) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Kein Write-Token verfügbar');
+  const body = { fields: { project_id: APP_CONFIG.PROJECT_ID, key_name: keyName, key_value: String(keyValue || '') } };
+  const headers = { 'Authorization':'Bearer '+APP_KEYS.airtableWriteKey, 'Content-Type':'application/json' };
+  const url = 'https://api.airtable.com/v0/' + APP_CONFIG.MASTER_BASE_ID + '/Keys' + (existingId ? '/' + existingId : '');
+  const res = await fetch(url, { method: existingId ? 'PATCH' : 'POST', headers, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Master-Keys-Update fehlgeschlagen: ' + (data?.error?.message || res.status));
+  return data;
+}
+async function loadMasterKeys() {
+  const url = 'https://api.airtable.com/v0/' + APP_CONFIG.MASTER_BASE_ID + '/Keys?filterByFormula=' + encodeURIComponent("{project_id}='" + APP_CONFIG.PROJECT_ID + "'");
+  const r = await fetch(url, { headers: { 'Authorization':'Bearer '+APP_CONFIG.AIRTABLE_READ_KEY } });
+  const d = await r.json();
+  return (d.records || []).reduce((m, rec) => { m[rec.fields.key_name] = rec; return m; }, {});
+}
+
+function _vtLog(msg, kind = 'info') {
+  const ts = new Date().toLocaleTimeString('de-DE');
+  if (!state.integrationsLog) state.integrationsLog = [];
+  state.integrationsLog.push({ ts, msg, kind });
+  if (state.view === 'integrations') render();
+}
+function _generateRandomToken(len = 32) {
+  const a = new Uint8Array(len); crypto.getRandomValues(a);
+  return Array.from(a).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// Setup-Flow: val.town-Val anlegen oder aktualisieren, Env-Vars setzen, Master-Keys persistieren
+async function valtownRunSetup() {
+  if (state.integrationsBusy) return;
+  const d = state.integrationsDraft || {};
+  const token = (d.valtownKey || '').trim();
+  const fdDomain = (d.freshdeskDomain || '').trim();
+  const fdKey    = (d.freshdeskApiKey || '').trim();
+  const fdGroup  = (d.freshdeskGroupId || '').trim();
+  if (!token) { showToast('Val.town-Token fehlt', 'error', 2800); return; }
+  if (!fdDomain || !fdKey) { showToast('Freshdesk-Domain und API-Key sind Pflicht', 'error', 3000); return; }
+
+  state.integrationsBusy = true;
+  state.integrationsLog = [];
+  _vtLog('Setup gestartet …', 'info');
+  render();
+
+  try {
+    _vtLog('Prüfe Val.town-Token …', 'info');
+    const me = await valtownMe(token);
+    _vtLog('✓ Eingeloggt als ' + me.username, 'ok');
+
+    let valId = APP_KEYS.valtownValId;
+    let endpointUrl = null;
+
+    if (valId) {
+      _vtLog('Val existiert — aktualisiere Code …', 'info');
+      try {
+        const fileRes = await valtownUpdateFile(token, valId, VALTOWN_PROXY_CODE);
+        endpointUrl = fileRes?.links?.endpoint || null;
+        _vtLog('✓ Proxy-Code aktualisiert', 'ok');
+      } catch (e) {
+        _vtLog('Update fehlgeschlagen (' + e.message + ') — lege neuen Val an', 'warn');
+        valId = null;
+      }
+    }
+
+    if (!valId) {
+      let valName = VALTOWN_VAL_NAME;
+      let val;
+      try {
+        val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'unlisted');
+      } catch (e) {
+        if (/already exists|name/i.test(e.message)) {
+          valName = VALTOWN_VAL_NAME + Date.now().toString(36).slice(-4);
+          _vtLog('Name belegt — verwende: ' + valName, 'warn');
+          val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'unlisted');
+        } else { throw e; }
+      }
+      valId = val.id;
+      _vtLog('✓ Val erstellt: ' + valName + ' (' + valId.substring(0,8) + '…)', 'ok');
+      const fileRes = await valtownAddHttpFile(token, valId, VALTOWN_PROXY_CODE);
+      endpointUrl = fileRes?.links?.endpoint || null;
+      _vtLog('✓ HTTP-Endpoint angelegt', 'ok');
+    }
+
+    // Shared-Token generieren wenn noch keiner da
+    let sharedToken = APP_KEYS.inquiryProxyToken;
+    if (!sharedToken) {
+      sharedToken = 'flp_sm_' + _generateRandomToken(24);
+      _vtLog('🔐 Shared-Token generiert', 'info');
+    }
+
+    _vtLog('Setze Environment-Variablen …', 'info');
+    const envs = [
+      { k: 'FRESHDESK_DOMAIN', v: fdDomain, d: 'Freshdesk-Subdomain' },
+      { k: 'FRESHDESK_API_KEY', v: fdKey, d: 'Freshdesk-API-Key' },
+      { k: 'SHARED_TOKEN', v: sharedToken, d: 'Schutz vor Spam-POSTs' },
+    ];
+    if (fdGroup) envs.push({ k: 'FRESHDESK_GROUP_ID', v: fdGroup, d: 'Optional: Tickets in dieser Gruppe' });
+    for (const env of envs) {
+      await valtownSetEnvVar(token, valId, env.k, env.v, env.d);
+      _vtLog('✓ ' + env.k + ' gesetzt', 'ok');
+    }
+
+    // Proxy-URL ermitteln
+    let proxyUrl = endpointUrl;
+    if (!proxyUrl) {
+      try {
+        const f = await valtownGetFile(token, valId);
+        proxyUrl = f?.links?.endpoint || null;
+      } catch (_) {}
+    }
+    if (!proxyUrl) {
+      const val = await valtownApi(token, 'GET', '/v2/vals/' + valId);
+      const rawName = (val.name || VALTOWN_VAL_NAME).toLowerCase();
+      proxyUrl = 'https://' + (me.username || '').toLowerCase() + '--' + rawName + '.web.val.run';
+      _vtLog('⚠ Endpoint heuristisch gebaut: ' + proxyUrl, 'warn');
+    }
+    proxyUrl = _normalizeProxyUrl(proxyUrl);
+    _vtLog('✓ Proxy-URL: ' + proxyUrl, 'ok');
+
+    // In Master-Base persistieren
+    _vtLog('Speichere Keys in Master-Base …', 'info');
+    const mk = await loadMasterKeys();
+    await writeMasterBaseKey('valtownKey',         token,       mk['valtownKey']?.id);
+    await writeMasterBaseKey('valtownValId',       valId,       mk['valtownValId']?.id);
+    await writeMasterBaseKey('inquiryProxyUrl',    proxyUrl,    mk['inquiryProxyUrl']?.id);
+    await writeMasterBaseKey('inquiryProxyToken',  sharedToken, mk['inquiryProxyToken']?.id);
+    await writeMasterBaseKey('freshdeskDomain',    fdDomain,    mk['freshdeskDomain']?.id);
+    await writeMasterBaseKey('freshdeskApiKey',    fdKey,       mk['freshdeskApiKey']?.id);
+    if (fdGroup) await writeMasterBaseKey('freshdeskGroupId', fdGroup, mk['freshdeskGroupId']?.id);
+    _vtLog('✓ Master-Keys gespeichert', 'ok');
+
+    // Lokal aktualisieren
+    APP_KEYS.valtownKey         = token;
+    APP_KEYS.valtownValId       = valId;
+    APP_KEYS.inquiryProxyUrl    = proxyUrl;
+    APP_KEYS.inquiryProxyToken  = sharedToken;
+    APP_KEYS.freshdeskDomain    = fdDomain;
+    APP_KEYS.freshdeskApiKey    = fdKey;
+    if (fdGroup) APP_KEYS.freshdeskGroupId = fdGroup;
+
+    _vtLog('🎉 Setup abgeschlossen — Proxy ist live', 'ok');
+    showToast('✅ Freshdesk-Proxy eingerichtet', 'success', 2800);
+  } catch (e) {
+    _vtLog('❌ Fehler: ' + (e.message || e), 'err');
+    showToast('❌ Setup fehlgeschlagen: ' + e.message, 'error', 4000);
+  } finally {
+    state.integrationsBusy = false;
+    render();
+  }
+}
+
+// Proxy testen: GET auf Proxy-URL (zeigt Status + ENV-Übersicht)
+async function valtownRunTest() {
+  if (!APP_KEYS.inquiryProxyUrl) { showToast('Proxy noch nicht eingerichtet', 'error', 2400); return; }
+  _vtLog('GET ' + APP_KEYS.inquiryProxyUrl, 'info');
+  try {
+    const res = await fetch(APP_KEYS.inquiryProxyUrl, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    _vtLog('Status: ' + res.status, res.ok ? 'ok' : 'err');
+    _vtLog(JSON.stringify(data, null, 2), 'info');
+    if (res.ok && data.hasApiKey && data.freshdeskDomain) {
+      showToast('✅ Proxy antwortet — Freshdesk konfiguriert', 'success', 2800);
+    } else {
+      showToast('Proxy antwortet, aber Konfiguration unvollständig', 'info', 3000);
+    }
+  } catch (e) {
+    _vtLog('Test fehlgeschlagen: ' + e.message, 'err');
+    showToast('❌ Test fehlgeschlagen: ' + e.message, 'error', 3500);
+  }
+}
+
+// Nur den Proxy-Code aktualisieren (z.B. nach App-Update)
+async function valtownRunUpdateCode() {
+  if (!APP_KEYS.valtownKey || !APP_KEYS.valtownValId) { showToast('Erst Setup ausführen', 'error', 2400); return; }
+  if (state.integrationsBusy) return;
+  state.integrationsBusy = true;
+  _vtLog('Aktualisiere Proxy-Code …', 'info');
+  render();
+  try {
+    await valtownUpdateFile(APP_KEYS.valtownKey, APP_KEYS.valtownValId, VALTOWN_PROXY_CODE);
+    _vtLog('✓ Proxy-Code aktualisiert', 'ok');
+    showToast('✅ Proxy-Code aktualisiert', 'success', 2400);
+  } catch (e) {
+    _vtLog('❌ Update fehlgeschlagen: ' + e.message, 'err');
+    showToast('❌ Update fehlgeschlagen: ' + e.message, 'error', 3500);
+  } finally {
+    state.integrationsBusy = false;
+    render();
+  }
+}
+
+// Normalisiert die Proxy-URL (Val.town-Hostnames sind lowercase)
+function _normalizeProxyUrl(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.toLowerCase();
+    return (u.protocol + '//' + u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : '')).replace(/\/+$/, '');
+  } catch(_) { return String(url).replace(/\/+$/, ''); }
+}
+
 // Lädt Companies einmalig pro Session in state.publicCompanies (für Landing-Page)
 async function ensurePublicCompanies() {
   if (state.publicCompanies && state.publicCompanies.length) return;
@@ -5491,6 +5843,7 @@ function renderHome() {
         })()),
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
         ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge · WhatsApp-Einladung', action: 'go-users' }] : []),
+        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Integrationen', sub: APP_KEYS.inquiryProxyUrl ? 'Freshdesk-Proxy aktiv' : 'Freshdesk einrichten', action: 'go-integrations' }] : []),
         ...((() => {
           const pr = getPendingReturns();
           if (pr.length === 0) return [];
@@ -7320,6 +7673,122 @@ function renderItemList() {
 </div>`;
 }
 
+// Admin-Integrationen: val.town-Proxy für Freshdesk-Tickets einrichten / aktualisieren
+function renderIntegrations() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">Integrationen</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="display:flex;align-items:center;justify-content:center;padding:40px;text-align:center;flex-direction:column;gap:14px">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('alert-triangle', 28, 2.2)}</div>
+    <div>
+      <div style="font-size:14px;font-weight:600">Nur für Admins</div>
+      <div style="font-size:12px;color:var(--c-ink-mute);margin-top:4px">Integrationen können nur Admins einrichten.</div>
+    </div>
+  </div>
+</div>`;
+  }
+  const d = state.integrationsDraft || {
+    valtownKey: APP_KEYS.valtownKey || '',
+    freshdeskDomain: APP_KEYS.freshdeskDomain || 'flpliftparts',
+    freshdeskApiKey: APP_KEYS.freshdeskApiKey || '',
+    freshdeskGroupId: APP_KEYS.freshdeskGroupId || '',
+  };
+  const log = state.integrationsLog || [];
+  const proxyUrl = APP_KEYS.inquiryProxyUrl || '';
+  const valId = APP_KEYS.valtownValId || '';
+  const ready = !!(proxyUrl && valId && APP_KEYS.freshdeskDomain && APP_KEYS.freshdeskApiKey);
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">${svg('sparkles', 11, 2.5)} Integrationen</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:32px">
+
+    <div style="padding:0 4px 4px">
+      <h1 style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0">Freshdesk-Anbindung</h1>
+      <p style="font-size:12.5px;color:var(--c-ink-mute);margin:6px 0 0;line-height:1.5">Wenn ein Kunde eine Anfrage stellt, wird daraus automatisch ein Freshdesk-Ticket. Setup via val.town-Proxy (eigener Code, server-seitig).</p>
+    </div>
+
+    <!-- Status-Karte -->
+    <div style="margin-top:16px;padding:14px 16px;background:${ready ? '#E6F4EA' : 'var(--c-amber-soft)'};border:1px solid ${ready ? '#8FD4A6' : '#FCD34D'};border-radius:var(--r-tile);display:flex;align-items:center;gap:12px">
+      <div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:${ready ? '#10B981' : '#F59E0B'};color:#fff;display:flex;align-items:center;justify-content:center">
+        ${svg(ready ? 'check' : 'alert-triangle', 16, 2.5)}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:700;color:${ready ? '#0A6B2C' : '#7C4A06'}">${ready ? 'Anbindung aktiv' : 'Noch nicht eingerichtet'}</div>
+        <div style="font-size:11.5px;color:${ready ? '#0A6B2C' : '#7C4A06'};margin-top:2px;line-height:1.4">${ready ? 'Tickets werden via val.town an Freshdesk gesendet.' : 'Trag unten die Daten ein und klick „Setup starten".'}</div>
+      </div>
+    </div>
+
+    ${proxyUrl ? `
+      <div style="margin-top:12px;padding:12px 14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--elev-1);font-family:var(--f-mono);font-size:11px;line-height:1.5;word-break:break-all">
+        <div style="font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Proxy-URL</div>
+        ${proxyUrl}
+      </div>
+    ` : ''}
+
+    <!-- Formular -->
+    <div style="margin-top:20px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 14px;letter-spacing:-.01em">⚙ Konfiguration</h2>
+
+      <div class="field">
+        <label class="field__label">Val.town API-Token (vtwn_pat_…)</label>
+        <input class="field__input" data-action="integration-input" data-key="valtownKey" value="${(d.valtownKey || '').replace(/"/g, '&quot;')}" placeholder="vtwn_pat_…" type="password" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Holst du in val.town unter <a href="https://www.val.town/settings/api" target="_blank" rel="noopener" style="color:var(--c-blue);font-weight:600">Settings → API Tokens</a>. Permissions: <code>vals.read</code>, <code>vals.write</code>.</div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="field__label">Freshdesk-Subdomain</label>
+        <input class="field__input" data-action="integration-input" data-key="freshdeskDomain" value="${(d.freshdeskDomain || '').replace(/"/g, '&quot;')}" placeholder="flpliftparts" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Nur die Subdomain — bei <code>flpliftparts.freshdesk.com</code> reicht <code>flpliftparts</code>.</div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="field__label">Freshdesk API-Key</label>
+        <input class="field__input" data-action="integration-input" data-key="freshdeskApiKey" value="${(d.freshdeskApiKey || '').replace(/"/g, '&quot;')}" placeholder="z.B. abc123XyZ" type="password" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">In Freshdesk: oben rechts auf dein Profilbild → „Profile Settings" → rechte Sidebar „Your API Key".</div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="field__label">Freshdesk Group ID (optional)</label>
+        <input class="field__input" data-action="integration-input" data-key="freshdeskGroupId" value="${(d.freshdeskGroupId || '').replace(/"/g, '&quot;')}" placeholder="z.B. 36000027325" inputmode="numeric" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wenn gesetzt, landen alle Stockmanager-Tickets in dieser Gruppe.</div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
+        <button data-action="valtown-setup" class="action-bar__btn action-bar__btn--primary" ${state.integrationsBusy ? 'disabled' : ''} style="padding:14px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;font-weight:600;${state.integrationsBusy ? 'opacity:.6' : ''}">
+          ${state.integrationsBusy ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Läuft …' : '⚡ ' + (valId ? 'Setup aktualisieren' : 'Setup starten')}
+        </button>
+        ${valId ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button data-action="valtown-test" class="action-bar__btn" ${state.integrationsBusy ? 'disabled' : ''}>${svg('check', 13, 2.5)} Proxy testen</button>
+            <button data-action="valtown-update-code" class="action-bar__btn" ${state.integrationsBusy ? 'disabled' : ''}>${svg('rotate-ccw', 13, 2.5)} Code aktualisieren</button>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+
+    <!-- Log -->
+    ${log.length > 0 ? `
+      <div style="margin-top:18px;padding:14px 16px;background:#0F1830;color:#A0E4B4;border-radius:var(--r-md);font-family:var(--f-mono);font-size:11px;line-height:1.7;max-height:280px;overflow-y:auto">
+        <div style="color:rgba(255,255,255,.55);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Setup-Log</div>
+        ${log.map(line => `<div style="color:${line.kind === 'err' ? '#FBA8AA' : line.kind === 'warn' ? '#FCD34D' : line.kind === 'ok' ? '#A0E4B4' : 'rgba(255,255,255,.78)'}">[${line.ts}] ${String(line.msg).replace(/</g,'&lt;')}</div>`).join('')}
+      </div>
+    ` : ''}
+
+    <!-- Erklärung -->
+    <div style="margin-top:20px;padding:16px 18px;background:var(--c-bg-soft);border-radius:var(--r-md);font-size:12px;line-height:1.6;color:var(--c-ink-soft)">
+      <strong style="color:var(--c-ink)">Wie das funktioniert:</strong>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>Du trägst val.town-Token + Freshdesk-Zugang ein</li>
+        <li>„Setup starten" erstellt einen val.town-Val mit dem Proxy-Code, setzt die Env-Variablen, und speichert Proxy-URL + Shared-Token in der Master-Base</li>
+        <li>Wenn ein Kunde „Anfrage absenden" klickt, schickt die App ein JSON an den val.town-Proxy</li>
+        <li>Der Proxy erzeugt das Freshdesk-Ticket mit dem Kunden als Requester (kein Email-Programm)</li>
+      </ol>
+    </div>
+  </div>
+</div>`;
+}
+
 function renderUsers() {
   if (!isAdmin()) {
     return `
@@ -8993,7 +9462,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -9382,6 +9851,21 @@ document.addEventListener('click', (e) => {
       state.homeFilterOpen = null;
       render(); break;
     case 'go-dashboard': go('dashboard'); break;
+    case 'go-integrations': {
+      state.integrationsDraft = {
+        valtownKey: APP_KEYS.valtownKey || '',
+        freshdeskDomain: APP_KEYS.freshdeskDomain || 'flpliftparts',
+        freshdeskApiKey: APP_KEYS.freshdeskApiKey || '',
+        freshdeskGroupId: APP_KEYS.freshdeskGroupId || '',
+      };
+      state.integrationsLog = [];
+      state.integrationsBusy = false;
+      go('integrations');
+      break;
+    }
+    case 'valtown-setup': valtownRunSetup(); break;
+    case 'valtown-test': valtownRunTest(); break;
+    case 'valtown-update-code': valtownRunUpdateCode(); break;
     case 'go-list': go('list'); break;
     case 'list-toggle': {
       const id = btn.dataset.id;
@@ -11078,6 +11562,10 @@ document.addEventListener('input', (e) => {
   else if (a === 'wiz-desc-text') state.voiceTranscript = t.value;
   else if (a === 'cat-add-input') state.catAddDraft = t.value;
   else if (a === 'owner-add-input') state.ownerAddDraft = t.value;
+  else if (a === 'integration-input') {
+    if (!state.integrationsDraft) state.integrationsDraft = {};
+    state.integrationsDraft[t.dataset.key] = t.value;
+  }
   else if (a === 'inquiry-note-input') {
     if (!state.inquiryDraft) state.inquiryDraft = { note: '' };
     state.inquiryDraft.note = t.value;
