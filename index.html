@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.56';
+const APP_VERSION = 'v1.57';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1031,6 +1031,8 @@ let APP_KEYS = {
   valtownKey: null, valtownValId: null,
   // Freshdesk Settings (für val.town env vars)
   freshdeskDomain: null, freshdeskApiKey: null, freshdeskGroupId: null,
+  freshdeskTicketType: null,        // z.B. "Question", "FLP Lift Parts Repair"
+  freshdeskDefaultRequester: null,  // Fallback-Email wenn Kunde keine Email hat
 };
 
 const AIR_BASE = () => APP_KEYS.appBaseId || APP_CONFIG.APP_BASE_ID;
@@ -1811,6 +1813,8 @@ async function loginWithUserKey(userKey) {
       if (f.key_name === 'freshdeskDomain') APP_KEYS.freshdeskDomain = f.key_value;
       if (f.key_name === 'freshdeskApiKey') APP_KEYS.freshdeskApiKey = f.key_value;
       if (f.key_name === 'freshdeskGroupId') APP_KEYS.freshdeskGroupId = f.key_value;
+      if (f.key_name === 'freshdeskTicketType') APP_KEYS.freshdeskTicketType = f.key_value;
+      if (f.key_name === 'freshdeskDefaultRequester') APP_KEYS.freshdeskDefaultRequester = f.key_value;
     });
   }
 
@@ -2585,6 +2589,8 @@ const VALTOWN_PROXY_CODE = `// FLP Stockmanager · Customer-Inquiry-Proxy
 const FRESHDESK_DOMAIN  = Deno.env.get("FRESHDESK_DOMAIN")  || "";
 const FRESHDESK_API_KEY = Deno.env.get("FRESHDESK_API_KEY") || "";
 const FRESHDESK_GROUP_ID = Deno.env.get("FRESHDESK_GROUP_ID") || "";
+const FRESHDESK_TICKET_TYPE = Deno.env.get("FRESHDESK_TICKET_TYPE") || "Question";
+const FRESHDESK_DEFAULT_REQUESTER = Deno.env.get("FRESHDESK_DEFAULT_REQUESTER") || "";
 const SHARED_TOKEN      = Deno.env.get("SHARED_TOKEN")      || "";
 
 function cors() {
@@ -2607,6 +2613,9 @@ export default async function (req: Request): Promise<Response> {
       freshdeskDomain: FRESHDESK_DOMAIN || "(nicht konfiguriert)",
       hasApiKey: !!FRESHDESK_API_KEY,
       hasSharedToken: !!SHARED_TOKEN,
+      hasGroupId: !!FRESHDESK_GROUP_ID,
+      ticketType: FRESHDESK_TICKET_TYPE,
+      defaultRequester: FRESHDESK_DEFAULT_REQUESTER || "(keiner — Customer-Email ist Pflicht)",
     });
   }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -2626,12 +2635,16 @@ export default async function (req: Request): Promise<Response> {
 
   const subject     = String(data.subject || "Anfrage Stockmanager").slice(0, 250);
   const description = String(data.description || "").slice(0, 50000);
-  const email       = String(data.email || "").trim();
+  let   email       = String(data.email || "").trim();
   const name        = String(data.name || "Kunde").slice(0, 100);
   const phone       = String(data.phone || "").trim().slice(0, 30);
 
+  // Falls Customer keine Email hat: Fallback auf Default-Requester (z.B. service@…)
+  if ((!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) && FRESHDESK_DEFAULT_REQUESTER) {
+    email = FRESHDESK_DEFAULT_REQUESTER;
+  }
   if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
-    return json({ error: "Email fehlt oder ungültig" }, 400);
+    return json({ error: "Email fehlt oder ungültig (auch kein Default-Requester konfiguriert)" }, 400);
   }
 
   const ticket: any = {
@@ -2639,10 +2652,10 @@ export default async function (req: Request): Promise<Response> {
     description: description.replace(/\\n/g, "<br>"),
     email,
     name,
-    priority: 1,    // Low
-    status: 2,      // Open
-    source: 7,      // Feedback widget
-    type: "Question",
+    priority: 1,                 // Low
+    status: 2,                   // Open
+    source: 7,                   // Feedback widget
+    type: FRESHDESK_TICKET_TYPE, // konfigurierbar
   };
   if (phone) ticket.phone = phone;
   if (FRESHDESK_GROUP_ID) ticket.group_id = Number(FRESHDESK_GROUP_ID);
@@ -2742,6 +2755,8 @@ async function valtownRunSetup() {
   const fdDomain = (d.freshdeskDomain || '').trim();
   const fdKey    = (d.freshdeskApiKey || '').trim();
   const fdGroup  = (d.freshdeskGroupId || '').trim();
+  const fdType   = (d.freshdeskTicketType || '').trim();
+  const fdReq    = (d.freshdeskDefaultRequester || '').trim();
   if (!token) { showToast('Val.town-Token fehlt', 'error', 2800); return; }
   if (!fdDomain || !fdKey) { showToast('Freshdesk-Domain und API-Key sind Pflicht', 'error', 3000); return; }
 
@@ -2803,6 +2818,8 @@ async function valtownRunSetup() {
       { k: 'SHARED_TOKEN', v: sharedToken, d: 'Schutz vor Spam-POSTs' },
     ];
     if (fdGroup) envs.push({ k: 'FRESHDESK_GROUP_ID', v: fdGroup, d: 'Optional: Tickets in dieser Gruppe' });
+    if (fdType)  envs.push({ k: 'FRESHDESK_TICKET_TYPE', v: fdType, d: 'Default-Tickettyp' });
+    if (fdReq)   envs.push({ k: 'FRESHDESK_DEFAULT_REQUESTER', v: fdReq, d: 'Fallback-Email wenn Kunden-Email fehlt' });
     for (const env of envs) {
       await valtownSetEnvVar(token, valId, env.k, env.v, env.d);
       _vtLog('✓ ' + env.k + ' gesetzt', 'ok');
@@ -2835,6 +2852,8 @@ async function valtownRunSetup() {
     await writeMasterBaseKey('freshdeskDomain',    fdDomain,    mk['freshdeskDomain']?.id);
     await writeMasterBaseKey('freshdeskApiKey',    fdKey,       mk['freshdeskApiKey']?.id);
     if (fdGroup) await writeMasterBaseKey('freshdeskGroupId', fdGroup, mk['freshdeskGroupId']?.id);
+    if (fdType)  await writeMasterBaseKey('freshdeskTicketType', fdType, mk['freshdeskTicketType']?.id);
+    if (fdReq)   await writeMasterBaseKey('freshdeskDefaultRequester', fdReq, mk['freshdeskDefaultRequester']?.id);
     _vtLog('✓ Master-Keys gespeichert', 'ok');
 
     // Lokal aktualisieren
@@ -2845,6 +2864,8 @@ async function valtownRunSetup() {
     APP_KEYS.freshdeskDomain    = fdDomain;
     APP_KEYS.freshdeskApiKey    = fdKey;
     if (fdGroup) APP_KEYS.freshdeskGroupId = fdGroup;
+    if (fdType)  APP_KEYS.freshdeskTicketType = fdType;
+    if (fdReq)   APP_KEYS.freshdeskDefaultRequester = fdReq;
 
     _vtLog('🎉 Setup abgeschlossen — Proxy ist live', 'ok');
     showToast('✅ Freshdesk-Proxy eingerichtet', 'success', 2800);
@@ -7693,6 +7714,8 @@ function renderIntegrations() {
     freshdeskDomain: APP_KEYS.freshdeskDomain || 'flpliftparts',
     freshdeskApiKey: APP_KEYS.freshdeskApiKey || '',
     freshdeskGroupId: APP_KEYS.freshdeskGroupId || '',
+    freshdeskTicketType: APP_KEYS.freshdeskTicketType || 'Question',
+    freshdeskDefaultRequester: APP_KEYS.freshdeskDefaultRequester || '',
   };
   const log = state.integrationsLog || [];
   const proxyUrl = APP_KEYS.inquiryProxyUrl || '';
@@ -7752,6 +7775,18 @@ function renderIntegrations() {
         <label class="field__label">Freshdesk Group ID (optional)</label>
         <input class="field__input" data-action="integration-input" data-key="freshdeskGroupId" value="${(d.freshdeskGroupId || '').replace(/"/g, '&quot;')}" placeholder="z.B. 36000027325" inputmode="numeric" autocomplete="off">
         <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wenn gesetzt, landen alle Stockmanager-Tickets in dieser Gruppe.</div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="field__label">Tickettyp (Default)</label>
+        <input class="field__input" data-action="integration-input" data-key="freshdeskTicketType" value="${(d.freshdeskTicketType || '').replace(/"/g, '&quot;')}" placeholder="z.B. Question oder FLP Lift Parts Repair" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Standardwert für das Type-Feld in Freshdesk. Wenn dein Konto Custom-Typen hat, muss der Name exakt übereinstimmen.</div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="field__label">Default-Requester (Fallback-Email)</label>
+        <input class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" value="${(d.freshdeskDefaultRequester || '').replace(/"/g, '&quot;')}" placeholder="z.B. service@flp-shop.com" type="email" inputmode="email" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wird nur verwendet wenn ein Kunde aus irgendeinem Grund keine Email hinterlegt hat. Normal: leer lassen — der Kunde ist immer der Requester.</div>
       </div>
 
       <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
