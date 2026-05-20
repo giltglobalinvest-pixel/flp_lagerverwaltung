@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.57';
+const APP_VERSION = 'v1.58';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2604,26 +2604,89 @@ function json(d: unknown, s = 200) {
   return new Response(JSON.stringify(d), { status: s, headers: { ...cors(), "Content-Type": "application/json" } });
 }
 
+function fdAuthHeader() {
+  return "Basic " + btoa(FRESHDESK_API_KEY + ":X");
+}
+async function fdGet(path: string) {
+  const res = await fetch(\`https://\${FRESHDESK_DOMAIN}.freshdesk.com\${path}\`, {
+    headers: { "Authorization": fdAuthHeader() },
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(\`Freshdesk \${res.status}: \${txt.slice(0, 200)}\`);
+  }
+  return res.json();
+}
+function checkSharedToken(req: Request): Response | null {
+  if (!SHARED_TOKEN) return null;
+  const auth = (req.headers.get("authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+  if (auth !== SHARED_TOKEN) return json({ error: "Unauthorized" }, 401);
+  return null;
+}
+
 export default async function (req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/\\/+$/, "") || "/";
+
+  // ── GET-Endpoints ──
   if (req.method === "GET") {
-    return json({
-      ok: true,
-      service: "flp-stockmanager-inquiry-proxy",
-      freshdeskDomain: FRESHDESK_DOMAIN || "(nicht konfiguriert)",
-      hasApiKey: !!FRESHDESK_API_KEY,
-      hasSharedToken: !!SHARED_TOKEN,
-      hasGroupId: !!FRESHDESK_GROUP_ID,
-      ticketType: FRESHDESK_TICKET_TYPE,
-      defaultRequester: FRESHDESK_DEFAULT_REQUESTER || "(keiner — Customer-Email ist Pflicht)",
-    });
+    // Status (öffentlich)
+    if (path === "/" || path === "") {
+      return json({
+        ok: true,
+        service: "flp-stockmanager-inquiry-proxy",
+        freshdeskDomain: FRESHDESK_DOMAIN || "(nicht konfiguriert)",
+        hasApiKey: !!FRESHDESK_API_KEY,
+        hasSharedToken: !!SHARED_TOKEN,
+        hasGroupId: !!FRESHDESK_GROUP_ID,
+        ticketType: FRESHDESK_TICKET_TYPE,
+        defaultRequester: FRESHDESK_DEFAULT_REQUESTER || "(keiner — Customer-Email ist Pflicht)",
+        endpoints: ["GET /groups", "GET /agents", "GET /ticket-types", "POST /"],
+      });
+    }
+    // Diese Endpoints sind Admin-Only (Shared-Token nötig)
+    const tokErr = checkSharedToken(req);
+    if (tokErr) return tokErr;
+    if (!FRESHDESK_DOMAIN || !FRESHDESK_API_KEY) {
+      return json({ error: "Proxy nicht konfiguriert" }, 500);
+    }
+    try {
+      if (path === "/groups") {
+        const data = await fdGet("/api/v2/groups");
+        return json((data || []).map((g: any) => ({ id: g.id, name: g.name })));
+      }
+      if (path === "/agents") {
+        const data = await fdGet("/api/v2/agents");
+        return json((data || []).map((a: any) => ({
+          id: a.id,
+          email: a.contact?.email || "",
+          name: a.contact?.name || "",
+        })).filter((a: any) => a.email));
+      }
+      if (path === "/ticket-types") {
+        const data = await fdGet("/api/v2/ticket_fields");
+        const typeField = (data || []).find((f: any) =>
+          f.name === "ticket_type" || f.label === "Type" || f.label_for_customers === "Type"
+        );
+        const choices = typeField?.choices || [];
+        // Choices kommen mal als Array von Strings, mal als Array von {value, ...}
+        const list = Array.isArray(choices)
+          ? choices.map((c: any) => typeof c === "string" ? c : (c.value || c.label || c.name || ""))
+              .filter(Boolean)
+          : Object.keys(choices);
+        return json(list);
+      }
+    } catch (e: any) {
+      return json({ error: e?.message || "Fehler beim Laden" }, 502);
+    }
+    return json({ error: "Unbekannter GET-Endpoint" }, 404);
   }
+
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  if (SHARED_TOKEN) {
-    const auth = (req.headers.get("authorization") || "").replace(/^Bearer\\s+/i, "").trim();
-    if (auth !== SHARED_TOKEN) return json({ error: "Unauthorized" }, 401);
-  }
+  const tokErr = checkSharedToken(req);
+  if (tokErr) return tokErr;
 
   if (!FRESHDESK_DOMAIN || !FRESHDESK_API_KEY) {
     return json({ error: "Proxy nicht konfiguriert — FRESHDESK_DOMAIN / FRESHDESK_API_KEY fehlt" }, 500);
@@ -2869,6 +2932,8 @@ async function valtownRunSetup() {
 
     _vtLog('🎉 Setup abgeschlossen — Proxy ist live', 'ok');
     showToast('✅ Freshdesk-Proxy eingerichtet', 'success', 2800);
+    // Frisch geladenen Proxy direkt für Dropdown-Optionen anzapfen
+    setTimeout(() => loadIntegrationOptions(true), 800);
   } catch (e) {
     _vtLog('❌ Fehler: ' + (e.message || e), 'err');
     showToast('❌ Setup fehlgeschlagen: ' + e.message, 'error', 4000);
@@ -2895,6 +2960,35 @@ async function valtownRunTest() {
   } catch (e) {
     _vtLog('Test fehlgeschlagen: ' + e.message, 'err');
     showToast('❌ Test fehlgeschlagen: ' + e.message, 'error', 3500);
+  }
+}
+
+// Lädt Groups / Agents / Ticket-Types über den Proxy → Dropdowns im Settings-Screen
+async function loadIntegrationOptions(force) {
+  if (!APP_KEYS.inquiryProxyUrl) return;
+  if (state.fdOptionsLoaded && !force) return;
+  if (state.fdOptionsLoading) return;
+  state.fdOptionsLoading = true;
+  state.fdOptionsError = '';
+  if (state.view === 'integrations') render();
+  const headers = { 'Accept': 'application/json' };
+  if (APP_KEYS.inquiryProxyToken) headers['Authorization'] = 'Bearer ' + APP_KEYS.inquiryProxyToken;
+  try {
+    const base = APP_KEYS.inquiryProxyUrl.replace(/\/+$/, '');
+    const [gRes, aRes, tRes] = await Promise.all([
+      fetch(base + '/groups', { headers }),
+      fetch(base + '/agents', { headers }),
+      fetch(base + '/ticket-types', { headers }),
+    ]);
+    state.fdGroups = gRes.ok ? await gRes.json() : [];
+    state.fdAgents = aRes.ok ? await aRes.json() : [];
+    state.fdTicketTypes = tRes.ok ? await tRes.json() : [];
+    state.fdOptionsLoaded = true;
+  } catch (e) {
+    state.fdOptionsError = e?.message || 'Fehler beim Laden';
+  } finally {
+    state.fdOptionsLoading = false;
+    if (state.view === 'integrations') render();
   }
 }
 
@@ -7771,23 +7865,61 @@ function renderIntegrations() {
         <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">In Freshdesk: oben rechts auf dein Profilbild → „Profile Settings" → rechte Sidebar „Your API Key".</div>
       </div>
 
-      <div class="field" style="margin-top:14px">
-        <label class="field__label">Freshdesk Group ID (optional)</label>
-        <input class="field__input" data-action="integration-input" data-key="freshdeskGroupId" value="${(d.freshdeskGroupId || '').replace(/"/g, '&quot;')}" placeholder="z.B. 36000027325" inputmode="numeric" autocomplete="off">
-        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wenn gesetzt, landen alle Stockmanager-Tickets in dieser Gruppe.</div>
-      </div>
+      ${(() => {
+        // Wenn Proxy konfiguriert und Optionen geladen → Dropdowns. Sonst Text-Inputs.
+        const optsLoaded = state.fdOptionsLoaded;
+        const optsLoading = state.fdOptionsLoading;
+        const proxyReady = !!APP_KEYS.inquiryProxyUrl;
+        const useDropdowns = optsLoaded && proxyReady;
+        const groups = state.fdGroups || [];
+        const agents = state.fdAgents || [];
+        const ticketTypes = state.fdTicketTypes || [];
+        const escAttr = s => String(s || '').replace(/"/g, '&quot;');
+        const escHtml = s => String(s || '').replace(/</g, '&lt;');
+        return `
+        <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Freshdesk-Auswahl</div>
+          ${proxyReady ? `
+            <button data-action="reload-fd-options" ${optsLoading ? 'disabled' : ''} style="font-size:11px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:var(--r-pill);${optsLoading ? 'opacity:.55' : ''}">
+              ${optsLoading ? '<div class="spinner spinner--sm" style="width:11px;height:11px"></div> Lade …' : svg('rotate-ccw', 11, 2.5) + ' Optionen aktualisieren'}
+            </button>
+          ` : `<span style="font-size:11px;color:var(--c-ink-mute)">Nach erstem Setup verfügbar</span>`}
+        </div>
+        ${state.fdOptionsError ? `<div style="margin-top:8px;padding:10px 12px;background:var(--c-red-soft);color:var(--c-red);border-radius:8px;font-size:11.5px">${escHtml(state.fdOptionsError)}</div>` : ''}
 
-      <div class="field" style="margin-top:14px">
-        <label class="field__label">Tickettyp (Default)</label>
-        <input class="field__input" data-action="integration-input" data-key="freshdeskTicketType" value="${(d.freshdeskTicketType || '').replace(/"/g, '&quot;')}" placeholder="z.B. Question oder FLP Lift Parts Repair" autocomplete="off">
-        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Standardwert für das Type-Feld in Freshdesk. Wenn dein Konto Custom-Typen hat, muss der Name exakt übereinstimmen.</div>
-      </div>
+        <div class="field" style="margin-top:10px">
+          <label class="field__label">Freshdesk Gruppe (optional)</label>
+          ${useDropdowns && groups.length > 0 ? `
+            <select class="field__input" data-action="integration-input" data-key="freshdeskGroupId" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+              <option value="">— Keine Gruppe (Freshdesk-Default) —</option>
+              ${groups.map(g => `<option value="${escAttr(g.id)}" ${String(d.freshdeskGroupId) === String(g.id) ? 'selected' : ''}>${escHtml(g.name)} (#${g.id})</option>`).join('')}
+            </select>
+          ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskGroupId" value="${escAttr(d.freshdeskGroupId)}" placeholder="z.B. 36000027325" inputmode="numeric" autocomplete="off">`}
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Tickets landen in dieser Gruppe.${!proxyReady ? ' Nach Setup wird das ein Dropdown.' : ''}</div>
+        </div>
 
-      <div class="field" style="margin-top:14px">
-        <label class="field__label">Default-Requester (Fallback-Email)</label>
-        <input class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" value="${(d.freshdeskDefaultRequester || '').replace(/"/g, '&quot;')}" placeholder="z.B. service@flp-shop.com" type="email" inputmode="email" autocomplete="off">
-        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Wird nur verwendet wenn ein Kunde aus irgendeinem Grund keine Email hinterlegt hat. Normal: leer lassen — der Kunde ist immer der Requester.</div>
-      </div>
+        <div class="field" style="margin-top:14px">
+          <label class="field__label">Tickettyp (Default)</label>
+          ${useDropdowns && ticketTypes.length > 0 ? `
+            <select class="field__input" data-action="integration-input" data-key="freshdeskTicketType" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+              ${ticketTypes.map(t => `<option value="${escAttr(t)}" ${d.freshdeskTicketType === t ? 'selected' : ''}>${escHtml(t)}</option>`).join('')}
+            </select>
+          ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskTicketType" value="${escAttr(d.freshdeskTicketType)}" placeholder="z.B. Question oder FLP Lift Parts Repair" autocomplete="off">`}
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Standardwert für das Type-Feld in Freshdesk.${!proxyReady ? ' Nach Setup wird das ein Dropdown mit echten Werten.' : ''}</div>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label class="field__label">Default-Requester (Fallback-Email)</label>
+          ${useDropdowns && agents.length > 0 ? `
+            <select class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+              <option value="">— Keiner (Customer-Email ist Pflicht) —</option>
+              ${agents.map(a => `<option value="${escAttr(a.email)}" ${d.freshdeskDefaultRequester === a.email ? 'selected' : ''}>${escHtml(a.name || a.email)} · ${escHtml(a.email)}</option>`).join('')}
+            </select>
+          ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" value="${escAttr(d.freshdeskDefaultRequester)}" placeholder="z.B. service@flp-shop.com" type="email" inputmode="email" autocomplete="off">`}
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Nur wenn ein Kunde keine Email hat. Normal: leer lassen.${!proxyReady ? ' Nach Setup wird das ein Agent-Dropdown.' : ''}</div>
+        </div>
+        `;
+      })()}
 
       <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
         <button data-action="valtown-setup" class="action-bar__btn action-bar__btn--primary" ${state.integrationsBusy ? 'disabled' : ''} style="padding:14px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;font-weight:600;${state.integrationsBusy ? 'opacity:.6' : ''}">
@@ -9902,12 +10034,17 @@ document.addEventListener('click', (e) => {
         freshdeskDomain: APP_KEYS.freshdeskDomain || 'flpliftparts',
         freshdeskApiKey: APP_KEYS.freshdeskApiKey || '',
         freshdeskGroupId: APP_KEYS.freshdeskGroupId || '',
+        freshdeskTicketType: APP_KEYS.freshdeskTicketType || 'Question',
+        freshdeskDefaultRequester: APP_KEYS.freshdeskDefaultRequester || '',
       };
       state.integrationsLog = [];
       state.integrationsBusy = false;
       go('integrations');
+      // Dropdown-Optionen im Hintergrund laden (falls Proxy schon konfiguriert)
+      if (APP_KEYS.inquiryProxyUrl) loadIntegrationOptions(false);
       break;
     }
+    case 'reload-fd-options': loadIntegrationOptions(true); break;
     case 'valtown-setup': valtownRunSetup(); break;
     case 'valtown-test': valtownRunTest(); break;
     case 'valtown-update-code': valtownRunUpdateCode(); break;
