@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.54';
+const APP_VERSION = 'v1.55';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9555,7 +9555,17 @@ function render() {
     savedFocus = { action: activeEl.dataset.action, key: activeEl.dataset.key, target: activeEl.dataset.target, pos: activeEl.selectionStart };
   }
 
-  app.innerHTML = (screens[state.view]?.() || '') + renderCompanyOverlay();
+  // Safety-Net: wenn ein Render-Aufruf wirft, zeigen wir den Fehler statt eines leeren Screens
+  let _html = '';
+  let _overlay = '';
+  try { _html = screens[state.view]?.() || ''; }
+  catch (renderErr) {
+    console.error('[render] screen "' + state.view + '" threw:', renderErr);
+    _html = `<div class="screen"><div class="scroll" style="padding:32px;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;text-align:center"><div style="width:64px;height:64px;border-radius:50%;background:var(--c-red-soft);color:var(--c-red);display:flex;align-items:center;justify-content:center">⚠</div><h2 style="font-size:18px;font-weight:700;margin:0">Render-Fehler in "${state.view}"</h2><pre style="font-family:var(--f-mono);font-size:11.5px;color:var(--c-red);background:var(--c-red-soft);padding:12px 14px;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-width:90%;text-align:left">${String(renderErr?.message || renderErr).replace(/</g,'&lt;')}</pre><button class="action-bar__btn" onclick="state.view='home';render()" style="padding:12px 24px;background:var(--c-blue);color:#fff;border:0;border-radius:12px;font-weight:600">Zurück zum Home</button><button class="action-bar__btn" onclick="location.reload()" style="padding:12px 24px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:12px;font-weight:600">Neu laden</button></div></div>`;
+  }
+  try { _overlay = renderCompanyOverlay(); }
+  catch (overlayErr) { console.error('[render] overlay threw:', overlayErr); _overlay = ''; }
+  app.innerHTML = _html + _overlay;
 
   // Restore scroll positions
   app.querySelectorAll('.scroll').forEach((el, i) => { if (savedScrolls[`scroll:${i}`]) el.scrollTop = savedScrolls[`scroll:${i}`]; });
