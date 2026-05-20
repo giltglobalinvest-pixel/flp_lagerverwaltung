@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.59';
+const APP_VERSION = 'v1.60';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2565,8 +2565,10 @@ function dismissInstallBanner() {
 async function loadPublicCompanies() {
   try {
     const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+    // Nur die für die Landing benötigten Felder anfragen → kleinere Response, schnelleres Laden
+    const params = ['fields%5B%5D=company_id', 'fields%5B%5D=name', 'fields%5B%5D=color'].join('&');
     const res = await fetch(
-      'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_COMPANIES,
+      'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_COMPANIES + '?' + params,
       { headers }
     );
     if (!res.ok) return [];
@@ -3063,14 +3065,42 @@ function _normalizeProxyUrl(url) {
   } catch(_) { return String(url).replace(/\/+$/, ''); }
 }
 
-// Lädt Companies einmalig pro Session in state.publicCompanies (für Landing-Page)
+// Cache: zeigt die Lager-Kacheln sofort beim Re-Visit ohne Netz-Roundtrip
+const PUBLIC_COMPANIES_CACHE_KEY = 'flp_public_companies_cache_v1';
+function loadCachedPublicCompanies() {
+  try {
+    const raw = localStorage.getItem(PUBLIC_COMPANIES_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.list)) return null;
+    return data.list;
+  } catch(e) { return null; }
+}
+function cachePublicCompanies(list) {
+  try { localStorage.setItem(PUBLIC_COMPANIES_CACHE_KEY, JSON.stringify({ list, at: Date.now() })); } catch(e) {}
+}
+// Lädt Companies — Cache sofort anzeigen, im Hintergrund frische Version holen
 async function ensurePublicCompanies() {
-  if (state.publicCompanies && state.publicCompanies.length) return;
+  // 1. Cache sofort zeigen falls da (Re-Visit blitzschnell)
+  if (state.publicCompanies == null) {
+    const cached = loadCachedPublicCompanies();
+    if (cached) {
+      state.publicCompanies = cached;
+      state.publicCompaniesFromCache = true;
+    }
+  }
+  // 2. Bereits frisch geladen? → nicht nochmal triggern (verhindert Endlos-Reload)
+  if (state.publicCompaniesLoaded) return;
   if (state.publicCompaniesLoading) return;
   state.publicCompaniesLoading = true;
+  if (state.view === 'landing' && !state.loggedIn && !state.publicCompanies) render();
+  // 3. Frisch laden + Cache aktualisieren
   const list = await loadPublicCompanies();
   state.publicCompanies = list;
+  state.publicCompaniesLoaded = true;
   state.publicCompaniesLoading = false;
+  state.publicCompaniesFromCache = false;
+  cachePublicCompanies(list);
   if (state.view === 'landing' && !state.loggedIn) render();
 }
 function relTime(iso) {
