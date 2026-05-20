@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.55';
+const APP_VERSION = 'v1.56';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2680,7 +2680,7 @@ async function valtownApi(token, method, path, body) {
   return data;
 }
 async function valtownMe(token) { return valtownApi(token, 'GET', '/v1/me'); }
-async function valtownCreateVal(token, name, description = '', privacy = 'unlisted') {
+async function valtownCreateVal(token, name, description = '', privacy = 'public') {
   const body = { name, privacy };
   if (description) body.description = description;
   return valtownApi(token, 'POST', '/v2/vals', body);
@@ -2774,12 +2774,12 @@ async function valtownRunSetup() {
       let valName = VALTOWN_VAL_NAME;
       let val;
       try {
-        val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'unlisted');
+        val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'public');
       } catch (e) {
         if (/already exists|name/i.test(e.message)) {
           valName = VALTOWN_VAL_NAME + Date.now().toString(36).slice(-4);
           _vtLog('Name belegt — verwende: ' + valName, 'warn');
-          val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'unlisted');
+          val = await valtownCreateVal(token, valName, 'FLP Stockmanager · Customer-Inquiry-Proxy', 'public');
         } else { throw e; }
       }
       valId = val.id;
