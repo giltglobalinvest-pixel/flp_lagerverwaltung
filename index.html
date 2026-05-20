@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.61';
+const APP_VERSION = 'v1.62';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2441,12 +2441,12 @@ async function persistUser(u) {
     api_key: u.apiKey || '',
   };
   // Optionale Felder nur mitsenden wenn gesetzt — vermeidet Airtable-Fehler bei nicht existierenden Spalten
-  if (u.email) fields.email = u.email;
+  if (u.email !== undefined) fields.email = u.email || '';
   if (u.tenantKey) fields.tenant_key = u.tenantKey;
-  if (u.firstName) fields.first_name = u.firstName;
-  if (u.lastName) fields.last_name = u.lastName;
-  if (u.phone) fields.phone = u.phone;
-  if (u.companyName) fields.company_name = u.companyName;
+  if (u.firstName !== undefined) fields.first_name = u.firstName || '';
+  if (u.lastName !== undefined) fields.last_name = u.lastName || '';
+  if (u.phone !== undefined) fields.phone = u.phone || '';
+  if (u.companyName !== undefined) fields.company_name = u.companyName || '';
   if (u.firmStreet !== undefined) fields.firm_street = u.firmStreet || '';
   if (u.firmZip !== undefined) fields.firm_zip = u.firmZip || '';
   if (u.firmCity !== undefined) fields.firm_city = u.firmCity || '';
@@ -2679,6 +2679,13 @@ const I18N = {
     'inquiry.noRecipient.goToSettings': 'Zu den Einstellungen',
     // Settings (Customer)
     'cset.title': 'Einstellungen',
+    'cset.profile.title': 'Mein Profil',
+    'cset.profile.sub': 'Deine Kontaktdaten — werden auf Anfragen verwendet.',
+    'cset.profile.firstName': 'Vorname',
+    'cset.profile.lastName': 'Nachname',
+    'cset.profile.email': 'Email',
+    'cset.profile.emailWarn': '⚠ Pflicht für Angebots-Empfang',
+    'cset.profile.phone': 'Mobilfunknummer',
     'cset.firm.title': 'Firmen-Daten',
     'cset.firm.sub': 'Diese Daten erscheinen auf deinen Anfragen und Angeboten.',
     'cset.firm.companyName': 'Firmenname',
@@ -2698,6 +2705,8 @@ const I18N = {
     'cset.employees.markAsRecipient': 'Als Angebots-Empfänger festlegen',
     'cset.employees.isRecipient': '⭐ Erhält Angebote',
     'cset.recipient.title': 'Angebots-Empfänger',
+    'cset.recipient.self': 'Du selbst',
+    'cset.recipient.selfHint': 'Du erhältst die Angebote aktuell selbst, da kein anderer Empfänger gewählt ist. Du kannst weiter unten einen Kollegen auswählen.',
     'cset.recipient.sub': 'An welche Email-Adresse sollen Angebote geschickt werden?',
     'cset.recipient.noneAvailable': 'Lege zuerst mindestens einen Mitarbeiter mit Email-Adresse an.',
     'cset.recipient.pickPrompt': 'Bitte einen Empfänger wählen',
@@ -2808,6 +2817,13 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Before you can send an inquiry, you need to add at least one employee with an email address in Settings and mark them as quote recipient.',
     'inquiry.noRecipient.goToSettings': 'Open settings',
     'cset.title': 'Settings',
+    'cset.profile.title': 'My profile',
+    'cset.profile.sub': 'Your contact details — used on inquiries.',
+    'cset.profile.firstName': 'First name',
+    'cset.profile.lastName': 'Last name',
+    'cset.profile.email': 'Email',
+    'cset.profile.emailWarn': '⚠ Required to receive quotes',
+    'cset.profile.phone': 'Mobile number',
     'cset.firm.title': 'Company details',
     'cset.firm.sub': 'These details appear on your inquiries and quotes.',
     'cset.firm.companyName': 'Company name',
@@ -2827,6 +2843,8 @@ const I18N = {
     'cset.employees.markAsRecipient': 'Set as quote recipient',
     'cset.employees.isRecipient': '⭐ Receives quotes',
     'cset.recipient.title': 'Quote recipient',
+    'cset.recipient.self': 'Yourself',
+    'cset.recipient.selfHint': 'Quotes currently come to you because no other recipient is selected. You can pick a colleague below.',
     'cset.recipient.sub': 'Which email address should quotes be sent to?',
     'cset.recipient.noneAvailable': 'First add at least one employee with an email address.',
     'cset.recipient.pickPrompt': 'Please pick a recipient',
@@ -2936,6 +2954,13 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Antes de enviar una consulta tienes que añadir en Ajustes al menos un empleado con email y marcarlo como destinatario de presupuestos.',
     'inquiry.noRecipient.goToSettings': 'Ir a Ajustes',
     'cset.title': 'Ajustes',
+    'cset.profile.title': 'Mi perfil',
+    'cset.profile.sub': 'Tus datos de contacto — se usan en las consultas.',
+    'cset.profile.firstName': 'Nombre',
+    'cset.profile.lastName': 'Apellido',
+    'cset.profile.email': 'Email',
+    'cset.profile.emailWarn': '⚠ Obligatorio para recibir presupuestos',
+    'cset.profile.phone': 'Móvil',
     'cset.firm.title': 'Datos de empresa',
     'cset.firm.sub': 'Estos datos aparecen en tus consultas y presupuestos.',
     'cset.firm.companyName': 'Nombre de empresa',
@@ -2955,6 +2980,8 @@ const I18N = {
     'cset.employees.markAsRecipient': 'Marcar como destinatario',
     'cset.employees.isRecipient': '⭐ Recibe presupuestos',
     'cset.recipient.title': 'Destinatario de presupuestos',
+    'cset.recipient.self': 'Tú mismo',
+    'cset.recipient.selfHint': 'Los presupuestos llegan a ti porque no hay otro destinatario. Puedes elegir un compañero más abajo.',
     'cset.recipient.sub': '¿A qué dirección de email se envían los presupuestos?',
     'cset.recipient.noneAvailable': 'Primero añade al menos un empleado con email.',
     'cset.recipient.pickPrompt': 'Por favor, elige un destinatario',
@@ -3064,6 +3091,13 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Voor je een aanvraag kunt versturen moet je in Instellingen minstens één medewerker met emailadres toevoegen en als offerte-ontvanger markeren.',
     'inquiry.noRecipient.goToSettings': 'Naar instellingen',
     'cset.title': 'Instellingen',
+    'cset.profile.title': 'Mijn profiel',
+    'cset.profile.sub': 'Je contactgegevens — worden gebruikt op aanvragen.',
+    'cset.profile.firstName': 'Voornaam',
+    'cset.profile.lastName': 'Achternaam',
+    'cset.profile.email': 'Email',
+    'cset.profile.emailWarn': '⚠ Vereist om offertes te ontvangen',
+    'cset.profile.phone': 'Mobiel',
     'cset.firm.title': 'Bedrijfsgegevens',
     'cset.firm.sub': 'Deze gegevens staan op je aanvragen en offertes.',
     'cset.firm.companyName': 'Bedrijfsnaam',
@@ -3083,6 +3117,8 @@ const I18N = {
     'cset.employees.markAsRecipient': 'Als offerte-ontvanger',
     'cset.employees.isRecipient': '⭐ Ontvangt offertes',
     'cset.recipient.title': 'Offerte-ontvanger',
+    'cset.recipient.self': 'Jijzelf',
+    'cset.recipient.selfHint': 'Offertes komen nu naar jou omdat er geen andere ontvanger is gekozen. Je kunt hieronder een collega kiezen.',
     'cset.recipient.sub': 'Naar welk emailadres moeten offertes worden gestuurd?',
     'cset.recipient.noneAvailable': 'Voeg eerst minstens één medewerker met emailadres toe.',
     'cset.recipient.pickPrompt': 'Kies een ontvanger',
@@ -3192,6 +3228,13 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Avant d’envoyer une demande, tu dois ajouter dans Paramètres au moins un employé avec adresse email et le marquer comme destinataire des devis.',
     'inquiry.noRecipient.goToSettings': 'Aller aux paramètres',
     'cset.title': 'Paramètres',
+    'cset.profile.title': 'Mon profil',
+    'cset.profile.sub': 'Tes coordonnées — utilisées sur les demandes.',
+    'cset.profile.firstName': 'Prénom',
+    'cset.profile.lastName': 'Nom',
+    'cset.profile.email': 'Email',
+    'cset.profile.emailWarn': '⚠ Obligatoire pour recevoir les devis',
+    'cset.profile.phone': 'Mobile',
     'cset.firm.title': 'Données société',
     'cset.firm.sub': 'Ces informations apparaissent sur tes demandes et devis.',
     'cset.firm.companyName': 'Nom de la société',
@@ -3211,6 +3254,8 @@ const I18N = {
     'cset.employees.markAsRecipient': 'Définir comme destinataire',
     'cset.employees.isRecipient': '⭐ Reçoit les devis',
     'cset.recipient.title': 'Destinataire des devis',
+    'cset.recipient.self': 'Toi-même',
+    'cset.recipient.selfHint': 'Les devis te sont actuellement envoyés car aucun autre destinataire n’est choisi. Tu peux sélectionner un collègue ci-dessous.',
     'cset.recipient.sub': 'À quelle adresse email envoyer les devis ?',
     'cset.recipient.noneAvailable': 'Ajoute d’abord au moins un collaborateur avec adresse email.',
     'cset.recipient.pickPrompt': 'Choisis un destinataire',
@@ -6654,13 +6699,41 @@ function getCustomerEmployees() {
   const u = APP_KEYS.user || {};
   return Array.isArray(u.employees) ? u.employees : [];
 }
+// "Self" als Pseudo-Mitarbeiter — repräsentiert den Kunden selbst
+function getCustomerSelfAsRecipient() {
+  const u = APP_KEYS.user || {};
+  const email = (u.email || '').trim();
+  if (!email) return null;
+  return {
+    id: '__self__',
+    firstName: u.firstName || '',
+    lastName: u.lastName || '',
+    email,
+    phone: u.phone || '',
+    role: '',
+    _isSelf: true,
+  };
+}
 function getCustomerRecipient() {
   const u = APP_KEYS.user || {};
   const id = u.quoteRecipientId;
-  if (!id) return null;
-  return getCustomerEmployees().find(e => e.id === id && (e.email || '').trim()) || null;
+  // Wenn explizit "self" gewählt ODER nichts gewählt → User selbst (falls Email vorhanden)
+  if (!id || id === '__self__') return getCustomerSelfAsRecipient();
+  const fromEmps = getCustomerEmployees().find(e => e.id === id && (e.email || '').trim());
+  if (fromEmps) return fromEmps;
+  // Fallback wenn die gewählte ID nicht mehr existiert
+  return getCustomerSelfAsRecipient();
 }
+// "Hat Empfänger" = entweder selbst eine Email oder ein Mitarbeiter mit Email
 function customerHasRecipient() { return !!getCustomerRecipient(); }
+// "Recipient ist Fallback auf User selbst" — für Hinweis-Anzeige
+function customerRecipientIsSelf() {
+  const u = APP_KEYS.user || {};
+  if (u.quoteRecipientId === '__self__') return true;
+  if (!u.quoteRecipientId) return true;
+  const fromEmps = getCustomerEmployees().find(e => e.id === u.quoteRecipientId && (e.email || '').trim());
+  return !fromEmps;
+}
 
 function renderCustomerSettings() {
   const u = APP_KEYS.user || {};
@@ -6697,6 +6770,33 @@ function renderCustomerSettings() {
             <span style="font-size:14px">${L.flag}</span> ${L.label}
           </button>
         `).join('')}
+      </div>
+    </div>
+
+    <!-- MEIN PROFIL -->
+    <div style="padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink);margin-bottom:2px">${t('cset.profile.title')}</div>
+      <div style="font-size:11.5px;color:var(--c-ink-mute);line-height:1.4;margin-bottom:14px">${t('cset.profile.sub')}</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field">
+            <label class="field__label">${t('cset.profile.firstName')}</label>
+            <input type="text" data-action="customer-set-profile-input" data-key="firstName" value="${(u.firstName||'').replace(/"/g,'&quot;')}" autocomplete="given-name" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+          </div>
+          <div class="field">
+            <label class="field__label">${t('cset.profile.lastName')}</label>
+            <input type="text" data-action="customer-set-profile-input" data-key="lastName" value="${(u.lastName||'').replace(/"/g,'&quot;')}" autocomplete="family-name" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">${t('cset.profile.email')} ${(!u.email || !u.email.trim()) ? `<span style="color:#B45309;font-weight:600;margin-left:4px">${t('cset.profile.emailWarn')}</span>` : ''}</label>
+          <input type="email" data-action="customer-set-profile-input" data-key="email" value="${(u.email||'').replace(/"/g,'&quot;')}" autocomplete="email" inputmode="email" style="width:100%;padding:11px 13px;border:1px solid ${(!u.email || !u.email.trim())?'#FACC15':'var(--c-border)'};border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
+        <div class="field">
+          <label class="field__label">${t('cset.profile.phone')}</label>
+          <input type="tel" data-action="customer-set-profile-input" data-key="phone" value="${(u.phone||'').replace(/"/g,'&quot;')}" autocomplete="tel" inputmode="tel" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
       </div>
     </div>
 
@@ -6789,14 +6889,36 @@ function renderCustomerSettings() {
       <div style="font-size:11.5px;color:var(--c-ink-mute);line-height:1.4;margin-bottom:14px">${t('cset.recipient.sub')}</div>
 
       ${(() => {
+        const self = getCustomerSelfAsRecipient();
         const withEmail = employees.filter(e => (e.email||'').trim());
-        if (withEmail.length === 0) {
+        const isSelfSelected = customerRecipientIsSelf();
+        const selfFullName = self ? ([self.firstName, self.lastName].filter(Boolean).join(' ') || self.email) : '';
+        // Wenn weder Self-Email noch ein Mitarbeiter-mit-Email existiert: Warnung
+        if (!self && withEmail.length === 0) {
           return `<div style="padding:14px;background:#FEF3C7;color:#854D0E;border:1px solid #FACC15;border-radius:var(--r-md);font-size:12.5px;line-height:1.5;display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">${svg('alert-triangle', 14, 2.4)}</span><span>${t('cset.recipient.noneAvailable')}</span></div>`;
         }
         return `
+          ${isSelfSelected && self ? `
+            <div style="padding:10px 13px;background:#DBEAFE;color:#1740B8;border:1px solid var(--c-blue);border-radius:var(--r-md);font-size:11.5px;line-height:1.45;display:flex;gap:8px;align-items:flex-start;margin-bottom:10px">
+              <span style="flex-shrink:0;margin-top:1px">${svg('info', 12, 2.5)}</span>
+              <span>${t('cset.recipient.selfHint')}</span>
+            </div>
+          ` : ''}
           <div style="display:flex;flex-direction:column;gap:8px">
+            ${self ? (() => {
+              const sel = isSelfSelected;
+              return `
+                <button data-action="customer-set-recipient" data-id="__self__" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:${sel?'#DBEAFE':'var(--c-bg-soft)'};border:1.5px solid ${sel?'var(--c-blue)':'var(--c-border)'};border-radius:var(--r-md);cursor:pointer;text-align:left;width:100%">
+                  <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${sel?'var(--c-blue)':'var(--c-border)'};background:${sel?'var(--c-blue)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff">${sel?svg('check',10,3.5):''}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:600;color:var(--c-ink);display:flex;align-items:center;gap:6px">${selfFullName.replace(/</g,'&lt;')} <span style="font-size:10px;font-weight:700;color:var(--c-blue);background:#DBEAFE;padding:2px 6px;border-radius:6px">${t('cset.recipient.self')}</span></div>
+                    <div style="font-size:11.5px;color:var(--c-ink-mute)">${self.email.replace(/</g,'&lt;')}</div>
+                  </div>
+                </button>
+              `;
+            })() : ''}
             ${withEmail.map(emp => {
-              const sel = emp.id === recipientId;
+              const sel = emp.id === recipientId && !isSelfSelected;
               const fullName = [emp.firstName, emp.lastName].filter(Boolean).join(' ') || emp.email;
               return `
                 <button data-action="customer-set-recipient" data-id="${emp.id}" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:${sel?'#DBEAFE':'var(--c-bg-soft)'};border:1.5px solid ${sel?'var(--c-blue)':'var(--c-border)'};border-radius:var(--r-md);cursor:pointer;text-align:left;width:100%">
@@ -7756,9 +7878,13 @@ function renderDetail() {
           </div>
           <!-- Empfänger-Info -->
           <div style="padding:12px 14px;background:#DBEAFE;border:1px solid var(--c-blue);border-radius:var(--r-md);font-size:11.5px;line-height:1.5;color:var(--c-ink)">
-            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#1740B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${t('inquiry.recipient.label')}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+              <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#1740B8;text-transform:uppercase;letter-spacing:.06em">${t('inquiry.recipient.label')}</div>
+              ${recipient._isSelf ? `<span style="font-size:9.5px;font-weight:700;color:var(--c-blue);background:#fff;padding:2px 7px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em">${t('cset.recipient.self')}</span>` : ''}
+            </div>
             <div style="font-weight:600">${([recipient.firstName, recipient.lastName].filter(Boolean).join(' ') || recipient.email).replace(/</g,'&lt;')}</div>
             <div style="color:#1740B8;font-weight:600">${(recipient.email||'').replace(/</g,'&lt;')}</div>
+            ${recipient._isSelf ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(36,86,229,.2);font-size:11px;color:#1740B8;line-height:1.4">${svg('info', 11, 2.5)} ${t('cset.recipient.selfHint')} <button data-action="go-customer-settings" style="background:transparent;border:0;color:#1740B8;font-weight:700;text-decoration:underline;padding:0;font-size:11px;cursor:pointer">${t('inquiry.noRecipient.goToSettings')}</button></div>` : ''}
           </div>
           <!-- Absender + Firma -->
           <div style="padding:12px 14px;background:var(--c-bg-soft);border-radius:var(--r-md);font-size:11.5px;line-height:1.5;color:var(--c-ink-soft)">
@@ -13009,6 +13135,20 @@ document.addEventListener('input', (e) => {
     // debounce persist
     if (window.__cFirmTimer) clearTimeout(window.__cFirmTimer);
     window.__cFirmTimer = setTimeout(() => {
+      persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+    }, 600);
+  }
+  else if (a === 'customer-set-profile-input') {
+    const u = APP_KEYS.user;
+    if (!u) return;
+    const key = t.dataset.key;
+    u[key] = t.value;
+    // Synthetisches `name`-Feld (Vor + Nachname) für Listen / Begrüßung
+    if (key === 'firstName' || key === 'lastName') {
+      u.name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || '';
+    }
+    if (window.__cProfileTimer) clearTimeout(window.__cProfileTimer);
+    window.__cProfileTimer = setTimeout(() => {
       persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
     }, 600);
   }
