@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.58';
+const APP_VERSION = 'v1.59';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2246,7 +2246,9 @@ const COMPANY_FIELDS = [
   { name: 'halls', type: 'multilineText' },
   { name: 'shelves', type: 'multilineText' },
   { name: 'categories', type: 'multilineText' },
-  { name: 'owners', type: 'multilineText' },          // Liste der externen Besitzer (JSON-Array von Namen)
+  { name: 'owners', type: 'multilineText' },                       // Liste der externen Besitzer (JSON-Array von Namen)
+  { name: 'freshdesk_group_id', type: 'singleLineText' },          // Pro Firma: Freshdesk-Gruppe für Customer-Anfragen
+  { name: 'freshdesk_ticket_type', type: 'singleLineText' },       // Pro Firma: Default-Tickettyp
   { name: 'created', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -2710,18 +2712,24 @@ export default async function (req: Request): Promise<Response> {
     return json({ error: "Email fehlt oder ungültig (auch kein Default-Requester konfiguriert)" }, 400);
   }
 
+  // Per-Request Overrides erlauben (App schickt pro Firma andere Werte)
+  const overrideType = String(data.ticket_type || "").trim();
+  const overrideGroup = String(data.group_id || "").trim();
+  const effectiveType = overrideType || FRESHDESK_TICKET_TYPE;
+  const effectiveGroup = overrideGroup || FRESHDESK_GROUP_ID;
+
   const ticket: any = {
     subject,
     description: description.replace(/\\n/g, "<br>"),
     email,
     name,
-    priority: 1,                 // Low
-    status: 2,                   // Open
-    source: 7,                   // Feedback widget
-    type: FRESHDESK_TICKET_TYPE, // konfigurierbar
+    priority: 1,             // Low
+    status: 2,               // Open
+    source: 7,               // Feedback widget
+    type: effectiveType,
   };
   if (phone) ticket.phone = phone;
-  if (FRESHDESK_GROUP_ID) ticket.group_id = Number(FRESHDESK_GROUP_ID);
+  if (effectiveGroup) ticket.group_id = Number(effectiveGroup);
 
   const auth = "Basic " + btoa(FRESHDESK_API_KEY + ":X");
   const res = await fetch(\`https://\${FRESHDESK_DOMAIN}.freshdesk.com/api/v2/tickets\`, {
@@ -2963,6 +2971,39 @@ async function valtownRunTest() {
   }
 }
 
+// Speichert die per-Company Freshdesk-Settings (Group + Type) — debounced damit nicht jeder Tastendruck triggert
+const _companyFdSaveTimers = {};
+function saveCompanyFreshdesk(co) {
+  if (!co?._recordId) return;
+  if (!state.companyFdSavedAt) state.companyFdSavedAt = {};
+  if (!state.companyFdSaving) state.companyFdSaving = null;
+  // Bei Select-Inputs feuert change einmal — direkt speichern. Bei Text auch unmittelbar (kein Tastendruck-Storm).
+  clearTimeout(_companyFdSaveTimers[co.id]);
+  _companyFdSaveTimers[co.id] = setTimeout(async () => {
+    state.companyFdSaving = co.id;
+    if (state.view === 'integrations') render();
+    try {
+      await airUpdate(TBL_COMPANIES, co._recordId, {
+        freshdesk_group_id: co.freshdeskGroupId || '',
+        freshdesk_ticket_type: co.freshdeskTicketType || '',
+      });
+      state.companyFdSavedAt[co.id] = Date.now();
+      // Saved-Note nach 2.5s wieder ausblenden
+      setTimeout(() => {
+        if (state.companyFdSavedAt[co.id] && Date.now() - state.companyFdSavedAt[co.id] >= 2400) {
+          delete state.companyFdSavedAt[co.id];
+          if (state.view === 'integrations') render();
+        }
+      }, 2500);
+    } catch(e) {
+      showToast('Speichern fehlgeschlagen für ' + (co.name || '?') + ': ' + e.message, 'error', 3500);
+    } finally {
+      if (state.companyFdSaving === co.id) state.companyFdSaving = null;
+      if (state.view === 'integrations') render();
+    }
+  }, 250);
+}
+
 // Lädt Groups / Agents / Ticket-Types über den Proxy → Dropdowns im Settings-Screen
 async function loadIntegrationOptions(force) {
   if (!APP_KEYS.inquiryProxyUrl) return;
@@ -3057,6 +3098,9 @@ function recordToCompany(rec) {
     name: f.name || '',
     color: f.color || COMPANY_COLORS[0],
     halls, shelves, categories, owners,
+    // Freshdesk pro Firma
+    freshdeskGroupId: f.freshdesk_group_id || '',
+    freshdeskTicketType: f.freshdesk_ticket_type || '',
     inventory: [],
   };
 }
@@ -3142,6 +3186,8 @@ function companyToFields(c, apiKey) {
     shelves: JSON.stringify(c.shelves || []),
     categories: JSON.stringify(c.categories || []),
     owners: JSON.stringify(c.owners || []),
+    freshdesk_group_id: c.freshdeskGroupId || '',
+    freshdesk_ticket_type: c.freshdeskTicketType || '',
     created: c._created || nowIso(),
     api_key: apiKey,
   };
@@ -7876,9 +7922,11 @@ function renderIntegrations() {
         const ticketTypes = state.fdTicketTypes || [];
         const escAttr = s => String(s || '').replace(/"/g, '&quot;');
         const escHtml = s => String(s || '').replace(/</g, '&lt;');
+        const arrowSvg = "url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\")";
+        const selectStyle = `appearance:none;background-image:${arrowSvg};background-repeat:no-repeat;background-position:right 12px center;padding-right:34px`;
         return `
         <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Freshdesk-Auswahl</div>
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Globale Defaults</div>
           ${proxyReady ? `
             <button data-action="reload-fd-options" ${optsLoading ? 'disabled' : ''} style="font-size:11px;font-weight:600;color:var(--c-blue);display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:var(--r-pill);${optsLoading ? 'opacity:.55' : ''}">
               ${optsLoading ? '<div class="spinner spinner--sm" style="width:11px;height:11px"></div> Lade …' : svg('rotate-ccw', 11, 2.5) + ' Optionen aktualisieren'}
@@ -7888,35 +7936,35 @@ function renderIntegrations() {
         ${state.fdOptionsError ? `<div style="margin-top:8px;padding:10px 12px;background:var(--c-red-soft);color:var(--c-red);border-radius:8px;font-size:11.5px">${escHtml(state.fdOptionsError)}</div>` : ''}
 
         <div class="field" style="margin-top:10px">
-          <label class="field__label">Freshdesk Gruppe (optional)</label>
+          <label class="field__label">Default-Gruppe</label>
           ${useDropdowns && groups.length > 0 ? `
-            <select class="field__input" data-action="integration-input" data-key="freshdeskGroupId" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+            <select class="field__input" data-action="integration-input" data-key="freshdeskGroupId" style="${selectStyle}">
               <option value="">— Keine Gruppe (Freshdesk-Default) —</option>
               ${groups.map(g => `<option value="${escAttr(g.id)}" ${String(d.freshdeskGroupId) === String(g.id) ? 'selected' : ''}>${escHtml(g.name)} (#${g.id})</option>`).join('')}
             </select>
           ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskGroupId" value="${escAttr(d.freshdeskGroupId)}" placeholder="z.B. 36000027325" inputmode="numeric" autocomplete="off">`}
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Tickets landen in dieser Gruppe.${!proxyReady ? ' Nach Setup wird das ein Dropdown.' : ''}</div>
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Default für alle Firmen. Pro Firma überschreibbar (siehe unten).</div>
         </div>
 
         <div class="field" style="margin-top:14px">
-          <label class="field__label">Tickettyp (Default)</label>
+          <label class="field__label">Default-Tickettyp</label>
           ${useDropdowns && ticketTypes.length > 0 ? `
-            <select class="field__input" data-action="integration-input" data-key="freshdeskTicketType" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+            <select class="field__input" data-action="integration-input" data-key="freshdeskTicketType" style="${selectStyle}">
               ${ticketTypes.map(t => `<option value="${escAttr(t)}" ${d.freshdeskTicketType === t ? 'selected' : ''}>${escHtml(t)}</option>`).join('')}
             </select>
-          ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskTicketType" value="${escAttr(d.freshdeskTicketType)}" placeholder="z.B. Question oder FLP Lift Parts Repair" autocomplete="off">`}
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Standardwert für das Type-Feld in Freshdesk.${!proxyReady ? ' Nach Setup wird das ein Dropdown mit echten Werten.' : ''}</div>
+          ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskTicketType" value="${escAttr(d.freshdeskTicketType)}" placeholder="z.B. Question" autocomplete="off">`}
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Standardwert für das Type-Feld. Pro Firma überschreibbar.</div>
         </div>
 
         <div class="field" style="margin-top:14px">
           <label class="field__label">Default-Requester (Fallback-Email)</label>
           ${useDropdowns && agents.length > 0 ? `
-            <select class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" style="appearance:none;background-image:url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px">
+            <select class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" style="${selectStyle}">
               <option value="">— Keiner (Customer-Email ist Pflicht) —</option>
               ${agents.map(a => `<option value="${escAttr(a.email)}" ${d.freshdeskDefaultRequester === a.email ? 'selected' : ''}>${escHtml(a.name || a.email)} · ${escHtml(a.email)}</option>`).join('')}
             </select>
           ` : `<input class="field__input" data-action="integration-input" data-key="freshdeskDefaultRequester" value="${escAttr(d.freshdeskDefaultRequester)}" placeholder="z.B. service@flp-shop.com" type="email" inputmode="email" autocomplete="off">`}
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Nur wenn ein Kunde keine Email hat. Normal: leer lassen.${!proxyReady ? ' Nach Setup wird das ein Agent-Dropdown.' : ''}</div>
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Nur wenn ein Kunde keine Email hat. Normal: leer lassen.</div>
         </div>
         `;
       })()}
@@ -7933,6 +7981,64 @@ function renderIntegrations() {
         ` : ''}
       </div>
     </div>
+
+    <!-- Per-Company Settings -->
+    ${(() => {
+      const optsLoaded = state.fdOptionsLoaded;
+      const proxyReady = !!APP_KEYS.inquiryProxyUrl;
+      const useDropdowns = optsLoaded && proxyReady;
+      const groups = state.fdGroups || [];
+      const ticketTypes = state.fdTicketTypes || [];
+      const companies = state.companies || [];
+      const escAttr = s => String(s || '').replace(/"/g, '&quot;');
+      const escHtml = s => String(s || '').replace(/</g, '&lt;');
+      const arrowSvg = "url(\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6E87' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'&gt;&lt;path d='m6 9 6 6 6-6'/&gt;&lt;/svg&gt;\")";
+      const selectStyle = `appearance:none;background-image:${arrowSvg};background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;font-size:12.5px`;
+      if (companies.length === 0) return '';
+      return `
+        <div style="margin-top:24px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+          <h2 style="font-size:16px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em">🏢 Pro Firma</h2>
+          <p style="font-size:12px;color:var(--c-ink-mute);margin:0 0 14px;line-height:1.5">Jede Firma kann ihre eigene Freshdesk-Gruppe und einen eigenen Tickettyp haben. Leer lassen heißt: globale Defaults greifen.</p>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            ${companies.map(c => {
+              const savedNote = state.companyFdSaving === c.id ? '<span style="font-size:10.5px;color:var(--c-blue);font-weight:600;display:inline-flex;align-items:center;gap:4px"><div class="spinner spinner--sm" style="width:10px;height:10px"></div> sichere …</span>' : (state.companyFdSavedAt && state.companyFdSavedAt[c.id] ? `<span style="font-size:10.5px;color:#0A6B2C;font-weight:600">✓ gespeichert</span>` : '');
+              return `
+                <div style="padding:12px 14px;background:var(--c-bg-soft);border-radius:var(--r-md);border:1px solid var(--c-border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;justify-content:space-between">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                      <div style="flex-shrink:0;width:28px;height:28px;border-radius:8px;background:${c.color || '#2456E5'};color:#fff;display:flex;align-items:center;justify-content:center">${svg('boxes', 13, 2.4)}</div>
+                      <div style="font-size:13.5px;font-weight:700;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.name)}</div>
+                    </div>
+                    ${savedNote}
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <div>
+                      <label style="font-family:var(--f-mono);font-size:9px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Gruppe</label>
+                      ${useDropdowns && groups.length > 0 ? `
+                        <select class="field__input" data-action="company-fd-input" data-id="${escAttr(c.id)}" data-key="freshdeskGroupId" style="${selectStyle}">
+                          <option value="">— Default —</option>
+                          ${groups.map(g => `<option value="${escAttr(g.id)}" ${String(c.freshdeskGroupId) === String(g.id) ? 'selected' : ''}>${escHtml(g.name)}</option>`).join('')}
+                        </select>
+                      ` : `<input class="field__input" data-action="company-fd-input" data-id="${escAttr(c.id)}" data-key="freshdeskGroupId" value="${escAttr(c.freshdeskGroupId)}" placeholder="Default" inputmode="numeric" style="font-size:12.5px">`}
+                    </div>
+                    <div>
+                      <label style="font-family:var(--f-mono);font-size:9px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Tickettyp</label>
+                      ${useDropdowns && ticketTypes.length > 0 ? `
+                        <select class="field__input" data-action="company-fd-input" data-id="${escAttr(c.id)}" data-key="freshdeskTicketType" style="${selectStyle}">
+                          <option value="">— Default —</option>
+                          ${ticketTypes.map(t => `<option value="${escAttr(t)}" ${c.freshdeskTicketType === t ? 'selected' : ''}>${escHtml(t)}</option>`).join('')}
+                        </select>
+                      ` : `<input class="field__input" data-action="company-fd-input" data-id="${escAttr(c.id)}" data-key="freshdeskTicketType" value="${escAttr(c.freshdeskTicketType)}" placeholder="Default" style="font-size:12.5px">`}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          ${!proxyReady ? '<p style="margin-top:10px;font-size:11px;color:var(--c-ink-mute);line-height:1.5">💡 Nach dem ersten Setup werden die Felder zu Dropdowns mit echten Werten.</p>' : ''}
+        </div>
+      `;
+    })()}
 
     <!-- Log -->
     ${log.length > 0 ? `
@@ -11156,6 +11262,9 @@ document.addEventListener('click', (e) => {
       render();
       (async () => {
         try {
+          // Pro-Firma Overrides — leerer String heißt: Proxy nutzt seine Default-Env-Vars
+          const overrideTicketType = (co?.freshdeskTicketType || '').trim();
+          const overrideGroupId    = (co?.freshdeskGroupId || '').trim();
           const payload = {
             subject,
             description,
@@ -11168,6 +11277,8 @@ document.addEventListener('click', (e) => {
             item_maker: it.maker || '',
             item_url: articleLink,
             company_name: activeCoName,
+            ticket_type: overrideTicketType,
+            group_id: overrideGroupId,
           };
           const headers = { 'Content-Type': 'application/json' };
           if (proxyToken) headers['Authorization'] = 'Bearer ' + proxyToken;
@@ -11747,6 +11858,15 @@ document.addEventListener('input', (e) => {
   else if (a === 'integration-input') {
     if (!state.integrationsDraft) state.integrationsDraft = {};
     state.integrationsDraft[t.dataset.key] = t.value;
+  }
+  else if (a === 'company-fd-input') {
+    // Per-Company Freshdesk-Settings — sofort persistieren in Companies-Tabelle
+    const id = t.dataset.id;
+    const key = t.dataset.key;
+    const co = (state.companies || []).find(c => c.id === id);
+    if (!co || !key) return;
+    co[key] = t.value;
+    saveCompanyFreshdesk(co);
   }
   else if (a === 'inquiry-note-input') {
     if (!state.inquiryDraft) state.inquiryDraft = { note: '' };
