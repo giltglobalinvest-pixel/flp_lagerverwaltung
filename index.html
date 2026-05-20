@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.62';
+const APP_VERSION = 'v1.63';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2679,6 +2679,35 @@ const I18N = {
     'inquiry.noRecipient.goToSettings': 'Zu den Einstellungen',
     // Settings (Customer)
     'cset.title': 'Einstellungen',
+    // Detail screen — Customer-Facing
+    'detail.by': 'von',
+    'detail.condition': 'Zustand',
+    'detail.function': 'Funktion',
+    'detail.description': 'Beschreibung',
+    'detail.description.empty': 'Noch keine Beschreibung verfügbar.',
+    'detail.properties': 'Eigenschaften',
+    'detail.maker': 'Hersteller',
+    'detail.category': 'Kategorie',
+    'detail.location': 'Lagerort',
+    'detail.updated': 'Zuletzt aktualisiert',
+    'detail.specs': 'Technische Daten',
+    'detail.specs.ai': 'AI generiert',
+    'detail.specs.empty': 'Keine technischen Daten verfügbar.',
+    // Relative time units
+    'time.ago': 'vor {n}',
+    'time.min': '{n} min',
+    'time.h': '{n} h',
+    'time.d': '{n} d',
+    // Condition labels
+    'cond.neu': 'Neu',
+    'cond.refurb': 'Generalüberholt',
+    'cond.used': 'Gebraucht',
+    // Function-status labels
+    'func.ok': 'Getestet · OK',
+    'func.untested': 'Funktion · ungetestet',
+    'func.unknown': 'Unbekannt',
+    'func.defective': 'Defekt',
+    'func.scrap': 'Schrott',
     'cset.profile.title': 'Mein Profil',
     'cset.profile.sub': 'Deine Kontaktdaten — werden auf Anfragen verwendet.',
     'cset.profile.firstName': 'Vorname',
@@ -2817,6 +2846,31 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Before you can send an inquiry, you need to add at least one employee with an email address in Settings and mark them as quote recipient.',
     'inquiry.noRecipient.goToSettings': 'Open settings',
     'cset.title': 'Settings',
+    'detail.by': 'by',
+    'detail.condition': 'Condition',
+    'detail.function': 'Function',
+    'detail.description': 'Description',
+    'detail.description.empty': 'No description available yet.',
+    'detail.properties': 'Properties',
+    'detail.maker': 'Manufacturer',
+    'detail.category': 'Category',
+    'detail.location': 'Location',
+    'detail.updated': 'Last updated',
+    'detail.specs': 'Technical data',
+    'detail.specs.ai': 'AI generated',
+    'detail.specs.empty': 'No technical data available.',
+    'time.ago': '{n} ago',
+    'time.min': '{n} min',
+    'time.h': '{n} h',
+    'time.d': '{n} d',
+    'cond.neu': 'New',
+    'cond.refurb': 'Refurbished',
+    'cond.used': 'Used',
+    'func.ok': 'Tested · OK',
+    'func.untested': 'Untested',
+    'func.unknown': 'Unknown',
+    'func.defective': 'Defective',
+    'func.scrap': 'Scrap',
     'cset.profile.title': 'My profile',
     'cset.profile.sub': 'Your contact details — used on inquiries.',
     'cset.profile.firstName': 'First name',
@@ -2954,6 +3008,31 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Antes de enviar una consulta tienes que añadir en Ajustes al menos un empleado con email y marcarlo como destinatario de presupuestos.',
     'inquiry.noRecipient.goToSettings': 'Ir a Ajustes',
     'cset.title': 'Ajustes',
+    'detail.by': 'de',
+    'detail.condition': 'Estado',
+    'detail.function': 'Función',
+    'detail.description': 'Descripción',
+    'detail.description.empty': 'Aún no hay descripción disponible.',
+    'detail.properties': 'Propiedades',
+    'detail.maker': 'Fabricante',
+    'detail.category': 'Categoría',
+    'detail.location': 'Ubicación',
+    'detail.updated': 'Última actualización',
+    'detail.specs': 'Datos técnicos',
+    'detail.specs.ai': 'Generado por IA',
+    'detail.specs.empty': 'Sin datos técnicos disponibles.',
+    'time.ago': 'hace {n}',
+    'time.min': '{n} min',
+    'time.h': '{n} h',
+    'time.d': '{n} d',
+    'cond.neu': 'Nuevo',
+    'cond.refurb': 'Reacondicionado',
+    'cond.used': 'Usado',
+    'func.ok': 'Probado · OK',
+    'func.untested': 'Sin probar',
+    'func.unknown': 'Desconocido',
+    'func.defective': 'Defectuoso',
+    'func.scrap': 'Chatarra',
     'cset.profile.title': 'Mi perfil',
     'cset.profile.sub': 'Tus datos de contacto — se usan en las consultas.',
     'cset.profile.firstName': 'Nombre',
@@ -3091,6 +3170,31 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Voor je een aanvraag kunt versturen moet je in Instellingen minstens één medewerker met emailadres toevoegen en als offerte-ontvanger markeren.',
     'inquiry.noRecipient.goToSettings': 'Naar instellingen',
     'cset.title': 'Instellingen',
+    'detail.by': 'van',
+    'detail.condition': 'Staat',
+    'detail.function': 'Functie',
+    'detail.description': 'Beschrijving',
+    'detail.description.empty': 'Nog geen beschrijving beschikbaar.',
+    'detail.properties': 'Eigenschappen',
+    'detail.maker': 'Fabrikant',
+    'detail.category': 'Categorie',
+    'detail.location': 'Locatie',
+    'detail.updated': 'Laatst bijgewerkt',
+    'detail.specs': 'Technische gegevens',
+    'detail.specs.ai': 'Door AI gegenereerd',
+    'detail.specs.empty': 'Geen technische gegevens beschikbaar.',
+    'time.ago': '{n} geleden',
+    'time.min': '{n} min',
+    'time.h': '{n} u',
+    'time.d': '{n} d',
+    'cond.neu': 'Nieuw',
+    'cond.refurb': 'Gereviseerd',
+    'cond.used': 'Gebruikt',
+    'func.ok': 'Getest · OK',
+    'func.untested': 'Niet getest',
+    'func.unknown': 'Onbekend',
+    'func.defective': 'Defect',
+    'func.scrap': 'Schroot',
     'cset.profile.title': 'Mijn profiel',
     'cset.profile.sub': 'Je contactgegevens — worden gebruikt op aanvragen.',
     'cset.profile.firstName': 'Voornaam',
@@ -3228,6 +3332,31 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Avant d’envoyer une demande, tu dois ajouter dans Paramètres au moins un employé avec adresse email et le marquer comme destinataire des devis.',
     'inquiry.noRecipient.goToSettings': 'Aller aux paramètres',
     'cset.title': 'Paramètres',
+    'detail.by': 'de',
+    'detail.condition': 'État',
+    'detail.function': 'Fonction',
+    'detail.description': 'Description',
+    'detail.description.empty': 'Aucune description disponible pour le moment.',
+    'detail.properties': 'Propriétés',
+    'detail.maker': 'Fabricant',
+    'detail.category': 'Catégorie',
+    'detail.location': 'Emplacement',
+    'detail.updated': 'Dernière mise à jour',
+    'detail.specs': 'Données techniques',
+    'detail.specs.ai': 'Généré par IA',
+    'detail.specs.empty': 'Aucune donnée technique disponible.',
+    'time.ago': 'il y a {n}',
+    'time.min': '{n} min',
+    'time.h': '{n} h',
+    'time.d': '{n} j',
+    'cond.neu': 'Neuf',
+    'cond.refurb': 'Reconditionné',
+    'cond.used': 'Occasion',
+    'func.ok': 'Testé · OK',
+    'func.untested': 'Non testé',
+    'func.unknown': 'Inconnu',
+    'func.defective': 'Défectueux',
+    'func.scrap': 'Rebut',
     'cset.profile.title': 'Mon profil',
     'cset.profile.sub': 'Tes coordonnées — utilisées sur les demandes.',
     'cset.profile.firstName': 'Prénom',
@@ -3910,12 +4039,26 @@ async function ensurePublicCompanies() {
 }
 function relTime(iso) {
   if (!iso) return '\u2014';
-  const t = Date.parse(iso); if (isNaN(t)) return '\u2014';
-  const diffH = Math.max(0, (Date.now() - t) / 36e5);
+  const ts = Date.parse(iso); if (isNaN(ts)) return '\u2014';
+  const diffH = Math.max(0, (Date.now() - ts) / 36e5);
   if (diffH < 1) return Math.max(1, Math.round(diffH * 60)) + ' min';
   if (diffH < 24) return Math.round(diffH) + ' h';
   return Math.round(diffH / 24) + ' d';
 }
+// Lokalisiert: "vor 2 d", "2 d ago", "hace 2 d" \u2014 nutzt time.* Keys
+function relTimeLocalized(iso) {
+  if (!iso) return '\u2014';
+  const ts = Date.parse(iso); if (isNaN(ts)) return '\u2014';
+  const diffH = Math.max(0, (Date.now() - ts) / 36e5);
+  let unit;
+  if (diffH < 1) unit = t('time.min', { n: Math.max(1, Math.round(diffH * 60)) });
+  else if (diffH < 24) unit = t('time.h', { n: Math.round(diffH) });
+  else unit = t('time.d', { n: Math.round(diffH / 24) });
+  return t('time.ago', { n: unit });
+}
+// \u00dcbersetzte Condition/Function-Labels (Key \u2192 t('cond.<key>') / t('func.<key>'))
+function condLabel(key) { return t('cond.' + key) || (CONDITION[key]?.label || key); }
+function funcLabel(key) { return t('func.' + key) || (FUNCTION_STATUS[key]?.label || key); }
 
 function recordToCompany(rec) {
   const f = rec.fields || {};
@@ -7591,7 +7734,7 @@ function renderDetail() {
     <div class="title-block">
       <div class="title-block__pills" style="flex-wrap:wrap;gap:6px;align-items:center"><span class="pill pill--blue-soft">${it.cat}</span></div>
       <h1>${it.title}</h1>
-      <p class="title-block__by">von <strong>${it.maker}</strong></p>
+      <p class="title-block__by">${t('detail.by')} <strong>${it.maker}</strong></p>
     </div>
     ${it.sold ? (() => {
       const isExch = it.saleType === 'service-exchange';
@@ -7702,17 +7845,17 @@ function renderDetail() {
     <div class="status-duo">
       ${isCustomer() ? `
         <div class="tile status-card" style="position:relative;text-align:left;width:100%">
-          <div class="status-card__label">ZUSTAND</div>
+          <div class="status-card__label">${t('detail.condition').toUpperCase()}</div>
           <div class="status-card__row">
             <div class="status-card__icon" style="background:${cond.bg};color:${cond.fg}">${svg(cond.icon, 17, 2.4)}</div>
-            <div><h4 class="status-card__name">${cond.label}</h4></div>
+            <div><h4 class="status-card__name">${condLabel(it.cond)}</h4></div>
           </div>
         </div>
         <div class="tile status-card" style="position:relative;text-align:left;width:100%">
-          <div class="status-card__label">FUNKTION</div>
+          <div class="status-card__label">${t('detail.function').toUpperCase()}</div>
           <div class="status-card__row">
             <div class="status-card__icon" style="background:${func.bg};color:${func.fg}">${svg(func.icon, 17, 2.4)}</div>
-            <div><h4 class="status-card__name">${func.label}</h4></div>
+            <div><h4 class="status-card__name">${funcLabel(it.func)}</h4></div>
           </div>
         </div>
       ` : `
@@ -7769,35 +7912,39 @@ function renderDetail() {
       </div>
     ` : ''}
     <div>
-      <div class="section-head"><h2 class="section-head__title">Beschreibung</h2></div>
+      <div class="section-head"><h2 class="section-head__title">${t('detail.description')}</h2></div>
       <div class="tile" style="padding:18px 20px">
         ${(it.description || '').trim() ? `
           <p style="font-size:13.5px;line-height:1.6;font-weight:500;color:var(--c-ink-soft);margin:0">${it.description}</p>
         ` : `
           <div style="display:flex;align-items:center;gap:10px;color:var(--c-ink-mute)">
             <span style="display:flex;flex-shrink:0">${svg('camera', 16, 2.4)}</span>
-            <p style="font-size:12.5px;line-height:1.5;font-weight:500;margin:0">Noch keine Beschreibung. Foto vom Typenschild hinzufügen oder im Bearbeiten-Modus manuell ergänzen.</p>
+            <p style="font-size:12.5px;line-height:1.5;font-weight:500;margin:0">${isCustomer() ? t('detail.description.empty') : 'Noch keine Beschreibung. Foto vom Typenschild hinzufügen oder im Bearbeiten-Modus manuell ergänzen.'}</p>
           </div>
         `}
       </div>
     </div>
     <div>
-      <div class="section-head"><h2 class="section-head__title">Eigenschaften</h2></div>
+      <div class="section-head"><h2 class="section-head__title">${t('detail.properties')}</h2></div>
       <div class="spec-list">
-        ${[['Hersteller', it.maker || '\u2014'], ['Kategorie', it.cat || '\u2014'], ['Lagerort', it.loc || '\u2014'], ['Zuletzt aktualisiert', 'vor ' + relTime(it.updated)]]
-          .map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val">${v}</span></div>`).join('')}
+        ${[
+          [t('detail.maker'),    it.maker || '\u2014'],
+          [t('detail.category'), it.cat   || '\u2014'],
+          [t('detail.location'), it.loc   || '\u2014'],
+          [t('detail.updated'),  relTimeLocalized(it.updated)],
+        ].map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val">${v}</span></div>`).join('')}
       </div>
     </div>
     <div>
       <div class="section-head" style="align-items:flex-start;margin-bottom:4px">
         <div>
           <div style="display:flex;align-items:center;gap:8px">
-            <h2 class="section-head__title">Technische Daten</h2>
-            <span class="pill pill--blue-soft">${svg('sparkles', 10, 2.5)} AI generiert</span>
+            <h2 class="section-head__title">${t('detail.specs')}</h2>
+            <span class="pill pill--blue-soft">${svg('sparkles', 10, 2.5)} ${t('detail.specs.ai')}</span>
           </div>
-          <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${it.specs?.length ? 'Aus Foto und Etikett abgeleitet' : 'Noch keine Daten generiert \u2014 \u201eNeu\u201c klicken'}</div>
+          ${!isCustomer() ? `<div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${it.specs?.length ? 'Aus Foto und Etikett abgeleitet' : 'Noch keine Daten generiert \u2014 \u201eNeu\u201c klicken'}</div>` : ((it.specs?.length) ? '' : `<div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${t('detail.specs.empty')}</div>`)}
         </div>
-        <button data-action="regenerate-specs" style="background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);padding:6px 10px;font-size:11px;font-weight:600;color:var(--c-ink-soft);border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:4px">${svg('rotate-ccw', 11, 2.5)} Neu</button>
+        ${!isCustomer() ? `<button data-action="regenerate-specs" style="background:var(--c-surface);border:1px solid var(--c-border);box-shadow:var(--elev-1);padding:6px 10px;font-size:11px;font-weight:600;color:var(--c-ink-soft);border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:4px">${svg('rotate-ccw', 11, 2.5)} Neu</button>` : ''}
       </div>
       <div class="spec-list" style="margin-top:10px">
         ${(it.specs || []).map(([k, v]) => `<div class="spec-row"><span class="spec-row__key">${k}</span><span class="spec-row__val spec-row__val--mono">${v}</span></div>`).join('')}
