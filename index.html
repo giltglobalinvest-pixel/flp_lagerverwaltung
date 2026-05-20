@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.60';
+const APP_VERSION = 'v1.61';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1792,7 +1792,13 @@ async function loginWithUserKey(userKey) {
   if (!userRes.ok) throw new Error('Login-Server nicht erreichbar');
   const userData = await userRes.json();
   if (!userData.records || !userData.records.length) throw new Error('Ung\u00fcltiger Key');
-  APP_KEYS.user = { ...userData.records[0].fields, _recordId: userData.records[0].id };
+  // recordToUser \u2192 mappt Airtable-Snake-Case-Felder auf camelCase (firstName, companyName, firmStreet, employees, \u2026)
+  APP_KEYS.user = recordToUser(userData.records[0]);
+  // Falls User eine gespeicherte Sprache hat \u2192 \u00fcbernehmen
+  if (APP_KEYS.user.lang && I18N[APP_KEYS.user.lang]) {
+    state.lang = APP_KEYS.user.lang;
+    try { localStorage.setItem('flp_lang', APP_KEYS.user.lang); } catch(e) {}
+  }
 
   // Project-spezifische Keys
   const projectKeysRes = await fetch(
@@ -2092,6 +2098,9 @@ const ICONS = {
   share: '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
 };
 
 function svg(name, size = 16, sw = 2.4) {
@@ -2150,6 +2159,7 @@ const state = {
   deviceMode: 'phone',                       // 'phone' | 'tablet' — steuert ob Anlegen-UI sichtbar ist
   customerOnboardStep: 0,                    // 0 = nicht im Onboarding, 1-3 = aktiver Schritt
   customerOnboarding: false,                 // aktiv = Customer-Onboarding-Screen anzeigen
+  lang: 'de',                                 // Aktive UI-Sprache (de | en | es | nl | fr)
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
   cameraShowLive: true,      // true = Live-Cam im Camera-Screen zeigen, false = Preview eines bereits aufgenommenen Fotos
@@ -2340,7 +2350,7 @@ function teamKey() {
   const u = APP_KEYS.user;
   if (!u) return '';
   // tenant_key kann je nach Airtable-Schreibung unterschiedlich heißen
-  return (u.tenant_key || u.team_key || u.tenantKey || u.api_key || '').trim();
+  return (u.tenantKey || u.tenant_key || u.team_key || u.apiKey || u.api_key || '').trim();
 }
 
 function nowIso() { return new Date().toISOString(); }
@@ -2365,6 +2375,17 @@ const USER_FIELDS = [
   { name: 'last_name', type: 'singleLineText' },
   { name: 'phone', type: 'singleLineText' },
   { name: 'company_name', type: 'singleLineText' },
+  // Customer-Firmen-Adresse (für Tickets / Angebote)
+  { name: 'firm_street', type: 'singleLineText' },
+  { name: 'firm_zip', type: 'singleLineText' },
+  { name: 'firm_city', type: 'singleLineText' },
+  { name: 'firm_country', type: 'singleLineText' },
+  // Mitarbeiter des Kunden (JSON-Array von {id, firstName, lastName, email, phone, role})
+  { name: 'employees', type: 'multilineText' },
+  // ID des Mitarbeiters, an den Angebote geschickt werden
+  { name: 'quote_recipient_id', type: 'singleLineText' },
+  // Bevorzugte Sprache des Kunden
+  { name: 'lang', type: 'singleLineText' },
   { name: 'created', type: 'singleLineText' },
 ];
 
@@ -2392,6 +2413,13 @@ function recordToUser(rec) {
     lastName: f.last_name || '',
     phone: f.phone || '',
     companyName: f.company_name || '',
+    firmStreet: f.firm_street || '',
+    firmZip: f.firm_zip || '',
+    firmCity: f.firm_city || '',
+    firmCountry: f.firm_country || '',
+    employees: (() => { try { return f.employees ? JSON.parse(f.employees) : []; } catch(e) { return []; } })(),
+    quoteRecipientId: f.quote_recipient_id || '',
+    lang: f.lang || '',
     created: f.created || '',
   };
 }
@@ -2419,6 +2447,13 @@ async function persistUser(u) {
   if (u.lastName) fields.last_name = u.lastName;
   if (u.phone) fields.phone = u.phone;
   if (u.companyName) fields.company_name = u.companyName;
+  if (u.firmStreet !== undefined) fields.firm_street = u.firmStreet || '';
+  if (u.firmZip !== undefined) fields.firm_zip = u.firmZip || '';
+  if (u.firmCity !== undefined) fields.firm_city = u.firmCity || '';
+  if (u.firmCountry !== undefined) fields.firm_country = u.firmCountry || '';
+  if (u.employees !== undefined) fields.employees = JSON.stringify(u.employees || []);
+  if (u.quoteRecipientId !== undefined) fields.quote_recipient_id = u.quoteRecipientId || '';
+  if (u.lang !== undefined) fields.lang = u.lang || '';
   if (u.created) fields.created = u.created;
   if (u._recordId) {
     return await airUpdate(TBL_USERS, u._recordId, fields);
@@ -2520,6 +2555,710 @@ function setDeviceMode(mode) {
   try { localStorage.setItem('flp_device_mode', state.deviceMode); } catch(e) {}
 }
 function isTabletMode() { return state.deviceMode === 'tablet'; }
+
+/* ============================================================
+   I18N — Sprachunterstützung für Customer-Bereiche
+   Sprachen: de (Default), en, es, nl, fr
+   ============================================================ */
+const I18N_LANGS = [
+  { code: 'de', label: 'Deutsch',     flag: '🇩🇪' },
+  { code: 'en', label: 'English',     flag: '🇬🇧' },
+  { code: 'es', label: 'Español',     flag: '🇪🇸' },
+  { code: 'nl', label: 'Nederlands',  flag: '🇳🇱' },
+  { code: 'fr', label: 'Français',    flag: '🇫🇷' },
+];
+const I18N = {
+  de: {
+    // Brand + Navigation
+    'brand.tagline': 'Stockmanager',
+    'nav.login': 'Anmelden',
+    'nav.back': 'Zurück',
+    'nav.close': 'Schließen',
+    'nav.settings': 'Einstellungen',
+    'nav.help': 'Hilfe',
+    'nav.cancel': 'Abbrechen',
+    'nav.save': 'Speichern',
+    'nav.delete': 'Löschen',
+    'nav.edit': 'Bearbeiten',
+    'nav.done': 'Fertig',
+    // Landing
+    'landing.hero.title': 'Such dein Ersatzteil<br>per Foto.',
+    'landing.hero.sub': 'Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom Typenschild — wir prüfen sofort, ob wir das passende Ersatzteil bei FLP Lift Parts auf Lager haben und melden uns mit Preis und Verfügbarkeit zurück.',
+    'landing.cta.register': 'Kostenlosen Zugang erstellen',
+    'landing.cta.alreadyRegistered': 'Schon registriert?',
+    'landing.steps.title': 'So einfach geht’s',
+    'landing.steps.1.title': 'Typenschild fotografieren',
+    'landing.steps.1.sub': 'Halt dein Handy auf das Schild — Mehr nicht.',
+    'landing.steps.2.title': 'KI erkennt das Teil',
+    'landing.steps.2.sub': 'Hersteller, Modell, Code — alles automatisch ausgelesen.',
+    'landing.steps.3.title': 'Treffer im Lager',
+    'landing.steps.3.sub': 'Du siehst sofort ob wir es haben, mit Foto und Details.',
+    'landing.steps.4.title': 'Anfrage stellen',
+    'landing.steps.4.sub': 'Mit einem Tap landet deine Anfrage bei uns.',
+    'landing.warehouses.title': 'Verfügbare Lager',
+    'landing.warehouses.sub': 'Wähle den Bestand, in dem du suchen möchtest. Du kannst später jederzeit zwischen den Lagern wechseln.',
+    'landing.warehouses.loading': 'Lager werden geladen …',
+    'landing.warehouses.empty': 'Aktuell keine Lager verfügbar. Bitte später noch einmal versuchen.',
+    'landing.warehouses.tileCta': 'Zugang erstellen',
+    'landing.warehouses.itemsAvailable': '{n} Artikel verfügbar',
+    'landing.warehouses.filling': 'Bestand wird gefüllt',
+    'landing.warehouses.more': 'Es kommen laufend neue Lager dazu. Schau gerne wieder rein.',
+    'landing.perks.free.title': 'Kostenlos',
+    'landing.perks.free.sub': 'Suchen und Anfragen sind komplett kostenlos.',
+    'landing.perks.noType.title': 'Kein Tippen',
+    'landing.perks.noType.sub': 'Foto genügt — wir lesen den Rest selbst.',
+    'landing.perks.direct.title': 'Direkt zum Profi',
+    'landing.perks.direct.sub': 'Deine Anfrage geht direkt an unser FLP-Team.',
+    'landing.bottom.title': 'Bereit loszulegen?',
+    'landing.bottom.sub': 'In zwei Minuten bist du registriert und kannst dein erstes Foto abschicken.',
+    'landing.bottom.cta': 'Jetzt kostenlos starten',
+    'landing.footer.imprint': 'Impressum',
+    'landing.footer.privacy': 'Datenschutz',
+    'landing.footer.contact': 'Kontakt',
+    // Login
+    'login.title': 'FLP Stockmanager',
+    'login.sub': 'Bitte mit persönlichem Zugangs-Schlüssel anmelden',
+    'login.input.placeholder': 'Persönlicher Schlüssel',
+    'login.button': 'Anmelden',
+    'login.checking': 'Prüfe …',
+    'login.newHere': 'Noch keinen Zugang?',
+    'login.register': 'Als Kunde registrieren',
+    // Register
+    'register.title': 'Als Kunde anmelden',
+    'register.sub': 'Trag deine Daten ein — wir schicken dir den persönlichen Zugangs-Code zu.',
+    'register.field.firstName': 'Vorname',
+    'register.field.lastName': 'Nachname',
+    'register.field.email': 'Email',
+    'register.field.phone': 'Handynummer',
+    'register.field.company': 'Firma',
+    'register.hint': 'Nach der Registrierung bekommst du sofort einen persönlichen Zugangs-Code angezeigt. Damit kannst du Artikel per Foto suchen und Anfragen stellen.',
+    'register.submit': 'Zugang anlegen',
+    'register.submitting': 'Lege Zugang an …',
+    'register.alreadyHaveCode': 'Schon einen Code?',
+    'register.loginHere': 'Hier einloggen',
+    // Register Success
+    'registerSuccess.welcome': 'Willkommen, {name}!',
+    'registerSuccess.intro': 'Dein persönlicher Zugangs-Code ist bereit. Wir haben ihn zusätzlich an {email} versendet (sobald die E-Mail-Anbindung steht).',
+    'registerSuccess.codeLabel': 'Dein Zugangs-Code',
+    'registerSuccess.copy': 'Code kopieren',
+    'registerSuccess.important': 'Speichere den Code sicher ab. Du brauchst ihn jedes Mal zum Einloggen — wir können ihn nicht wiederherstellen.',
+    'registerSuccess.continue': 'Jetzt anmelden & starten',
+    // Customer Home
+    'home.hi': 'Hallo',
+    'home.installBanner.title': 'App auf Startbildschirm',
+    'home.installBanner.sub': 'Damit du uns mit einem Tap erreichst',
+    'home.warehouseSection.label': 'Du bist gerade hier',
+    'home.warehouseSection.count': '{n} Lager',
+    'home.photoCta.title': 'Foto vom Typenschild',
+    'home.photoCta.sub': 'Tipp drauf und wir scannen es für dich.',
+    'home.photoCta.hint': 'KI erkennt Hersteller & Modell automatisch',
+    'home.search.placeholder': 'Oder Modellname tippen ...',
+    'home.search.noMatchHere': 'Hier nicht gefunden — vielleicht in einem anderen Lager?',
+    'home.search.switchWarehouse': 'Lager wechseln',
+    'home.browse.title': 'Stöbern',
+    'home.browse.subFrom': 'Beispiele aus {name}',
+    'home.help.title': 'Nichts passendes gefunden?',
+    'home.help.sub': 'Schreib uns direkt — wir melden uns schnell zurück.',
+    // Customer Detail
+    'detail.inquiry.button': 'Anfrage stellen',
+    // Inquiry Sheet
+    'inquiry.title': 'Anfrage stellen',
+    'inquiry.intro': 'Ein Mitarbeiter meldet sich an die Email-Adresse zurück, die du als Angebots-Empfänger festgelegt hast.',
+    'inquiry.note.label': 'Deine Nachricht',
+    'inquiry.note.optional': '(optional)',
+    'inquiry.note.placeholder': 'Z.B.: brauche das Teil bis Freitag, oder: hast du auch eine günstigere Alternative? …',
+    'inquiry.sender': 'Absender',
+    'inquiry.recipient.label': 'Angebot geht an',
+    'inquiry.send': 'Anfrage absenden',
+    'inquiry.sending': 'Sende …',
+    'inquiry.success.title': 'Anfrage gesendet',
+    'inquiry.success.sub': 'Wir haben deine Anfrage erhalten und schicken das Angebot an {email}.',
+    'inquiry.done': 'Fertig',
+    'inquiry.noRecipient.title': 'Kein Angebots-Empfänger eingerichtet',
+    'inquiry.noRecipient.sub': 'Bevor du eine Anfrage stellen kannst, musst du in den Einstellungen mindestens einen Mitarbeiter mit Email-Adresse anlegen und als Angebots-Empfänger markieren.',
+    'inquiry.noRecipient.goToSettings': 'Zu den Einstellungen',
+    // Settings (Customer)
+    'cset.title': 'Einstellungen',
+    'cset.firm.title': 'Firmen-Daten',
+    'cset.firm.sub': 'Diese Daten erscheinen auf deinen Anfragen und Angeboten.',
+    'cset.firm.companyName': 'Firmenname',
+    'cset.firm.street': 'Straße + Nr.',
+    'cset.firm.zip': 'PLZ',
+    'cset.firm.city': 'Ort',
+    'cset.firm.country': 'Land',
+    'cset.employees.title': 'Mitarbeiter',
+    'cset.employees.sub': 'Lege Kolleg:innen an, die Anfragen stellen oder Angebote empfangen sollen. Email ist optional, aber wer Angebote empfangen soll braucht eine.',
+    'cset.employees.empty': 'Noch keine Mitarbeiter angelegt.',
+    'cset.employees.add': '+ Mitarbeiter anlegen',
+    'cset.employees.firstName': 'Vorname',
+    'cset.employees.lastName': 'Nachname',
+    'cset.employees.email': 'Email',
+    'cset.employees.phone': 'Telefon',
+    'cset.employees.role': 'Funktion',
+    'cset.employees.markAsRecipient': 'Als Angebots-Empfänger festlegen',
+    'cset.employees.isRecipient': '⭐ Erhält Angebote',
+    'cset.recipient.title': 'Angebots-Empfänger',
+    'cset.recipient.sub': 'An welche Email-Adresse sollen Angebote geschickt werden?',
+    'cset.recipient.noneAvailable': 'Lege zuerst mindestens einen Mitarbeiter mit Email-Adresse an.',
+    'cset.recipient.pickPrompt': 'Bitte einen Empfänger wählen',
+    'cset.saved': '✓ Gespeichert',
+    'cset.saveError': 'Speichern fehlgeschlagen',
+    // Languages
+    'lang.label': 'Sprache',
+  },
+  en: {
+    'brand.tagline': 'Stockmanager',
+    'nav.login': 'Sign in',
+    'nav.back': 'Back',
+    'nav.close': 'Close',
+    'nav.settings': 'Settings',
+    'nav.help': 'Help',
+    'nav.cancel': 'Cancel',
+    'nav.save': 'Save',
+    'nav.delete': 'Delete',
+    'nav.edit': 'Edit',
+    'nav.done': 'Done',
+    'landing.hero.title': 'Find your spare part<br>by photo.',
+    'landing.hero.sub': 'Broken frequency converter? Drive at the end of its life? Take a photo of the type plate — we’ll check straight away whether we have a matching spare part in stock at FLP Lift Parts and get back to you with price and availability.',
+    'landing.cta.register': 'Create a free account',
+    'landing.cta.alreadyRegistered': 'Already registered?',
+    'landing.steps.title': 'How it works',
+    'landing.steps.1.title': 'Photograph the type plate',
+    'landing.steps.1.sub': 'Hold your phone up to the plate — that’s it.',
+    'landing.steps.2.title': 'AI identifies the part',
+    'landing.steps.2.sub': 'Manufacturer, model, code — all read automatically.',
+    'landing.steps.3.title': 'Match in stock',
+    'landing.steps.3.sub': 'You instantly see if we have it, with photo and details.',
+    'landing.steps.4.title': 'Send inquiry',
+    'landing.steps.4.sub': 'One tap sends your inquiry to us.',
+    'landing.warehouses.title': 'Available warehouses',
+    'landing.warehouses.sub': 'Pick the stock you want to search. You can switch warehouses any time later.',
+    'landing.warehouses.loading': 'Loading warehouses …',
+    'landing.warehouses.empty': 'No warehouses available right now. Please try again later.',
+    'landing.warehouses.tileCta': 'Create access',
+    'landing.warehouses.itemsAvailable': '{n} items available',
+    'landing.warehouses.filling': 'Stock being filled',
+    'landing.warehouses.more': 'New warehouses are added regularly. Check back any time.',
+    'landing.perks.free.title': 'Free',
+    'landing.perks.free.sub': 'Searching and inquiries are completely free.',
+    'landing.perks.noType.title': 'No typing',
+    'landing.perks.noType.sub': 'A photo is enough — we read the rest ourselves.',
+    'landing.perks.direct.title': 'Straight to the experts',
+    'landing.perks.direct.sub': 'Your inquiry goes directly to our FLP team.',
+    'landing.bottom.title': 'Ready to start?',
+    'landing.bottom.sub': 'In two minutes you’re registered and can send your first photo.',
+    'landing.bottom.cta': 'Get started for free',
+    'landing.footer.imprint': 'Imprint',
+    'landing.footer.privacy': 'Privacy',
+    'landing.footer.contact': 'Contact',
+    'login.title': 'FLP Stockmanager',
+    'login.sub': 'Please sign in with your personal access key',
+    'login.input.placeholder': 'Personal key',
+    'login.button': 'Sign in',
+    'login.checking': 'Checking …',
+    'login.newHere': 'No account yet?',
+    'login.register': 'Register as customer',
+    'register.title': 'Sign up as customer',
+    'register.sub': 'Enter your details — we’ll send you a personal access code.',
+    'register.field.firstName': 'First name',
+    'register.field.lastName': 'Last name',
+    'register.field.email': 'Email',
+    'register.field.phone': 'Mobile number',
+    'register.field.company': 'Company',
+    'register.hint': 'Right after registering you’ll see your personal access code. With that you can search for items by photo and send inquiries.',
+    'register.submit': 'Create account',
+    'register.submitting': 'Creating account …',
+    'register.alreadyHaveCode': 'Already have a code?',
+    'register.loginHere': 'Sign in here',
+    'registerSuccess.welcome': 'Welcome, {name}!',
+    'registerSuccess.intro': 'Your personal access code is ready. We have also sent it to {email} (once email delivery is wired up).',
+    'registerSuccess.codeLabel': 'Your access code',
+    'registerSuccess.copy': 'Copy code',
+    'registerSuccess.important': 'Save this code safely. You need it every time you sign in — we can’t recover it.',
+    'registerSuccess.continue': 'Sign in & start',
+    'home.hi': 'Hi',
+    'home.installBanner.title': 'Add to home screen',
+    'home.installBanner.sub': 'So we’re always one tap away',
+    'home.warehouseSection.label': 'You are here',
+    'home.warehouseSection.count': '{n} warehouses',
+    'home.photoCta.title': 'Photo of the type plate',
+    'home.photoCta.sub': 'Tap and we’ll scan it for you.',
+    'home.photoCta.hint': 'AI identifies manufacturer & model automatically',
+    'home.search.placeholder': 'Or type model name ...',
+    'home.search.noMatchHere': 'Not found here — maybe in another warehouse?',
+    'home.search.switchWarehouse': 'Switch warehouse',
+    'home.browse.title': 'Browse',
+    'home.browse.subFrom': 'Examples from {name}',
+    'home.help.title': 'Nothing matches?',
+    'home.help.sub': 'Write to us directly — we’ll get back to you quickly.',
+    'detail.inquiry.button': 'Send inquiry',
+    'inquiry.title': 'Send inquiry',
+    'inquiry.intro': 'A team member will reply to the email address you set as the quote recipient.',
+    'inquiry.note.label': 'Your message',
+    'inquiry.note.optional': '(optional)',
+    'inquiry.note.placeholder': 'E.g.: need the part by Friday, or: do you have a cheaper alternative? …',
+    'inquiry.sender': 'Sender',
+    'inquiry.recipient.label': 'Quote goes to',
+    'inquiry.send': 'Send inquiry',
+    'inquiry.sending': 'Sending …',
+    'inquiry.success.title': 'Inquiry sent',
+    'inquiry.success.sub': 'We have received your inquiry and will send the quote to {email}.',
+    'inquiry.done': 'Done',
+    'inquiry.noRecipient.title': 'No quote recipient set up',
+    'inquiry.noRecipient.sub': 'Before you can send an inquiry, you need to add at least one employee with an email address in Settings and mark them as quote recipient.',
+    'inquiry.noRecipient.goToSettings': 'Open settings',
+    'cset.title': 'Settings',
+    'cset.firm.title': 'Company details',
+    'cset.firm.sub': 'These details appear on your inquiries and quotes.',
+    'cset.firm.companyName': 'Company name',
+    'cset.firm.street': 'Street + No.',
+    'cset.firm.zip': 'Postal code',
+    'cset.firm.city': 'City',
+    'cset.firm.country': 'Country',
+    'cset.employees.title': 'Employees',
+    'cset.employees.sub': 'Add colleagues who will send inquiries or receive quotes. Email is optional, but the quote recipient needs one.',
+    'cset.employees.empty': 'No employees added yet.',
+    'cset.employees.add': '+ Add employee',
+    'cset.employees.firstName': 'First name',
+    'cset.employees.lastName': 'Last name',
+    'cset.employees.email': 'Email',
+    'cset.employees.phone': 'Phone',
+    'cset.employees.role': 'Role',
+    'cset.employees.markAsRecipient': 'Set as quote recipient',
+    'cset.employees.isRecipient': '⭐ Receives quotes',
+    'cset.recipient.title': 'Quote recipient',
+    'cset.recipient.sub': 'Which email address should quotes be sent to?',
+    'cset.recipient.noneAvailable': 'First add at least one employee with an email address.',
+    'cset.recipient.pickPrompt': 'Please pick a recipient',
+    'cset.saved': '✓ Saved',
+    'cset.saveError': 'Save failed',
+    'lang.label': 'Language',
+  },
+  es: {
+    'brand.tagline': 'Stockmanager',
+    'nav.login': 'Acceder',
+    'nav.back': 'Atrás',
+    'nav.close': 'Cerrar',
+    'nav.settings': 'Ajustes',
+    'nav.help': 'Ayuda',
+    'nav.cancel': 'Cancelar',
+    'nav.save': 'Guardar',
+    'nav.delete': 'Eliminar',
+    'nav.edit': 'Editar',
+    'nav.done': 'Listo',
+    'landing.hero.title': 'Encuentra tu repuesto<br>con una foto.',
+    'landing.hero.sub': '¿Variador averiado? ¿Motor al final de su vida? Haz una foto de la placa de características — comprobamos al instante si tenemos el repuesto adecuado en stock en FLP Lift Parts y te respondemos con precio y disponibilidad.',
+    'landing.cta.register': 'Crear cuenta gratuita',
+    'landing.cta.alreadyRegistered': '¿Ya estás registrado?',
+    'landing.steps.title': 'Así de fácil',
+    'landing.steps.1.title': 'Fotografía la placa',
+    'landing.steps.1.sub': 'Apunta con el móvil a la placa — nada más.',
+    'landing.steps.2.title': 'La IA reconoce la pieza',
+    'landing.steps.2.sub': 'Fabricante, modelo, código — todo se lee automáticamente.',
+    'landing.steps.3.title': 'Coincidencia en almacén',
+    'landing.steps.3.sub': 'Ves al instante si la tenemos, con foto y detalles.',
+    'landing.steps.4.title': 'Enviar consulta',
+    'landing.steps.4.sub': 'Con un toque, tu consulta llega a nosotros.',
+    'landing.warehouses.title': 'Almacenes disponibles',
+    'landing.warehouses.sub': 'Elige el stock en el que quieres buscar. Puedes cambiar de almacén en cualquier momento.',
+    'landing.warehouses.loading': 'Cargando almacenes …',
+    'landing.warehouses.empty': 'No hay almacenes disponibles ahora mismo. Inténtalo más tarde.',
+    'landing.warehouses.tileCta': 'Crear acceso',
+    'landing.warehouses.itemsAvailable': '{n} artículos disponibles',
+    'landing.warehouses.filling': 'Llenando stock',
+    'landing.warehouses.more': 'Añadimos almacenes nuevos a menudo. Vuelve a echar un vistazo.',
+    'landing.perks.free.title': 'Gratis',
+    'landing.perks.free.sub': 'Buscar y consultar es totalmente gratis.',
+    'landing.perks.noType.title': 'Sin teclear',
+    'landing.perks.noType.sub': 'Una foto basta — leemos el resto.',
+    'landing.perks.direct.title': 'Directo al experto',
+    'landing.perks.direct.sub': 'Tu consulta llega directamente a nuestro equipo de FLP.',
+    'landing.bottom.title': '¿Listo para empezar?',
+    'landing.bottom.sub': 'En dos minutos estás registrado y puedes enviar tu primera foto.',
+    'landing.bottom.cta': 'Empieza gratis',
+    'landing.footer.imprint': 'Aviso legal',
+    'landing.footer.privacy': 'Privacidad',
+    'landing.footer.contact': 'Contacto',
+    'login.title': 'FLP Stockmanager',
+    'login.sub': 'Inicia sesión con tu clave personal',
+    'login.input.placeholder': 'Clave personal',
+    'login.button': 'Acceder',
+    'login.checking': 'Comprobando …',
+    'login.newHere': '¿Aún no tienes cuenta?',
+    'login.register': 'Registrarse como cliente',
+    'register.title': 'Registro de cliente',
+    'register.sub': 'Introduce tus datos — te enviaremos tu clave personal.',
+    'register.field.firstName': 'Nombre',
+    'register.field.lastName': 'Apellido',
+    'register.field.email': 'Email',
+    'register.field.phone': 'Móvil',
+    'register.field.company': 'Empresa',
+    'register.hint': 'Tras registrarte verás al instante tu clave personal. Con ella puedes buscar artículos por foto y enviar consultas.',
+    'register.submit': 'Crear cuenta',
+    'register.submitting': 'Creando cuenta …',
+    'register.alreadyHaveCode': '¿Ya tienes clave?',
+    'register.loginHere': 'Iniciar sesión',
+    'registerSuccess.welcome': '¡Bienvenido, {name}!',
+    'registerSuccess.intro': 'Tu clave personal está lista. También la hemos enviado a {email} (una vez que el envío por email esté activo).',
+    'registerSuccess.codeLabel': 'Tu clave de acceso',
+    'registerSuccess.copy': 'Copiar clave',
+    'registerSuccess.important': 'Guarda esta clave en lugar seguro. La necesitas cada vez que inicies sesión — no podemos recuperarla.',
+    'registerSuccess.continue': 'Acceder y empezar',
+    'home.hi': 'Hola',
+    'home.installBanner.title': 'Añadir a pantalla de inicio',
+    'home.installBanner.sub': 'Para tenernos siempre a un toque',
+    'home.warehouseSection.label': 'Estás aquí',
+    'home.warehouseSection.count': '{n} almacenes',
+    'home.photoCta.title': 'Foto de la placa',
+    'home.photoCta.sub': 'Toca y la escaneamos por ti.',
+    'home.photoCta.hint': 'La IA identifica fabricante y modelo automáticamente',
+    'home.search.placeholder': 'O escribe el modelo ...',
+    'home.search.noMatchHere': 'Aquí no se encuentra — ¿quizá en otro almacén?',
+    'home.search.switchWarehouse': 'Cambiar almacén',
+    'home.browse.title': 'Explorar',
+    'home.browse.subFrom': 'Ejemplos de {name}',
+    'home.help.title': '¿No encuentras nada?',
+    'home.help.sub': 'Escríbenos directamente — te respondemos rápido.',
+    'detail.inquiry.button': 'Enviar consulta',
+    'inquiry.title': 'Enviar consulta',
+    'inquiry.intro': 'Un compañero responderá a la dirección de email que has fijado como destinatario de presupuestos.',
+    'inquiry.note.label': 'Tu mensaje',
+    'inquiry.note.optional': '(opcional)',
+    'inquiry.note.placeholder': 'Ej.: lo necesito para el viernes, o: ¿tenéis una alternativa más barata? …',
+    'inquiry.sender': 'Remitente',
+    'inquiry.recipient.label': 'El presupuesto va a',
+    'inquiry.send': 'Enviar consulta',
+    'inquiry.sending': 'Enviando …',
+    'inquiry.success.title': 'Consulta enviada',
+    'inquiry.success.sub': 'Hemos recibido tu consulta y enviaremos el presupuesto a {email}.',
+    'inquiry.done': 'Listo',
+    'inquiry.noRecipient.title': 'Falta destinatario de presupuestos',
+    'inquiry.noRecipient.sub': 'Antes de enviar una consulta tienes que añadir en Ajustes al menos un empleado con email y marcarlo como destinatario de presupuestos.',
+    'inquiry.noRecipient.goToSettings': 'Ir a Ajustes',
+    'cset.title': 'Ajustes',
+    'cset.firm.title': 'Datos de empresa',
+    'cset.firm.sub': 'Estos datos aparecen en tus consultas y presupuestos.',
+    'cset.firm.companyName': 'Nombre de empresa',
+    'cset.firm.street': 'Calle + N.º',
+    'cset.firm.zip': 'Código postal',
+    'cset.firm.city': 'Ciudad',
+    'cset.firm.country': 'País',
+    'cset.employees.title': 'Empleados',
+    'cset.employees.sub': 'Añade compañeros que enviarán consultas o recibirán presupuestos. El email es opcional, pero quien reciba presupuestos necesita uno.',
+    'cset.employees.empty': 'Aún no hay empleados.',
+    'cset.employees.add': '+ Añadir empleado',
+    'cset.employees.firstName': 'Nombre',
+    'cset.employees.lastName': 'Apellido',
+    'cset.employees.email': 'Email',
+    'cset.employees.phone': 'Teléfono',
+    'cset.employees.role': 'Cargo',
+    'cset.employees.markAsRecipient': 'Marcar como destinatario',
+    'cset.employees.isRecipient': '⭐ Recibe presupuestos',
+    'cset.recipient.title': 'Destinatario de presupuestos',
+    'cset.recipient.sub': '¿A qué dirección de email se envían los presupuestos?',
+    'cset.recipient.noneAvailable': 'Primero añade al menos un empleado con email.',
+    'cset.recipient.pickPrompt': 'Por favor, elige un destinatario',
+    'cset.saved': '✓ Guardado',
+    'cset.saveError': 'Error al guardar',
+    'lang.label': 'Idioma',
+  },
+  nl: {
+    'brand.tagline': 'Stockmanager',
+    'nav.login': 'Inloggen',
+    'nav.back': 'Terug',
+    'nav.close': 'Sluiten',
+    'nav.settings': 'Instellingen',
+    'nav.help': 'Hulp',
+    'nav.cancel': 'Annuleren',
+    'nav.save': 'Opslaan',
+    'nav.delete': 'Verwijderen',
+    'nav.edit': 'Bewerken',
+    'nav.done': 'Klaar',
+    'landing.hero.title': 'Zoek je reserveonderdeel<br>met een foto.',
+    'landing.hero.sub': 'Kapotte frequentieomvormer? Aandrijving aan het einde? Maak een foto van het typeplaatje — wij controleren direct of we het juiste reserveonderdeel op voorraad hebben bij FLP Lift Parts en laten je weten wat het kost en wanneer leverbaar is.',
+    'landing.cta.register': 'Gratis account aanmaken',
+    'landing.cta.alreadyRegistered': 'Al geregistreerd?',
+    'landing.steps.title': 'Zo werkt het',
+    'landing.steps.1.title': 'Typeplaatje fotograferen',
+    'landing.steps.1.sub': 'Houd je telefoon op het plaatje — meer hoeft niet.',
+    'landing.steps.2.title': 'AI herkent het onderdeel',
+    'landing.steps.2.sub': 'Fabrikant, model, code — alles wordt automatisch uitgelezen.',
+    'landing.steps.3.title': 'Treffer in voorraad',
+    'landing.steps.3.sub': 'Je ziet meteen of we het hebben, met foto en details.',
+    'landing.steps.4.title': 'Aanvraag versturen',
+    'landing.steps.4.sub': 'Met één tik komt je aanvraag bij ons binnen.',
+    'landing.warehouses.title': 'Beschikbare magazijnen',
+    'landing.warehouses.sub': 'Kies de voorraad waarin je wilt zoeken. Je kunt later altijd wisselen.',
+    'landing.warehouses.loading': 'Magazijnen laden …',
+    'landing.warehouses.empty': 'Er zijn op dit moment geen magazijnen beschikbaar. Probeer het later opnieuw.',
+    'landing.warehouses.tileCta': 'Account aanmaken',
+    'landing.warehouses.itemsAvailable': '{n} artikelen beschikbaar',
+    'landing.warehouses.filling': 'Voorraad wordt gevuld',
+    'landing.warehouses.more': 'We voegen regelmatig nieuwe magazijnen toe. Kom gerust nog eens langs.',
+    'landing.perks.free.title': 'Gratis',
+    'landing.perks.free.sub': 'Zoeken en aanvragen is volledig gratis.',
+    'landing.perks.noType.title': 'Geen getypte invoer',
+    'landing.perks.noType.sub': 'Een foto is genoeg — wij lezen de rest.',
+    'landing.perks.direct.title': 'Direct naar de expert',
+    'landing.perks.direct.sub': 'Je aanvraag komt direct bij ons FLP-team.',
+    'landing.bottom.title': 'Klaar om te beginnen?',
+    'landing.bottom.sub': 'Binnen twee minuten ben je geregistreerd en kun je je eerste foto sturen.',
+    'landing.bottom.cta': 'Gratis starten',
+    'landing.footer.imprint': 'Colofon',
+    'landing.footer.privacy': 'Privacy',
+    'landing.footer.contact': 'Contact',
+    'login.title': 'FLP Stockmanager',
+    'login.sub': 'Log in met je persoonlijke toegangssleutel',
+    'login.input.placeholder': 'Persoonlijke sleutel',
+    'login.button': 'Inloggen',
+    'login.checking': 'Controleren …',
+    'login.newHere': 'Nog geen account?',
+    'login.register': 'Aanmelden als klant',
+    'register.title': 'Aanmelden als klant',
+    'register.sub': 'Vul je gegevens in — we sturen je een persoonlijke toegangscode.',
+    'register.field.firstName': 'Voornaam',
+    'register.field.lastName': 'Achternaam',
+    'register.field.email': 'Email',
+    'register.field.phone': 'Mobiel',
+    'register.field.company': 'Bedrijf',
+    'register.hint': 'Direct na registratie zie je je persoonlijke toegangscode. Daarmee kun je onderdelen zoeken op foto en aanvragen versturen.',
+    'register.submit': 'Account aanmaken',
+    'register.submitting': 'Account aanmaken …',
+    'register.alreadyHaveCode': 'Al een code?',
+    'register.loginHere': 'Hier inloggen',
+    'registerSuccess.welcome': 'Welkom, {name}!',
+    'registerSuccess.intro': 'Je persoonlijke toegangscode is klaar. We hebben hem ook naar {email} gestuurd (zodra de mailbezorging actief is).',
+    'registerSuccess.codeLabel': 'Je toegangscode',
+    'registerSuccess.copy': 'Code kopiëren',
+    'registerSuccess.important': 'Bewaar deze code goed. Je hebt hem elke keer nodig bij het inloggen — we kunnen hem niet herstellen.',
+    'registerSuccess.continue': 'Inloggen & starten',
+    'home.hi': 'Hallo',
+    'home.installBanner.title': 'Toevoegen aan beginscherm',
+    'home.installBanner.sub': 'Zo bereik je ons met één tik',
+    'home.warehouseSection.label': 'Je bent hier',
+    'home.warehouseSection.count': '{n} magazijnen',
+    'home.photoCta.title': 'Foto van het typeplaatje',
+    'home.photoCta.sub': 'Tik en wij scannen het voor je.',
+    'home.photoCta.hint': 'AI herkent fabrikant en model automatisch',
+    'home.search.placeholder': 'Of typ modelnaam ...',
+    'home.search.noMatchHere': 'Niet gevonden — misschien in een ander magazijn?',
+    'home.search.switchWarehouse': 'Magazijn wisselen',
+    'home.browse.title': 'Bladeren',
+    'home.browse.subFrom': 'Voorbeelden uit {name}',
+    'home.help.title': 'Niets gevonden?',
+    'home.help.sub': 'Stuur ons direct een bericht — we reageren snel.',
+    'detail.inquiry.button': 'Aanvraag versturen',
+    'inquiry.title': 'Aanvraag versturen',
+    'inquiry.intro': 'Een medewerker antwoordt op het emailadres dat je als offerte-ontvanger hebt ingesteld.',
+    'inquiry.note.label': 'Je bericht',
+    'inquiry.note.optional': '(optioneel)',
+    'inquiry.note.placeholder': 'Bv.: heb het onderdeel uiterlijk vrijdag nodig, of: hebben jullie een goedkoper alternatief? …',
+    'inquiry.sender': 'Afzender',
+    'inquiry.recipient.label': 'Offerte gaat naar',
+    'inquiry.send': 'Aanvraag versturen',
+    'inquiry.sending': 'Versturen …',
+    'inquiry.success.title': 'Aanvraag verzonden',
+    'inquiry.success.sub': 'We hebben je aanvraag ontvangen en sturen de offerte naar {email}.',
+    'inquiry.done': 'Klaar',
+    'inquiry.noRecipient.title': 'Geen offerte-ontvanger ingesteld',
+    'inquiry.noRecipient.sub': 'Voor je een aanvraag kunt versturen moet je in Instellingen minstens één medewerker met emailadres toevoegen en als offerte-ontvanger markeren.',
+    'inquiry.noRecipient.goToSettings': 'Naar instellingen',
+    'cset.title': 'Instellingen',
+    'cset.firm.title': 'Bedrijfsgegevens',
+    'cset.firm.sub': 'Deze gegevens staan op je aanvragen en offertes.',
+    'cset.firm.companyName': 'Bedrijfsnaam',
+    'cset.firm.street': 'Straat + nr.',
+    'cset.firm.zip': 'Postcode',
+    'cset.firm.city': 'Plaats',
+    'cset.firm.country': 'Land',
+    'cset.employees.title': 'Medewerkers',
+    'cset.employees.sub': 'Voeg collega’s toe die aanvragen versturen of offertes ontvangen. Email is optioneel, maar de offerte-ontvanger heeft er één nodig.',
+    'cset.employees.empty': 'Nog geen medewerkers.',
+    'cset.employees.add': '+ Medewerker toevoegen',
+    'cset.employees.firstName': 'Voornaam',
+    'cset.employees.lastName': 'Achternaam',
+    'cset.employees.email': 'Email',
+    'cset.employees.phone': 'Telefoon',
+    'cset.employees.role': 'Functie',
+    'cset.employees.markAsRecipient': 'Als offerte-ontvanger',
+    'cset.employees.isRecipient': '⭐ Ontvangt offertes',
+    'cset.recipient.title': 'Offerte-ontvanger',
+    'cset.recipient.sub': 'Naar welk emailadres moeten offertes worden gestuurd?',
+    'cset.recipient.noneAvailable': 'Voeg eerst minstens één medewerker met emailadres toe.',
+    'cset.recipient.pickPrompt': 'Kies een ontvanger',
+    'cset.saved': '✓ Opgeslagen',
+    'cset.saveError': 'Opslaan mislukt',
+    'lang.label': 'Taal',
+  },
+  fr: {
+    'brand.tagline': 'Stockmanager',
+    'nav.login': 'Connexion',
+    'nav.back': 'Retour',
+    'nav.close': 'Fermer',
+    'nav.settings': 'Paramètres',
+    'nav.help': 'Aide',
+    'nav.cancel': 'Annuler',
+    'nav.save': 'Enregistrer',
+    'nav.delete': 'Supprimer',
+    'nav.edit': 'Modifier',
+    'nav.done': 'Terminé',
+    'landing.hero.title': 'Trouve ta pièce<br>par photo.',
+    'landing.hero.sub': 'Variateur HS ? Moteur en fin de vie ? Prends une photo de la plaque signalétique — nous vérifions immédiatement si nous avons la pièce détachée correspondante en stock chez FLP Lift Parts et te répondons avec prix et disponibilité.',
+    'landing.cta.register': 'Créer un compte gratuit',
+    'landing.cta.alreadyRegistered': 'Déjà inscrit ?',
+    'landing.steps.title': 'Comment ça marche',
+    'landing.steps.1.title': 'Photographier la plaque',
+    'landing.steps.1.sub': 'Pointe ton téléphone sur la plaque — rien de plus.',
+    'landing.steps.2.title': 'L’IA reconnaît la pièce',
+    'landing.steps.2.sub': 'Fabricant, modèle, code — tout est lu automatiquement.',
+    'landing.steps.3.title': 'Correspondance en stock',
+    'landing.steps.3.sub': 'Tu vois immédiatement si nous l’avons, avec photo et détails.',
+    'landing.steps.4.title': 'Envoyer la demande',
+    'landing.steps.4.sub': 'En un tap, ta demande nous arrive.',
+    'landing.warehouses.title': 'Entrepôts disponibles',
+    'landing.warehouses.sub': 'Choisis le stock dans lequel tu veux chercher. Tu peux changer d’entrepôt à tout moment.',
+    'landing.warehouses.loading': 'Chargement des entrepôts …',
+    'landing.warehouses.empty': 'Aucun entrepôt disponible pour le moment. Réessaie plus tard.',
+    'landing.warehouses.tileCta': 'Créer un accès',
+    'landing.warehouses.itemsAvailable': '{n} articles disponibles',
+    'landing.warehouses.filling': 'Stock en cours de remplissage',
+    'landing.warehouses.more': 'De nouveaux entrepôts arrivent régulièrement. Reviens nous voir.',
+    'landing.perks.free.title': 'Gratuit',
+    'landing.perks.free.sub': 'Recherches et demandes sont entièrement gratuites.',
+    'landing.perks.noType.title': 'Pas de saisie',
+    'landing.perks.noType.sub': 'Une photo suffit — nous lisons le reste.',
+    'landing.perks.direct.title': 'Direct au pro',
+    'landing.perks.direct.sub': 'Ta demande arrive directement à notre équipe FLP.',
+    'landing.bottom.title': 'Prêt à commencer ?',
+    'landing.bottom.sub': 'En deux minutes tu es inscrit et tu peux envoyer ta première photo.',
+    'landing.bottom.cta': 'Démarrer gratuitement',
+    'landing.footer.imprint': 'Mentions légales',
+    'landing.footer.privacy': 'Confidentialité',
+    'landing.footer.contact': 'Contact',
+    'login.title': 'FLP Stockmanager',
+    'login.sub': 'Connecte-toi avec ta clé d’accès personnelle',
+    'login.input.placeholder': 'Clé personnelle',
+    'login.button': 'Connexion',
+    'login.checking': 'Vérification …',
+    'login.newHere': 'Pas encore de compte ?',
+    'login.register': 'S’inscrire comme client',
+    'register.title': 'Inscription client',
+    'register.sub': 'Entre tes informations — nous t’envoyons ta clé d’accès personnelle.',
+    'register.field.firstName': 'Prénom',
+    'register.field.lastName': 'Nom',
+    'register.field.email': 'Email',
+    'register.field.phone': 'Mobile',
+    'register.field.company': 'Société',
+    'register.hint': 'Juste après ton inscription tu verras ta clé d’accès personnelle. Avec elle tu peux chercher des articles par photo et envoyer des demandes.',
+    'register.submit': 'Créer le compte',
+    'register.submitting': 'Création du compte …',
+    'register.alreadyHaveCode': 'Déjà une clé ?',
+    'register.loginHere': 'Se connecter ici',
+    'registerSuccess.welcome': 'Bienvenue, {name} !',
+    'registerSuccess.intro': 'Ta clé d’accès personnelle est prête. Nous l’avons aussi envoyée à {email} (dès que l’envoi email sera actif).',
+    'registerSuccess.codeLabel': 'Ta clé d’accès',
+    'registerSuccess.copy': 'Copier la clé',
+    'registerSuccess.important': 'Conserve cette clé en lieu sûr. Tu en as besoin à chaque connexion — nous ne pouvons pas la récupérer.',
+    'registerSuccess.continue': 'Se connecter & démarrer',
+    'home.hi': 'Bonjour',
+    'home.installBanner.title': 'Ajouter à l’écran d’accueil',
+    'home.installBanner.sub': 'Pour nous joindre en un tap',
+    'home.warehouseSection.label': 'Tu es ici',
+    'home.warehouseSection.count': '{n} entrepôts',
+    'home.photoCta.title': 'Photo de la plaque',
+    'home.photoCta.sub': 'Tape, on la scanne pour toi.',
+    'home.photoCta.hint': 'L’IA reconnaît fabricant et modèle automatiquement',
+    'home.search.placeholder': 'Ou tape le nom du modèle ...',
+    'home.search.noMatchHere': 'Pas trouvé ici — peut-être dans un autre entrepôt ?',
+    'home.search.switchWarehouse': 'Changer d’entrepôt',
+    'home.browse.title': 'Parcourir',
+    'home.browse.subFrom': 'Exemples de {name}',
+    'home.help.title': 'Rien ne convient ?',
+    'home.help.sub': 'Écris-nous directement — nous répondons vite.',
+    'detail.inquiry.button': 'Envoyer la demande',
+    'inquiry.title': 'Envoyer la demande',
+    'inquiry.intro': 'Un membre de l’équipe répondra à l’adresse email que tu as définie comme destinataire des devis.',
+    'inquiry.note.label': 'Ton message',
+    'inquiry.note.optional': '(facultatif)',
+    'inquiry.note.placeholder': 'Ex. : il me faut la pièce avant vendredi, ou : avez-vous une alternative moins chère ? …',
+    'inquiry.sender': 'Expéditeur',
+    'inquiry.recipient.label': 'Le devis va à',
+    'inquiry.send': 'Envoyer la demande',
+    'inquiry.sending': 'Envoi …',
+    'inquiry.success.title': 'Demande envoyée',
+    'inquiry.success.sub': 'Nous avons reçu ta demande et enverrons le devis à {email}.',
+    'inquiry.done': 'Terminé',
+    'inquiry.noRecipient.title': 'Pas de destinataire de devis configuré',
+    'inquiry.noRecipient.sub': 'Avant d’envoyer une demande, tu dois ajouter dans Paramètres au moins un employé avec adresse email et le marquer comme destinataire des devis.',
+    'inquiry.noRecipient.goToSettings': 'Aller aux paramètres',
+    'cset.title': 'Paramètres',
+    'cset.firm.title': 'Données société',
+    'cset.firm.sub': 'Ces informations apparaissent sur tes demandes et devis.',
+    'cset.firm.companyName': 'Nom de la société',
+    'cset.firm.street': 'Rue + n°',
+    'cset.firm.zip': 'Code postal',
+    'cset.firm.city': 'Ville',
+    'cset.firm.country': 'Pays',
+    'cset.employees.title': 'Collaborateurs',
+    'cset.employees.sub': 'Ajoute des collègues qui enverront des demandes ou recevront des devis. L’email est facultatif, mais le destinataire des devis en a besoin.',
+    'cset.employees.empty': 'Pas encore de collaborateurs.',
+    'cset.employees.add': '+ Ajouter un collaborateur',
+    'cset.employees.firstName': 'Prénom',
+    'cset.employees.lastName': 'Nom',
+    'cset.employees.email': 'Email',
+    'cset.employees.phone': 'Téléphone',
+    'cset.employees.role': 'Fonction',
+    'cset.employees.markAsRecipient': 'Définir comme destinataire',
+    'cset.employees.isRecipient': '⭐ Reçoit les devis',
+    'cset.recipient.title': 'Destinataire des devis',
+    'cset.recipient.sub': 'À quelle adresse email envoyer les devis ?',
+    'cset.recipient.noneAvailable': 'Ajoute d’abord au moins un collaborateur avec adresse email.',
+    'cset.recipient.pickPrompt': 'Choisis un destinataire',
+    'cset.saved': '✓ Enregistré',
+    'cset.saveError': 'Échec de l’enregistrement',
+    'lang.label': 'Langue',
+  },
+};
+function detectInitialLang() {
+  try {
+    const stored = localStorage.getItem('flp_lang');
+    if (stored && I18N[stored]) return stored;
+  } catch(e) {}
+  const nav = (navigator.language || 'de').slice(0, 2).toLowerCase();
+  return I18N[nav] ? nav : 'de';
+}
+function setLang(code) {
+  if (!I18N[code]) code = 'de';
+  state.lang = code;
+  try { localStorage.setItem('flp_lang', code); } catch(e) {}
+  // Falls Customer eingeloggt: in seinem User-Record persistieren
+  if (APP_KEYS.user && isCustomer() && APP_KEYS.user._recordId) {
+    airUpdate(TBL_USERS, APP_KEYS.user._recordId, { lang: code }).catch(() => {});
+    APP_KEYS.user.lang = code;
+  }
+}
+function t(key, params) {
+  const lang = state.lang || 'de';
+  const dict = I18N[lang] || I18N.de;
+  let str = (key in dict) ? dict[key] : (I18N.de[key] || key);
+  if (params) Object.keys(params).forEach(k => {
+    str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+  });
+  return str;
+}
+// Kompakte Sprach-Auswahl — als <select>, läuft überall (Landing, Auth, etc.)
+function renderLangSwitcher() {
+  const cur = state.lang || 'de';
+  const curFlag = (I18N_LANGS.find(L => L.code === cur) || I18N_LANGS[0]).flag;
+  return `
+    <label style="display:inline-flex;align-items:center;gap:5px;padding:6px 8px 6px 10px;background:rgba(255,255,255,.65);border:1px solid rgba(0,0,0,.08);border-radius:999px;font-size:13px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+      <span aria-hidden="true" style="font-size:14px">${curFlag}</span>
+      <select data-action="lang-switch" style="border:0;background:transparent;font-size:12px;font-weight:600;color:var(--c-ink);appearance:none;-webkit-appearance:none;padding-right:14px;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23333%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-repeat:no-repeat;background-position:right 0px center;background-size:9px 9px;cursor:pointer;outline:none">
+        ${I18N_LANGS.map(L => `<option value="${L.code}" ${L.code===cur?'selected':''}>${L.label}</option>`).join('')}
+      </select>
+    </label>
+  `;
+}
 
 /* ============================================================
    PWA-Installation + Onboarding
@@ -2701,10 +3440,31 @@ export default async function (req: Request): Promise<Response> {
   catch { return json({ error: "Invalid JSON" }, 400); }
 
   const subject     = String(data.subject || "Anfrage Stockmanager").slice(0, 250);
-  const description = String(data.description || "").slice(0, 50000);
+  let   description = String(data.description || "").slice(0, 50000);
   let   email       = String(data.email || "").trim();
   const name        = String(data.name || "Kunde").slice(0, 100);
   const phone       = String(data.phone || "").trim().slice(0, 30);
+
+  // Header mit Firma + Empfänger oben rein (Freshdesk-Agent sieht's sofort)
+  const firmName   = String(data.customer_firm_name   || "").trim();
+  const firmStreet = String(data.customer_firm_street || "").trim();
+  const firmZip    = String(data.customer_firm_zip    || "").trim();
+  const firmCity   = String(data.customer_firm_city   || "").trim();
+  const firmCountry= String(data.customer_firm_country|| "").trim();
+  const senderName = String(data.sender_name  || "").trim();
+  const senderEmail= String(data.sender_email || "").trim();
+  const senderPhone= String(data.sender_phone || "").trim();
+  const recName    = String(data.quote_recipient_name || "").trim();
+  const recEmail   = String(data.quote_recipient_email|| "").trim();
+  const headerBlock: string[] = [];
+  if (firmName) headerBlock.push("FIRMA: " + firmName);
+  const addrParts = [firmStreet, [firmZip, firmCity].filter(Boolean).join(" "), firmCountry].filter(Boolean).join(", ");
+  if (addrParts) headerBlock.push("ADRESSE: " + addrParts);
+  if (senderName) headerBlock.push("ANFRAGENDER: " + senderName + (senderEmail ? " <" + senderEmail + ">" : "") + (senderPhone ? " · " + senderPhone : ""));
+  if (recName || recEmail) headerBlock.push("ANGEBOT BITTE AN: " + (recName ? recName + " " : "") + "<" + recEmail + ">");
+  if (headerBlock.length) {
+    description = headerBlock.join("\\n") + "\\n\\n" + ("=".repeat(40)) + "\\n\\n" + description;
+  }
 
   // Falls Customer keine Email hat: Fallback auf Default-Requester (z.B. service@…)
   if ((!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) && FRESHDESK_DEFAULT_REQUESTER) {
@@ -5679,10 +6439,23 @@ function renderCustomerHomeMain() {
       <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
       <span class="flp-brand__wordmark">Stock Manager</span>
     </div>
-    <button class="icon-btn" data-action="show-onboard-again" title="Hilfe anzeigen">${svg('info', 16, 2.4)}</button>
+    <div style="display:flex;gap:4px;align-items:center">
+      <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
+      <button class="icon-btn" data-action="show-onboard-again" title="Hilfe anzeigen">${svg('info', 16, 2.4)}</button>
+    </div>
   </div>
 
   <div class="scroll" style="padding-bottom:24px">
+    ${!customerHasRecipient() ? `
+      <div style="margin:0 0 12px;padding:14px 14px;background:#FEF3C7;color:#854D0E;border:1px solid #FACC15;border-radius:var(--r-md);display:flex;gap:10px;align-items:flex-start">
+        <span style="flex-shrink:0;margin-top:1px">${svg('alert-triangle', 16, 2.4)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700">${t('inquiry.noRecipient.title')}</div>
+          <div style="font-size:11.5px;line-height:1.45;margin-top:3px">${t('inquiry.noRecipient.sub')}</div>
+          <button data-action="go-customer-settings" style="margin-top:8px;padding:8px 14px;background:#854D0E;color:#fff;border:0;border-radius:var(--r-pill);font-size:12px;font-weight:600;cursor:pointer">${t('inquiry.noRecipient.goToSettings')} ${svg('arrow-right', 11, 2.6)}</button>
+        </div>
+      </div>
+    ` : ''}
     ${showInstall ? `
       <div class="install-banner">
         <div class="install-banner__icon">${svg('smartphone', 18, 2.4)}</div>
@@ -5872,6 +6645,176 @@ function renderInstallHelpSheet() {
       </div>
     </div>
   `;
+}
+
+/* ============================================================
+   Customer-Settings — Firma + Mitarbeiter + Angebots-Empfänger
+   ============================================================ */
+function getCustomerEmployees() {
+  const u = APP_KEYS.user || {};
+  return Array.isArray(u.employees) ? u.employees : [];
+}
+function getCustomerRecipient() {
+  const u = APP_KEYS.user || {};
+  const id = u.quoteRecipientId;
+  if (!id) return null;
+  return getCustomerEmployees().find(e => e.id === id && (e.email || '').trim()) || null;
+}
+function customerHasRecipient() { return !!getCustomerRecipient(); }
+
+function renderCustomerSettings() {
+  const u = APP_KEYS.user || {};
+  const employees = getCustomerEmployees();
+  const recipientId = u.quoteRecipientId || '';
+  const editingId = state.empEditingId || '';
+  const editDraft = state.empDraft || null;
+  const savedFlash = !!state.cSetSavedFlash;
+  const errMsg = state.cSetError || '';
+  const lang = state.lang || 'de';
+
+  return `
+<div class="screen customer-home">
+  <div class="header">
+    <button class="logout-btn" data-action="back-to-customer-home" title="Zurück">${svg('arrow-left', 16, 2.4)}</button>
+    <div class="flp-brand" title="FLP Stock Manager">
+      <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
+      <span class="flp-brand__wordmark">${t('cset.title')}</span>
+    </div>
+    <div style="width:32px"></div>
+  </div>
+
+  <div class="scroll" style="padding:14px 14px 40px;display:flex;flex-direction:column;gap:18px">
+
+    ${savedFlash ? `<div style="padding:10px 14px;background:#DCFCE7;color:#166534;border:1px solid #86EFAC;border-radius:var(--r-md);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px">${svg('check', 13, 2.6)} ${t('cset.saved')}</div>` : ''}
+    ${errMsg ? `<div class="login-error">${svg('alert-triangle', 13, 2.4)}<span>${errMsg.replace(/</g,'&lt;')}</span></div>` : ''}
+
+    <!-- SPRACHE -->
+    <div style="padding:14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="font-size:11px;color:var(--c-ink-mute);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">${t('lang.label')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${I18N_LANGS.map(L => `
+          <button data-action="customer-set-lang" data-code="${L.code}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:${lang===L.code?'var(--c-blue)':'var(--c-bg-soft)'};color:${lang===L.code?'#fff':'var(--c-ink)'};border:1px solid ${lang===L.code?'var(--c-blue)':'var(--c-border)'};border-radius:var(--r-pill);font-size:12.5px;font-weight:600;cursor:pointer">
+            <span style="font-size:14px">${L.flag}</span> ${L.label}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- FIRMA -->
+    <div style="padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink);margin-bottom:2px">${t('cset.firm.title')}</div>
+      <div style="font-size:11.5px;color:var(--c-ink-mute);line-height:1.4;margin-bottom:14px">${t('cset.firm.sub')}</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="field">
+          <label class="field__label">${t('cset.firm.companyName')}</label>
+          <input type="text" data-action="customer-set-firm-input" data-key="companyName" value="${(u.companyName||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
+        <div class="field">
+          <label class="field__label">${t('cset.firm.street')}</label>
+          <input type="text" data-action="customer-set-firm-input" data-key="firmStreet" value="${(u.firmStreet||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+          <div class="field">
+            <label class="field__label">${t('cset.firm.zip')}</label>
+            <input type="text" data-action="customer-set-firm-input" data-key="firmZip" value="${(u.firmZip||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+          </div>
+          <div class="field">
+            <label class="field__label">${t('cset.firm.city')}</label>
+            <input type="text" data-action="customer-set-firm-input" data-key="firmCity" value="${(u.firmCity||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">${t('cset.firm.country')}</label>
+          <input type="text" data-action="customer-set-firm-input" data-key="firmCountry" value="${(u.firmCountry||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
+      </div>
+    </div>
+
+    <!-- MITARBEITER -->
+    <div style="padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink);margin-bottom:2px">${t('cset.employees.title')}</div>
+      <div style="font-size:11.5px;color:var(--c-ink-mute);line-height:1.5;margin-bottom:14px">${t('cset.employees.sub')}</div>
+
+      ${employees.length === 0 ? `
+        <div style="padding:18px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12.5px;color:var(--c-ink-mute);margin-bottom:12px">${t('cset.employees.empty')}</div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+          ${employees.map(emp => {
+            const isEditing = emp.id === editingId;
+            const draft = isEditing && editDraft ? editDraft : emp;
+            const isRecipient = emp.id === recipientId;
+            const fullName = [emp.firstName, emp.lastName].filter(Boolean).join(' ') || '—';
+            const hasEmail = !!(emp.email || '').trim();
+            if (isEditing) {
+              return `
+                <div style="padding:12px;background:var(--c-bg-soft);border:1px solid var(--c-blue);border-radius:var(--r-md);display:flex;flex-direction:column;gap:8px">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <input type="text" placeholder="${t('cset.employees.firstName')}" data-action="customer-emp-input" data-key="firstName" value="${(draft.firstName||'').replace(/"/g,'&quot;')}" style="padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:13px;background:#fff;color:var(--c-ink);outline:none">
+                    <input type="text" placeholder="${t('cset.employees.lastName')}" data-action="customer-emp-input" data-key="lastName" value="${(draft.lastName||'').replace(/"/g,'&quot;')}" style="padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:13px;background:#fff;color:var(--c-ink);outline:none">
+                  </div>
+                  <input type="email" placeholder="${t('cset.employees.email')}" data-action="customer-emp-input" data-key="email" value="${(draft.email||'').replace(/"/g,'&quot;')}" style="padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:13px;background:#fff;color:var(--c-ink);outline:none">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <input type="tel" placeholder="${t('cset.employees.phone')}" data-action="customer-emp-input" data-key="phone" value="${(draft.phone||'').replace(/"/g,'&quot;')}" style="padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:13px;background:#fff;color:var(--c-ink);outline:none">
+                    <input type="text" placeholder="${t('cset.employees.role')}" data-action="customer-emp-input" data-key="role" value="${(draft.role||'').replace(/"/g,'&quot;')}" style="padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:13px;background:#fff;color:var(--c-ink);outline:none">
+                  </div>
+                  <div style="display:flex;gap:6px;margin-top:4px">
+                    <button data-action="customer-emp-save" style="flex:1;padding:9px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer">${svg('check', 12, 2.6)} ${t('nav.save')}</button>
+                    <button data-action="customer-emp-cancel" style="padding:9px 14px;background:var(--c-bg-soft);color:var(--c-ink);border:1px solid var(--c-border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer">${t('nav.cancel')}</button>
+                    <button data-action="customer-emp-delete" data-id="${emp.id}" title="${t('nav.delete')}" style="padding:9px 12px;background:var(--c-red-soft);color:var(--c-red);border:0;border-radius:8px;cursor:pointer">${svg('trash', 13, 2.4)}</button>
+                  </div>
+                </div>
+              `;
+            }
+            return `
+              <div style="padding:12px 14px;background:${isRecipient?'#FEFCE8':'var(--c-bg-soft)'};border:1px solid ${isRecipient?'#FACC15':'var(--c-border)'};border-radius:var(--r-md);display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13.5px;font-weight:600;color:var(--c-ink);display:flex;align-items:center;gap:6px">${fullName.replace(/</g,'&lt;')}${isRecipient?`<span style="font-size:10.5px;color:#854D0E;font-weight:700">${t('cset.employees.isRecipient')}</span>`:''}</div>
+                  ${hasEmail ? `<div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:2px">${emp.email.replace(/</g,'&lt;')}</div>` : `<div style="font-size:11px;color:#B45309;margin-top:2px;font-style:italic">${t('cset.employees.email')}: —</div>`}
+                  ${emp.role ? `<div style="font-size:11px;color:var(--c-ink-mute);margin-top:1px">${emp.role.replace(/</g,'&lt;')}</div>` : ''}
+                </div>
+                <button data-action="customer-emp-edit" data-id="${emp.id}" title="${t('nav.edit')}" style="padding:8px;background:transparent;color:var(--c-ink-mute);border:0;cursor:pointer">${svg('pencil', 14, 2.4)}</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+
+      <button data-action="customer-emp-add" style="width:100%;padding:11px;background:var(--c-blue-soft);color:var(--c-blue);border:1px dashed var(--c-blue);border-radius:var(--r-md);font-size:13px;font-weight:600;cursor:pointer">${t('cset.employees.add')}</button>
+    </div>
+
+    <!-- ANGEBOTS-EMPFÄNGER -->
+    <div style="padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink);margin-bottom:2px">${t('cset.recipient.title')}</div>
+      <div style="font-size:11.5px;color:var(--c-ink-mute);line-height:1.4;margin-bottom:14px">${t('cset.recipient.sub')}</div>
+
+      ${(() => {
+        const withEmail = employees.filter(e => (e.email||'').trim());
+        if (withEmail.length === 0) {
+          return `<div style="padding:14px;background:#FEF3C7;color:#854D0E;border:1px solid #FACC15;border-radius:var(--r-md);font-size:12.5px;line-height:1.5;display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">${svg('alert-triangle', 14, 2.4)}</span><span>${t('cset.recipient.noneAvailable')}</span></div>`;
+        }
+        return `
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${withEmail.map(emp => {
+              const sel = emp.id === recipientId;
+              const fullName = [emp.firstName, emp.lastName].filter(Boolean).join(' ') || emp.email;
+              return `
+                <button data-action="customer-set-recipient" data-id="${emp.id}" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:${sel?'#DBEAFE':'var(--c-bg-soft)'};border:1.5px solid ${sel?'var(--c-blue)':'var(--c-border)'};border-radius:var(--r-md);cursor:pointer;text-align:left;width:100%">
+                  <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${sel?'var(--c-blue)':'var(--c-border)'};background:${sel?'var(--c-blue)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff">${sel?svg('check',10,3.5):''}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:600;color:var(--c-ink)">${fullName.replace(/</g,'&lt;')}</div>
+                    <div style="font-size:11.5px;color:var(--c-ink-mute)">${emp.email.replace(/</g,'&lt;')}</div>
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        `;
+      })()}
+    </div>
+
+  </div>
+</div>`;
 }
 
 function renderHome() {
@@ -6744,7 +7687,7 @@ function renderDetail() {
   ${isCustomer() ? `
     <div class="action-bar" style="grid-template-columns:1fr;padding:6px;gap:6px">
       <button class="action-bar__btn action-bar__btn--primary" data-action="open-inquiry-sheet" data-id="${it.id}" style="padding:16px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;box-shadow:var(--elev-blue);font-size:14.5px">
-        ${svg('message-circle', 15, 2.5)} Anfrage stellen
+        ${svg('message-circle', 15, 2.5)} ${t('detail.inquiry.button')}
       </button>
     </div>
   ` : `
@@ -6765,23 +7708,35 @@ function renderDetail() {
     const sent = !!state.inquirySent;
     const sending = !!state.inquirySending;
     const error = state.inquiryError || '';
+    const recipient = getCustomerRecipient();
+    const senderName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || '—';
     return `
     <div class="sheet-backdrop" data-action="close-quick"></div>
     <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column">
       <div class="action-sheet__handle"></div>
-      <div class="action-sheet__title">Anfrage stellen</div>
+      <div class="action-sheet__title">${t('inquiry.title')}</div>
 
       ${sent ? `
         <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;gap:14px">
           <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 32px rgba(16,185,129,.35)">${svg('check', 36, 3)}</div>
-          <h3 style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0">Anfrage gesendet</h3>
-          <p style="font-size:13.5px;color:var(--c-ink-mute);line-height:1.5;margin:0;max-width:320px">Wir haben deine Anfrage erhalten und melden uns so schnell wie möglich an <strong style="color:var(--c-ink)">${(u.email || '').replace(/</g, '&lt;')}</strong>.</p>
+          <h3 style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0">${t('inquiry.success.title')}</h3>
+          <p style="font-size:13.5px;color:var(--c-ink-mute);line-height:1.5;margin:0;max-width:320px">${t('inquiry.success.sub', { email: `<strong style="color:var(--c-ink)">${(recipient?.email || '').replace(/</g,'&lt;')}</strong>` })}</p>
         </div>
         <div style="padding:0 16px 12px;flex-shrink:0">
-          <button class="action-bar__btn action-bar__btn--primary" data-action="close-quick" style="width:100%;padding:14px">${svg('check', 14, 2.7)} Fertig</button>
+          <button class="action-bar__btn action-bar__btn--primary" data-action="close-quick" style="width:100%;padding:14px">${svg('check', 14, 2.7)} ${t('inquiry.done')}</button>
+        </div>
+      ` : !recipient ? `
+        <div style="padding:24px 20px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <div style="width:64px;height:64px;border-radius:50%;background:#FEF3C7;color:#854D0E;display:flex;align-items:center;justify-content:center;border:1px solid #FACC15">${svg('alert-triangle', 28, 2.4)}</div>
+          <h3 style="font-size:17px;font-weight:700;letter-spacing:-.01em;margin:0;color:var(--c-ink)">${t('inquiry.noRecipient.title')}</h3>
+          <p style="font-size:13px;color:var(--c-ink-mute);line-height:1.5;margin:0;max-width:340px">${t('inquiry.noRecipient.sub')}</p>
+        </div>
+        <div style="padding:18px 16px 14px;display:grid;grid-template-columns:1fr;gap:8px;flex-shrink:0">
+          <button data-action="go-customer-settings" class="action-bar__btn action-bar__btn--primary" style="padding:14px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:0;color:#fff;font-weight:600">${svg('settings', 14, 2.5)} ${t('inquiry.noRecipient.goToSettings')}</button>
+          <button data-action="close-quick" class="action-bar__btn" style="padding:12px">${t('nav.cancel')}</button>
         </div>
       ` : `
-        <div style="padding:4px 16px 0;font-size:12.5px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">Ein Mitarbeiter meldet sich an deine hinterlegte E-Mail-Adresse zurück. Kein eigenes Mail-Programm nötig.</div>
+        <div style="padding:4px 16px 0;font-size:12.5px;color:var(--c-ink-mute);font-weight:500;line-height:1.4">${t('inquiry.intro')}</div>
         <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
           <!-- Artikel-Zusammenfassung -->
           <div style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;gap:12px;align-items:center">
@@ -6796,22 +7751,29 @@ function renderDetail() {
           </div>
           <!-- Optionale eigene Nachricht -->
           <div class="field">
-            <label class="field__label">Deine Nachricht <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
-            <textarea data-action="inquiry-note-input" placeholder="Z.B.: brauche das Teil bis Freitag, oder: hast du auch eine günstigere Alternative? …" rows="4" style="width:100%;padding:12px 14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);font-family:var(--f-display);font-size:14px;line-height:1.5;color:var(--c-ink);resize:vertical;min-height:100px;outline:none">${(draft.note || '').replace(/</g, '&lt;')}</textarea>
+            <label class="field__label">${t('inquiry.note.label')} <span style="color:var(--c-ink-mute);font-weight:500">${t('inquiry.note.optional')}</span></label>
+            <textarea data-action="inquiry-note-input" placeholder="${t('inquiry.note.placeholder').replace(/"/g,'&quot;')}" rows="4" style="width:100%;padding:12px 14px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);font-family:var(--f-display);font-size:14px;line-height:1.5;color:var(--c-ink);resize:vertical;min-height:100px;outline:none">${(draft.note || '').replace(/</g, '&lt;')}</textarea>
           </div>
-          <!-- Absender-Info -->
+          <!-- Empfänger-Info -->
+          <div style="padding:12px 14px;background:#DBEAFE;border:1px solid var(--c-blue);border-radius:var(--r-md);font-size:11.5px;line-height:1.5;color:var(--c-ink)">
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#1740B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${t('inquiry.recipient.label')}</div>
+            <div style="font-weight:600">${([recipient.firstName, recipient.lastName].filter(Boolean).join(' ') || recipient.email).replace(/</g,'&lt;')}</div>
+            <div style="color:#1740B8;font-weight:600">${(recipient.email||'').replace(/</g,'&lt;')}</div>
+          </div>
+          <!-- Absender + Firma -->
           <div style="padding:12px 14px;background:var(--c-bg-soft);border-radius:var(--r-md);font-size:11.5px;line-height:1.5;color:var(--c-ink-soft)">
-            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Absender</div>
-            <div style="font-weight:600;color:var(--c-ink)">${[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</div>
-            ${u.email ? `<div>${u.email}</div>` : ''}
-            ${u.phone ? `<div>${u.phone}</div>` : ''}
-            ${u.companyName ? `<div>${u.companyName}</div>` : ''}
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${t('inquiry.sender')}</div>
+            <div style="font-weight:600;color:var(--c-ink)">${senderName.replace(/</g,'&lt;')}</div>
+            ${u.email ? `<div>${u.email.replace(/</g,'&lt;')}</div>` : ''}
+            ${u.phone ? `<div>${u.phone.replace(/</g,'&lt;')}</div>` : ''}
+            ${u.companyName ? `<div style="margin-top:4px;color:var(--c-ink);font-weight:600">${u.companyName.replace(/</g,'&lt;')}</div>` : ''}
+            ${(u.firmStreet || u.firmZip || u.firmCity) ? `<div>${[u.firmStreet, [u.firmZip, u.firmCity].filter(Boolean).join(' ')].filter(Boolean).join(', ').replace(/</g,'&lt;')}</div>` : ''}
           </div>
-          ${error ? `<div class="login-error">${svg('alert-triangle', 13, 2.4)}<span>${error}</span></div>` : ''}
+          ${error ? `<div class="login-error">${svg('alert-triangle', 13, 2.4)}<span>${error.replace(/</g,'&lt;')}</span></div>` : ''}
         </div>
         <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr;gap:8px;flex-shrink:0">
           <button data-action="send-inquiry" class="action-bar__btn action-bar__btn--primary" ${sending ? 'disabled' : ''} style="padding:16px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;justify-content:center;gap:8px;${sending ? 'opacity:.6' : ''}">
-            ${sending ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Sende …' : svg('message-circle', 15, 2.5) + ' Anfrage absenden'}
+            ${sending ? `<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> ${t('inquiry.sending')}` : svg('message-circle', 15, 2.5) + ' ' + t('inquiry.send')}
           </button>
         </div>
       `}
@@ -9309,7 +10271,10 @@ function renderLanding() {
       <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
       <span class="landing__brand-name">Stockmanager</span>
     </div>
-    <button data-action="go-login-screen" class="landing__login-btn">${svg('log-in', 13, 2.5)} Anmelden</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      ${renderLangSwitcher()}
+      <button data-action="go-login-screen" class="landing__login-btn">${svg('log-in', 13, 2.5)} ${t('nav.login')}</button>
+    </div>
   </header>
 
   <section class="landing__hero">
@@ -9765,7 +10730,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -9834,7 +10799,7 @@ function render() {
   // Customer-Schutz: gesperrte Views auf customerHome (= renderHome\u2192renderCustomerHome) umleiten.
   // Erlaubt f\u00fcr Customer: home, photoSearch, aiAnalyze, photoResults, detail, results, listen
   if (isCustomer()) {
-    const allowed = new Set(['home','photoSearch','aiAnalyze','photoResults','detail','results','listen','camera','cropper']);
+    const allowed = new Set(['home','photoSearch','aiAnalyze','photoResults','detail','results','listen','camera','cropper','customerSettings']);
     if (state.view && !allowed.has(state.view)) {
       state.view = 'home';
     }
@@ -11201,6 +12166,114 @@ document.addEventListener('click', (e) => {
       break;
     }
 
+    /* ===== Customer-Settings (Firma + Mitarbeiter + Empfänger + Sprache) ===== */
+    case 'go-customer-settings': {
+      state.cSetSavedFlash = false;
+      state.cSetError = '';
+      state.empEditingId = '';
+      state.empDraft = null;
+      go('customerSettings');
+      break;
+    }
+    case 'back-to-customer-home': {
+      state.empEditingId = '';
+      state.empDraft = null;
+      state.cSetSavedFlash = false;
+      state.cSetError = '';
+      go('home');
+      break;
+    }
+    case 'customer-set-lang': {
+      const code = btn.dataset.code || 'de';
+      setLang(code);
+      render();
+      break;
+    }
+    case 'customer-emp-add': {
+      const u = APP_KEYS.user;
+      if (!u) break;
+      if (!Array.isArray(u.employees)) u.employees = [];
+      const newId = 'emp_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      state.empEditingId = newId;
+      state.empDraft = { id: newId, firstName: '', lastName: '', email: '', phone: '', role: '' };
+      render();
+      break;
+    }
+    case 'customer-emp-edit': {
+      const id = btn.dataset.id;
+      const emp = (APP_KEYS.user?.employees || []).find(e => e.id === id);
+      if (!emp) break;
+      state.empEditingId = id;
+      state.empDraft = { ...emp };
+      render();
+      break;
+    }
+    case 'customer-emp-cancel': {
+      state.empEditingId = '';
+      state.empDraft = null;
+      render();
+      break;
+    }
+    case 'customer-emp-save': {
+      const u = APP_KEYS.user;
+      const draft = state.empDraft;
+      if (!u || !draft) break;
+      // Mindestens Vor- oder Nachname Pflicht
+      if (!(draft.firstName || '').trim() && !(draft.lastName || '').trim()) {
+        state.cSetError = 'Bitte mindestens Vor- oder Nachname angeben';
+        render();
+        break;
+      }
+      if ((draft.email || '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
+        state.cSetError = 'Email-Adresse ungültig';
+        render();
+        break;
+      }
+      if (!Array.isArray(u.employees)) u.employees = [];
+      const cleaned = {
+        id: draft.id,
+        firstName: (draft.firstName || '').trim(),
+        lastName: (draft.lastName || '').trim(),
+        email: (draft.email || '').trim(),
+        phone: (draft.phone || '').trim(),
+        role: (draft.role || '').trim(),
+      };
+      const idx = u.employees.findIndex(e => e.id === draft.id);
+      if (idx >= 0) u.employees[idx] = cleaned;
+      else u.employees.push(cleaned);
+      state.empEditingId = '';
+      state.empDraft = null;
+      state.cSetError = '';
+      persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
+        .catch(e => { state.cSetError = (t('cset.saveError') || 'Speichern fehlgeschlagen') + ': ' + (e?.message || ''); render(); });
+      render();
+      break;
+    }
+    case 'customer-emp-delete': {
+      const u = APP_KEYS.user;
+      if (!u || !Array.isArray(u.employees)) break;
+      const id = btn.dataset.id;
+      if (!confirm('Diesen Mitarbeiter löschen?')) break;
+      u.employees = u.employees.filter(e => e.id !== id);
+      if (u.quoteRecipientId === id) u.quoteRecipientId = '';
+      state.empEditingId = '';
+      state.empDraft = null;
+      persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
+        .catch(e => { state.cSetError = (t('cset.saveError') || 'Speichern fehlgeschlagen') + ': ' + (e?.message || ''); render(); });
+      render();
+      break;
+    }
+    case 'customer-set-recipient': {
+      const u = APP_KEYS.user;
+      if (!u) break;
+      const id = btn.dataset.id;
+      u.quoteRecipientId = id || '';
+      persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
+        .catch(e => { state.cSetError = (t('cset.saveError') || 'Speichern fehlgeschlagen') + ': ' + (e?.message || ''); render(); });
+      render();
+      break;
+    }
+
     /* ===== Install-to-Home Hilfe-Sheet ===== */
     case 'show-install-help': {
       state.installHelpOpen = true;
@@ -11236,13 +12309,15 @@ document.addEventListener('click', (e) => {
       const u = APP_KEYS.user || {};
       const draft = state.inquiryDraft || {};
       const note = (draft.note || '').trim();
-      const customerName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || 'Kunde';
-      const customerEmail = (u.email || '').trim();
-      if (!customerEmail) {
-        state.inquiryError = 'Keine Email-Adresse hinterlegt — bitte beim Support melden';
+      const senderName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || 'Kunde';
+      const recipient = getCustomerRecipient();
+      if (!recipient) {
+        state.inquiryError = t('inquiry.noRecipient.sub');
         render();
         break;
       }
+      const recipientName = [recipient.firstName, recipient.lastName].filter(Boolean).join(' ') || recipient.email;
+      const recipientEmail = (recipient.email || '').trim();
       const co = state.company;
       const activeCoName = co?.name || '';
 
@@ -11250,11 +12325,26 @@ document.addEventListener('click', (e) => {
       const baseUrl = (location.origin + location.pathname).replace(/\/loader\.html$/i, '/');
       const articleLink = baseUrl + '?item=' + encodeURIComponent(it.id);
 
-      const subject = `[Stockmanager] Anfrage zu ${it.title} (#${it.id})`;
+      const firmAddress = [u.firmStreet, [u.firmZip, u.firmCity].filter(Boolean).join(' '), u.firmCountry].filter(Boolean).join(', ');
+
+      const subject = `[Stockmanager] Anfrage zu ${it.title} (#${it.id})${u.companyName ? ' — ' + u.companyName : ''}`;
       const description = [
         `Neue Kunden-Anfrage über FLP Stockmanager:`,
         ``,
-        `Artikel: ${it.title}`,
+        `── ANGEBOT BITTE AN ──`,
+        `${recipientName} <${recipientEmail}>`,
+        ``,
+        `── FIRMA ──`,
+        u.companyName ? `${u.companyName}` : '(keine Firma)',
+        firmAddress ? firmAddress : '',
+        ``,
+        `── ANFRAGENDER ──`,
+        `${senderName}`,
+        u.email ? `Email: ${u.email}` : '',
+        u.phone ? `Telefon: ${u.phone}` : '',
+        ``,
+        `── ARTIKEL ──`,
+        `${it.title}`,
         `Artikel-Nr.: ${it.id}`,
         it.maker ? `Hersteller: ${it.maker}` : '',
         it.cat ? `Kategorie: ${it.cat}` : '',
@@ -11262,15 +12352,13 @@ document.addEventListener('click', (e) => {
         ``,
         `Link im Stockmanager: ${articleLink}`,
         ``,
-        '----- Nachricht des Kunden -----',
+        '── NACHRICHT DES KUNDEN ──',
         note || '(keine zusätzliche Nachricht)',
-        ``,
-        `----- Absender -----`,
-        `Name: ${customerName}`,
-        `Email: ${customerEmail}`,
-        u.phone ? `Telefon: ${u.phone}` : '',
-        u.companyName ? `Firma: ${u.companyName}` : '',
       ].filter(Boolean).join('\n');
+
+      // Requester für Freshdesk = Recipient (damit Antwort dorthin geht)
+      const customerEmail = recipientEmail;
+      const customerName = recipientName;
 
       const proxyUrl = APP_KEYS.inquiryProxyUrl || '';
       const proxyToken = APP_KEYS.inquiryProxyToken || '';
@@ -11298,7 +12386,7 @@ document.addEventListener('click', (e) => {
           const payload = {
             subject,
             description,
-            email: customerEmail,
+            email: customerEmail,                // Requester = Recipient → Antwort geht dorthin
             name: customerName,
             phone: u.phone || '',
             company: u.companyName || '',
@@ -11309,6 +12397,17 @@ document.addEventListener('click', (e) => {
             company_name: activeCoName,
             ticket_type: overrideTicketType,
             group_id: overrideGroupId,
+            // NEU: Firmen-Daten + Absender + Empfänger (Proxy rendert die in Description hervorgehoben)
+            customer_firm_name:   u.companyName || '',
+            customer_firm_street: u.firmStreet || '',
+            customer_firm_zip:    u.firmZip || '',
+            customer_firm_city:   u.firmCity || '',
+            customer_firm_country: u.firmCountry || '',
+            sender_name:  senderName,
+            sender_email: u.email || '',
+            sender_phone: u.phone || '',
+            quote_recipient_name:  recipientName,
+            quote_recipient_email: recipientEmail,
           };
           const headers = { 'Content-Type': 'application/json' };
           if (proxyToken) headers['Authorization'] = 'Bearer ' + proxyToken;
@@ -11902,6 +13001,22 @@ document.addEventListener('input', (e) => {
     if (!state.inquiryDraft) state.inquiryDraft = { note: '' };
     state.inquiryDraft.note = t.value;
   }
+  else if (a === 'customer-set-firm-input') {
+    const u = APP_KEYS.user;
+    if (!u) return;
+    const key = t.dataset.key;
+    u[key] = t.value;
+    // debounce persist
+    if (window.__cFirmTimer) clearTimeout(window.__cFirmTimer);
+    window.__cFirmTimer = setTimeout(() => {
+      persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+    }, 600);
+  }
+  else if (a === 'customer-emp-input') {
+    if (!state.empDraft) return;
+    const key = t.dataset.key;
+    state.empDraft[key] = t.value;
+  }
   else if (a === 'customer-search-input') {
     state.customerSearch = t.value;
     if (state.view === 'home' && isCustomer()) render();
@@ -11954,6 +13069,16 @@ document.addEventListener('keydown', (e) => {
   }
   else if (e.target.dataset?.action === 'cat-add-input' && e.key === 'Enter') {
     document.querySelector('[data-action="cat-add-save"]')?.click();
+  }
+});
+
+// Lang-Switch (Select) — eigener Change-Handler, läuft vor dem File-Handler
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  const a = t.dataset?.action;
+  if (a === 'lang-switch') {
+    setLang(t.value);
+    render();
   }
 });
 
@@ -12176,6 +13301,8 @@ async function init() {
   if (vb) vb.textContent = APP_CONFIG.PROJECT_NAME + ' \u00b7 ' + APP_VERSION;
   // Ger\u00e4te-Modus initial bestimmen (Override \u2192 UA \u2192 Viewport-Heuristik)
   state.deviceMode = detectDeviceMode();
+  // Sprache initial bestimmen (localStorage \u2192 navigator.language \u2192 'de')
+  state.lang = detectInitialLang();
   // Erst rendern (zeigt Boot-Spinner), dann Auto-Login probieren
   render();
   const ok = await tryAutoLogin();
