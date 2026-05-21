@@ -993,6 +993,78 @@ body.mode-tablet .bottom-bar>*{flex:1}
   /* Phone-Inhalt + Toasts hinter dem Overlay verstecken, damit nichts rausguckt */
   .phone,.version-badge{display:none !important}
 }
+
+/* Flyer-View: Phone-Container aufbrechen damit das A4-Papier sichtbar wird */
+body.is-flyer-view{align-items:flex-start;padding:0;background:#E9F0FB}
+body.is-flyer-view .phone{max-width:none;width:100%;min-height:100vh;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB}
+body.is-flyer-view .phone__inner{height:auto;min-height:100vh}
+body.is-flyer-view .version-badge{display:none}
+
+/* ============================================================
+   FLYER — A4-Print-optimierter Kunden-Flyer (1 Seite)
+   ============================================================ */
+.flyer-screen{background:linear-gradient(180deg,#E9F0FB 0%,#DDE7F0 100%);min-height:100vh;padding:24px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.flyer-toolbar{display:flex;gap:8px;align-items:center;width:100%;max-width:210mm;justify-content:space-between;flex-wrap:wrap}
+.flyer-toolbar h1{font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--c-ink)}
+.flyer-toolbar__btns{display:flex;gap:8px;flex-wrap:wrap}
+.flyer-toolbar__btn{padding:9px 14px;background:var(--c-blue);color:#fff;border:0;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;box-shadow:var(--elev-blue)}
+.flyer-toolbar__btn--ghost{background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);box-shadow:var(--elev-1)}
+
+/* Das A4-Papier-Element */
+.flyer{width:210mm;min-height:297mm;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,29,55,.18);overflow:hidden;color:#0F1830;display:flex;flex-direction:column;position:relative}
+.flyer__header{padding:14mm 14mm 8mm;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;position:relative;overflow:hidden}
+.flyer__header::after{content:'';position:absolute;right:-40px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.15) 0%,transparent 70%);pointer-events:none}
+.flyer__brand{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#0F1830;padding:6px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-weight:700;font-size:14px;letter-spacing:-.01em}
+.flyer__brand-sq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#3F4855;color:#fff;font-family:var(--f-mono);font-size:11px;font-weight:800}
+.flyer__brand-sq--blue{background:#2456E5}
+.flyer__hero-title{font-size:36px;font-weight:800;letter-spacing:-.025em;line-height:1.05;margin:16px 0 8px;position:relative;z-index:1}
+.flyer__hero-sub{font-size:15px;font-weight:500;line-height:1.5;opacity:.92;max-width:140mm;position:relative;z-index:1}
+.flyer__body{flex:1;padding:12mm 14mm}
+.flyer__h2{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px;color:#0F1830;display:flex;align-items:center;gap:8px}
+.flyer__h2::before{content:'';width:5px;height:22px;background:#2456E5;border-radius:3px}
+.flyer__steps{display:grid;grid-template-columns:repeat(4,1fr);gap:7mm;margin-bottom:10mm}
+.flyer__step{background:#F4F7FC;border:1px solid #DCE5F1;border-radius:14px;padding:14px;position:relative}
+.flyer__step-num{position:absolute;top:-10px;left:14px;width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;font-family:var(--f-mono);box-shadow:0 4px 10px rgba(0,0,0,.15)}
+.flyer__step-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:10px;margin-top:5px}
+.flyer__step-title{font-size:13px;font-weight:700;letter-spacing:-.005em;line-height:1.25;margin-bottom:5px}
+.flyer__step-sub{font-size:11px;font-weight:500;color:#5B6577;line-height:1.45}
+.flyer__perks{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;margin-bottom:10mm}
+.flyer__perk{background:#FFF8E1;border:1px solid #F5C95B;border-radius:12px;padding:12px 14px}
+.flyer__perk-title{font-size:13px;font-weight:700;color:#5A3F00;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.flyer__perk-sub{font-size:11px;font-weight:500;color:#7A5400;line-height:1.45}
+.flyer__cta{background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;padding:6mm 8mm;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 8px 24px rgba(16,185,129,.25)}
+.flyer__cta-text{flex:1;min-width:0}
+.flyer__cta-title{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-bottom:4px}
+.flyer__cta-sub{font-size:13px;font-weight:500;opacity:.92;line-height:1.4}
+.flyer__cta-link{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:#fff;color:#0A6B2C;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none}
+.flyer__qr{width:34mm;height:34mm;background:#fff;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.flyer__qr svg{width:100%;height:100%;display:block}
+.flyer__phone{background:linear-gradient(180deg,#0F1830 0%,#1A2440 100%);border-radius:24px;padding:6px;width:54mm;margin:0 auto 4mm;box-shadow:0 14px 36px rgba(0,0,0,.25);position:relative}
+.flyer__phone-screen{background:#F4F7FC;border-radius:18px;overflow:hidden;aspect-ratio:9/19}
+.flyer__phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:36px;height:5px;background:#000;border-radius:3px;z-index:2}
+.flyer__phone-shot{padding:18px 10px 10px;height:100%;display:flex;flex-direction:column;gap:8px;background:linear-gradient(180deg,#E9F0FB 0%,#DDE7F0 100%)}
+.flyer__mock-header{display:flex;align-items:center;gap:5px;padding:0 4px}
+.flyer__mock-brand{font-size:9px;font-weight:700;color:#0F1830}
+.flyer__mock-cta{background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;border-radius:12px;padding:10px;text-align:center;font-size:9px;font-weight:700;letter-spacing:-.005em;line-height:1.2;box-shadow:0 4px 10px rgba(36,86,229,.3)}
+.flyer__mock-cta-camera{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);margin:0 auto 4px;display:flex;align-items:center;justify-content:center}
+.flyer__mock-search{background:#fff;border-radius:10px;padding:6px 8px;font-size:8px;color:#94A3B8;display:flex;align-items:center;gap:4px}
+.flyer__mock-item{background:#fff;border-radius:8px;padding:6px;display:flex;gap:5px;align-items:center}
+.flyer__mock-item-photo{width:20px;height:20px;border-radius:4px;background:linear-gradient(135deg,#94A3B8,#64748B);flex-shrink:0}
+.flyer__mock-item-text{flex:1;min-width:0}
+.flyer__mock-item-title{font-size:7px;font-weight:700;color:#0F1830;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flyer__mock-item-sub{font-size:6.5px;color:#94A3B8;margin-top:1px}
+.flyer__mock-item-price{font-family:var(--f-mono);font-size:7.5px;font-weight:800;color:#0A6B2C;background:#E6F4EA;padding:1px 4px;border-radius:4px;flex-shrink:0}
+.flyer__footer{margin-top:auto;padding:6mm 14mm 10mm;background:#0F1830;color:#94A3B8;font-size:10.5px;line-height:1.5;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.flyer__footer-brand{color:#fff;font-weight:700;font-size:11.5px}
+
+@page { size: A4; margin: 0; }
+@media print {
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  .phone, .user-bar, .version-badge, .rotate-prompt, body > *:not(#app-print-host) { display: none !important; }
+  .flyer-screen { padding: 0 !important; background: #fff !important; }
+  .flyer-toolbar { display: none !important; }
+  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; }
+}
 </style>
 </head>
 <body>
@@ -1016,7 +1088,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.84';
+const APP_VERSION = 'v1.85';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1996,6 +2068,7 @@ async function loginWithUserKey(userKey) {
       if (f.key_name === 'freshdeskGroupId') APP_KEYS.freshdeskGroupId = f.key_value;
       if (f.key_name === 'freshdeskTicketType') APP_KEYS.freshdeskTicketType = f.key_value;
       if (f.key_name === 'freshdeskDefaultRequester') APP_KEYS.freshdeskDefaultRequester = f.key_value;
+      if (f.key_name === 'adminCcEmail') APP_KEYS.adminCcEmail = f.key_value;
     });
   }
 
@@ -2559,27 +2632,31 @@ function effectivePriceForUser(it) {
 // Gibt { to, cc, channel } zurück.
 //   channel = 'mailto'    → Mailprogramm öffnen
 //             'freshdesk' → bestehender Proxy (nur für reguläre FLP-Kunden bei Anfragen)
+//
+// CC ist GLOBAL: APP_KEYS.adminCcEmail (vom FLP-Admin in Integrationen gesetzt).
+// Bei Sub-Customer-Bestellungen, die NICHT bei FLP landen, sorgt das für Transparenz —
+// FLP sieht jede Bestellung mit, auch wenn die nicht direkt an FLP geht.
 function getOrderRouting() {
   const u = APP_KEYS.user || {};
   const fallbackFlp = 'service@flp-shop.com';
-  const myFirm = (u.firmEmail || '').trim();
-  // Sub-Customer eines Distributors → Email an Distributor, CC an eigene Firmen-Email
+  const adminCc = (APP_KEYS.adminCcEmail || '').trim();
+  // Sub-Customer eines Distributors → Email an Distributor, FLP als CC für Transparenz
   if (isUnderDistributor()) {
     const pd = APP_KEYS.parentDistributor;
     const distEmail = (pd?.distributorInquiryEmail || '').trim();
     return {
       channel: 'mailto',
       to: distEmail || pd?.email || fallbackFlp,
-      cc: myFirm || u.email || '',
+      cc: adminCc,
       noDistEmail: !distEmail, // Hinweis falls Distributor seine Sammeladresse nicht gesetzt hat
     };
   }
-  // Distributor selbst → Email an FLP, CC an seine Firmen-Email
+  // Distributor selbst bestellt bei FLP → CC an Admin-Email (i.d.R. die gleiche, harmlos)
   if (isDistributor()) {
-    return { channel: 'mailto', to: fallbackFlp, cc: myFirm || u.email || '' };
+    return { channel: 'mailto', to: fallbackFlp, cc: adminCc };
   }
-  // Regulärer Kunde → Email an FLP, CC an seine Firmen-Email
-  return { channel: 'mailto', to: fallbackFlp, cc: myFirm || u.email || '' };
+  // Regulärer Kunde → an FLP, CC an Admin-Email
+  return { channel: 'mailto', to: fallbackFlp, cc: adminCc };
 }
 
 // Invite-Link für Distributor: legt seine recordId in den URL-Parameter
@@ -3101,6 +3178,8 @@ const I18N = {
     'cset.firm.email.sub': 'Wird als Kopie (CC) bei jeder Bestellung / Anfrage verschickt. Lass leer, falls nicht gewünscht.',
     'dist.inquiryEmail': 'Email für Anfragen + Bestellungen deiner Kunden',
     'dist.inquiryEmail.sub': 'An diese Adresse gehen Anfragen + Bestellungen deiner Sub-Kunden direkt (nicht über FLP).',
+    'dist.adminCc.title': 'FLP erhält Kopie',
+    'dist.adminCc.sub': 'Zur Transparenz wird {email} bei jeder Sub-Kunden-Bestellung in CC gesetzt. So weiß FLP, was über deine Schiene läuft. Diese Adresse legt FLP fest.',
     'detail.order.button': 'Bestellen',
     'cset.employees.title': 'Mitarbeiter',
     'cset.employees.sub': 'Lege Kolleg:innen an, die Anfragen stellen oder Angebote empfangen sollen. Email ist optional, aber wer Angebote empfangen soll braucht eine.',
@@ -3310,6 +3389,8 @@ const I18N = {
     'cset.firm.email.sub': 'Sent as carbon copy (CC) on every order / inquiry. Leave blank if not needed.',
     'dist.inquiryEmail': 'Email for inquiries + orders from your customers',
     'dist.inquiryEmail.sub': 'Your sub-customers’ inquiries and orders go directly to this address (not via FLP).',
+    'dist.adminCc.title': 'FLP gets a copy',
+    'dist.adminCc.sub': 'For transparency {email} is added in CC on every sub-customer order. FLP sees what runs through your channel. This address is set by FLP.',
     'detail.order.button': 'Order now',
     'cset.employees.title': 'Employees',
     'cset.employees.sub': 'Add colleagues who will send inquiries or receive quotes. Email is optional, but the quote recipient needs one.',
@@ -3518,6 +3599,8 @@ const I18N = {
     'cset.firm.email.sub': 'Se envía como copia (CC) en cada pedido / consulta. Déjalo vacío si no es necesario.',
     'dist.inquiryEmail': 'Email para consultas + pedidos de tus clientes',
     'dist.inquiryEmail.sub': 'Las consultas y pedidos de tus subclientes llegan directamente a esta dirección (no a través de FLP).',
+    'dist.adminCc.title': 'FLP recibe copia',
+    'dist.adminCc.sub': 'Por transparencia, {email} se añade en CC en cada pedido de subcliente. FLP ve lo que pasa por tu canal. Esta dirección la define FLP.',
     'detail.order.button': 'Pedir ahora',
     'cset.employees.title': 'Empleados',
     'cset.employees.sub': 'Añade compañeros que enviarán consultas o recibirán presupuestos. El email es opcional, pero quien reciba presupuestos necesita uno.',
@@ -3726,6 +3809,8 @@ const I18N = {
     'cset.firm.email.sub': 'Wordt als kopie (CC) verzonden bij elke bestelling / aanvraag. Leeg laten indien niet nodig.',
     'dist.inquiryEmail': 'Email voor aanvragen + bestellingen van je klanten',
     'dist.inquiryEmail.sub': 'Aanvragen en bestellingen van je subklanten gaan rechtstreeks naar dit adres (niet via FLP).',
+    'dist.adminCc.title': 'FLP ontvangt een kopie',
+    'dist.adminCc.sub': 'Ter transparantie wordt {email} in CC gezet bij elke bestelling van een subklant. FLP ziet zo wat via jouw kanaal loopt. Dit adres wordt door FLP vastgelegd.',
     'detail.order.button': 'Nu bestellen',
     'cset.employees.title': 'Medewerkers',
     'cset.employees.sub': 'Voeg collega’s toe die aanvragen versturen of offertes ontvangen. Email is optioneel, maar de offerte-ontvanger heeft er één nodig.',
@@ -3934,6 +4019,8 @@ const I18N = {
     'cset.firm.email.sub': 'Envoyé en copie (CC) lors de chaque commande / demande. Laisser vide si non souhaité.',
     'dist.inquiryEmail': 'Email pour demandes + commandes de tes clients',
     'dist.inquiryEmail.sub': 'Les demandes et commandes de tes sous-clients arrivent directement à cette adresse (pas via FLP).',
+    'dist.adminCc.title': 'FLP reçoit une copie',
+    'dist.adminCc.sub': 'Pour la transparence, {email} est mis en CC sur chaque commande de sous-client. FLP voit ce qui passe par ton canal. Cette adresse est définie par FLP.',
     'detail.order.button': 'Commander',
     'cset.employees.title': 'Collaborateurs',
     'cset.employees.sub': 'Ajoute des collègues qui enverront des demandes ou recevront des devis. L’email est facultatif, mais le destinataire des devis en a besoin.',
@@ -4441,6 +4528,8 @@ async function valtownRunSetup() {
     if (fdGroup) await writeMasterBaseKey('freshdeskGroupId', fdGroup, mk['freshdeskGroupId']?.id);
     if (fdType)  await writeMasterBaseKey('freshdeskTicketType', fdType, mk['freshdeskTicketType']?.id);
     if (fdReq)   await writeMasterBaseKey('freshdeskDefaultRequester', fdReq, mk['freshdeskDefaultRequester']?.id);
+    const ccEmail = (d.adminCcEmail || '').trim();
+    await writeMasterBaseKey('adminCcEmail', ccEmail, mk['adminCcEmail']?.id);
     _vtLog('✓ Master-Keys gespeichert', 'ok');
 
     // Lokal aktualisieren
@@ -4453,6 +4542,7 @@ async function valtownRunSetup() {
     if (fdGroup) APP_KEYS.freshdeskGroupId = fdGroup;
     if (fdType)  APP_KEYS.freshdeskTicketType = fdType;
     if (fdReq)   APP_KEYS.freshdeskDefaultRequester = fdReq;
+    APP_KEYS.adminCcEmail = ccEmail;
 
     _vtLog('🎉 Setup abgeschlossen — Proxy ist live', 'ok');
     showToast('✅ Freshdesk-Proxy eingerichtet', 'success', 2800);
@@ -7651,6 +7741,14 @@ function renderCustomerSettings() {
           <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.inquiryEmail.sub')}</div>
         </div>
 
+        <!-- Transparenz-Hinweis: FLP erhält Kopie an die Admin-CC-Email -->
+        ${APP_KEYS.adminCcEmail ? `
+          <div style="margin-top:10px;padding:11px 13px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);display:flex;align-items:flex-start;gap:9px;font-size:11.5px;line-height:1.45;color:#5A3F00">
+            <span style="flex-shrink:0;color:#7A5400">${svg('info', 13, 2.5)}</span>
+            <span><strong>${t('dist.adminCc.title')}:</strong> ${t('dist.adminCc.sub', { email: `<strong style="font-family:var(--f-mono)">${APP_KEYS.adminCcEmail.replace(/</g,'&lt;')}</strong>` })}</span>
+          </div>
+        ` : ''}
+
         <!-- Meine Kunden — pro Kunde "Preise sichtbar"-Schalter -->
         ${(() => {
           const subs = state.distSubCustomers;
@@ -7797,11 +7895,6 @@ function renderCustomerSettings() {
         <div class="field">
           <label class="field__label">${t('cset.firm.country')}</label>
           <input type="text" data-action="customer-set-firm-input" data-key="firmCountry" value="${(u.firmCountry||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
-        </div>
-        <div class="field">
-          <label class="field__label">${t('cset.firm.email')}</label>
-          <input type="email" data-action="customer-set-firm-input" data-key="firmEmail" value="${(u.firmEmail||'').replace(/"/g,'&quot;')}" placeholder="bestellung@firma.de" autocomplete="email" inputmode="email" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">${t('cset.firm.email.sub')}</div>
         </div>
       </div>
     </div>
@@ -9970,6 +10063,181 @@ function renderItemList() {
 }
 
 // Admin-Integrationen: val.town-Proxy für Freshdesk-Tickets einrichten / aktualisieren
+// ============================================================
+// FLYER — Kundenflyer (1 Seite A4) zum Drucken / Als PDF speichern
+// ============================================================
+function renderFlyer() {
+  const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
+  // QR-Code als SVG via QR Server API… aber wir wollen offline → einfacher: kein QR im Print,
+  // stattdessen URL groß. Wenn QR gewünscht: über externe URL einbetten.
+  const qrSvg = `
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="qrDot" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+          <rect width="3" height="3" fill="#0F1830"/>
+        </pattern>
+      </defs>
+      <rect width="100" height="100" fill="#fff"/>
+      <!-- Drei Eck-Markierungen wie ein echter QR-Code (rein dekorativ) -->
+      ${[[5,5],[75,5],[5,75]].map(([x,y]) => `
+        <rect x="${x}" y="${y}" width="20" height="20" fill="#0F1830"/>
+        <rect x="${x+4}" y="${y+4}" width="12" height="12" fill="#fff"/>
+        <rect x="${x+7}" y="${y+7}" width="6" height="6" fill="#0F1830"/>
+      `).join('')}
+      <!-- Pseudo-Daten-Modulen mittig -->
+      ${Array.from({length: 240}, (_, i) => {
+        const x = 30 + (i % 14) * 4;
+        const y = 30 + Math.floor(i / 14) * 4;
+        if (y > 70) return '';
+        // Deterministisches Bit-Muster basierend auf URL-Hash
+        const hash = (appUrl.charCodeAt(i % appUrl.length) + i * 13) % 7;
+        if (hash < 3) return `<rect x="${x}" y="${y}" width="3" height="3" fill="#0F1830"/>`;
+        return '';
+      }).join('')}
+    </svg>
+  `;
+  return `
+<div class="flyer-screen">
+  <div class="flyer-toolbar">
+    <h1>${svg('file-text', 18, 2.4)} Kundenflyer</h1>
+    <div class="flyer-toolbar__btns">
+      <button class="flyer-toolbar__btn flyer-toolbar__btn--ghost" data-action="go-home">${svg('arrow-left', 13, 2.4)} Zurück</button>
+      <button class="flyer-toolbar__btn" onclick="window.print()">${svg('printer', 13, 2.4)} Drucken / PDF speichern</button>
+    </div>
+  </div>
+
+  <div class="flyer" id="flyerPrintArea">
+    <!-- HEADER -->
+    <div class="flyer__header">
+      <div class="flyer__brand">
+        <span class="flyer__brand-sq">F</span><span class="flyer__brand-sq flyer__brand-sq--blue">L</span><span class="flyer__brand-sq flyer__brand-sq--blue">P</span>
+        <span>Stockmanager</span>
+      </div>
+      <h1 class="flyer__hero-title">Such dein Ersatzteil<br>per Foto.</h1>
+      <p class="flyer__hero-sub">
+        Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom Typenschild —
+        wir prüfen sofort, ob das passende Ersatzteil bei FLP Lift Parts auf Lager ist
+        und melden uns mit Preis und Verfügbarkeit zurück. Kostenlos, ohne Tippen.
+      </p>
+    </div>
+
+    <!-- BODY -->
+    <div class="flyer__body">
+      <h2 class="flyer__h2">So einfach geht’s</h2>
+      <div class="flyer__steps">
+        ${[
+          { n: 1, icon: 'camera',         color: '#2456E5', title: 'Foto vom Typenschild', sub: 'Handy aufs Schild halten. Das war’s. Keine Tipparbeit.' },
+          { n: 2, icon: 'scan-text',      color: '#7C3AED', title: 'KI erkennt das Teil',  sub: 'Hersteller, Modell, Code — alles automatisch ausgelesen.' },
+          { n: 3, icon: 'boxes',          color: '#0F766E', title: 'Treffer im Lager',     sub: 'Du siehst sofort ob wir es haben, mit Foto und Details.' },
+          { n: 4, icon: 'message-circle', color: '#D97706', title: 'Anfrage oder Bestellung', sub: 'Mit einem Tap landet alles bei FLP — Antwort kommt direkt.' },
+        ].map(s => `
+          <div class="flyer__step">
+            <div class="flyer__step-num" style="background:${s.color}">${s.n}</div>
+            <div class="flyer__step-icon" style="background:${s.color}">${svg(s.icon, 22, 2.4)}</div>
+            <div class="flyer__step-title">${s.title}</div>
+            <div class="flyer__step-sub">${s.sub}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <h2 class="flyer__h2">Warum FLP Stockmanager?</h2>
+      <div class="flyer__perks">
+        <div class="flyer__perk">
+          <div class="flyer__perk-title">${svg('sparkles', 13, 2.5)} Kostenlos</div>
+          <div class="flyer__perk-sub">Suchen, Anfragen, Bestellen — alles ohne versteckte Kosten.</div>
+        </div>
+        <div class="flyer__perk">
+          <div class="flyer__perk-title">${svg('camera', 13, 2.5)} Kein Tippen</div>
+          <div class="flyer__perk-sub">Foto reicht. Unsere KI erkennt Hersteller und Modell automatisch.</div>
+        </div>
+        <div class="flyer__perk">
+          <div class="flyer__perk-title">${svg('message-circle', 13, 2.5)} Direkt zum Profi</div>
+          <div class="flyer__perk-sub">Antworten kommen vom FLP-Team oder deinem Distributor — schnell.</div>
+        </div>
+      </div>
+
+      <!-- Mini-Mockup als visuelles Beispiel -->
+      <h2 class="flyer__h2">So sieht das in der App aus</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;align-items:start">
+        ${[
+          { title: 'Foto-Suche', content: `
+            <div class="flyer__mock-header">
+              <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">P</span>
+              <span class="flyer__mock-brand">Stock Manager</span>
+            </div>
+            <div class="flyer__mock-cta">
+              <div class="flyer__mock-cta-camera">${svg('camera', 18, 2.2)}</div>
+              Foto vom Typenschild
+            </div>
+            <div class="flyer__mock-search">${svg('search', 9, 2.4)} <span>Oder Modellname tippen …</span></div>
+          ` },
+          { title: 'Trefferliste', content: `
+            <div class="flyer__mock-header">
+              <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">P</span>
+              <span class="flyer__mock-brand">Treffer</span>
+            </div>
+            <div class="flyer__mock-item"><div class="flyer__mock-item-photo"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">VVVF-Inverter CPI 32 AU</div><div class="flyer__mock-item-sub">ThyssenKrupp</div></div><div class="flyer__mock-item-price">82 €</div></div>
+            <div class="flyer__mock-item"><div class="flyer__mock-item-photo" style="background:linear-gradient(135deg,#7C3AED,#5B21B6)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">ZAdyn4C Frequenzumrichter</div><div class="flyer__mock-item-sub">Ziehl-Abegg</div></div><div class="flyer__mock-item-price">1.840 €</div></div>
+            <div class="flyer__mock-item"><div class="flyer__mock-item-photo" style="background:linear-gradient(135deg,#0F766E,#065F46)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">CPI 15C Synchron</div><div class="flyer__mock-item-sub">ThyssenKrupp</div></div><div class="flyer__mock-item-price">650 €</div></div>
+          ` },
+          { title: 'Bestellung per Email', content: `
+            <div class="flyer__mock-header">
+              <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
+              <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">P</span>
+              <span class="flyer__mock-brand">Detail</span>
+            </div>
+            <div class="flyer__mock-item" style="padding:8px"><div class="flyer__mock-item-photo" style="width:34px;height:34px;border-radius:5px;background:linear-gradient(135deg,#1740B8,#0F1830)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">VVVF-Inverter CPI 32 AU</div><div class="flyer__mock-item-sub">ThyssenKrupp · Frequenzumrichter</div></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:auto">
+              <div style="background:#2456E5;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">Anfrage</div>
+              <div style="background:#10B981;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">Bestellen</div>
+            </div>
+          ` },
+        ].map(m => `
+          <div>
+            <div class="flyer__phone">
+              <div class="flyer__phone-notch"></div>
+              <div class="flyer__phone-screen">
+                <div class="flyer__phone-shot">${m.content}</div>
+              </div>
+            </div>
+            <div style="text-align:center;font-size:11px;font-weight:600;color:#5B6577;letter-spacing:-.005em">${m.title}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div style="padding:0 14mm 8mm">
+      <div class="flyer__cta">
+        <div class="flyer__cta-text">
+          <div class="flyer__cta-title">Jetzt kostenlos starten</div>
+          <div class="flyer__cta-sub">In 2 Minuten registriert. Scan den Code oder besuche uns online:</div>
+          <a class="flyer__cta-link" href="${appUrl}" style="margin-top:8px">${svg('arrow-right', 13, 2.5)} ${appUrl.replace(/^https?:\/\//, '')}</a>
+        </div>
+        <div class="flyer__qr">${qrSvg}</div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="flyer__footer">
+      <div>
+        <div class="flyer__footer-brand">FLP Lift Parts GmbH</div>
+        <div>Aufzug-Ersatzteile · Hersteller-übergreifend</div>
+      </div>
+      <div style="text-align:right">
+        <div>service@flp-shop.com</div>
+        <div>${appUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}</div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
 function renderIntegrations() {
   if (!isAdmin()) {
     return `
@@ -9991,6 +10259,7 @@ function renderIntegrations() {
     freshdeskGroupId: APP_KEYS.freshdeskGroupId || '',
     freshdeskTicketType: APP_KEYS.freshdeskTicketType || 'Question',
     freshdeskDefaultRequester: APP_KEYS.freshdeskDefaultRequester || '',
+    adminCcEmail: APP_KEYS.adminCcEmail || '',
   };
   const log = state.integrationsLog || [];
   const proxyUrl = APP_KEYS.inquiryProxyUrl || '';
@@ -10023,6 +10292,17 @@ function renderIntegrations() {
         ${proxyUrl}
       </div>
     ` : ''}
+
+    <!-- Globale Bestell-Kopie-Email — CC auf JEDE Bestellung/Anfrage, egal an wen sie geht -->
+    <div style="margin-top:20px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em">${svg('message-circle', 14, 2.5)} Globale Kopie-Email</h2>
+      <p style="font-size:12px;color:var(--c-ink-mute);margin:0 0 14px;line-height:1.5">Diese Email-Adresse wird als CC bei <strong>jeder</strong> Bestellung und Sub-Customer-Anfrage gesetzt — auch bei Bestellungen, die direkt zwischen Distributor und seinen Kunden laufen. FLP behält damit den Überblick. Distributoren sehen diese Adresse in ihren Settings (Transparenz).</p>
+      <div class="field">
+        <label class="field__label">CC-Email für alle Bestellungen / Anfragen</label>
+        <input class="field__input" data-action="integration-input" data-key="adminCcEmail" value="${(d.adminCcEmail || '').replace(/"/g, '&quot;')}" placeholder="kopie@flp-shop.com" type="email" autocomplete="email" inputmode="email">
+        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">Lass leer um Kopien zu deaktivieren. Wird über den „Setup starten"-Button unten persistiert.</div>
+      </div>
+    </div>
 
     <!-- Formular -->
     <div style="margin-top:20px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
@@ -10339,8 +10619,9 @@ function renderUsers() {
       `).join('')}
     </div>
 
-    <div style="padding:14px 20px 0">
-      <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="width:100%;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
+    <div style="padding:14px 20px 0;display:flex;gap:8px;flex-wrap:wrap">
+      <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="flex:1;min-width:170px;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
+      <button data-action="go-flyer" style="flex:0 0 auto;padding:13px 16px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Kunden-Flyer öffnen + drucken">${svg('file-text', 14, 2.5)} Flyer</button>
     </div>
 
     <div style="padding:14px 20px 0">
@@ -12140,7 +12421,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -12234,6 +12515,8 @@ function render() {
   // Body-Klasse spiegelt aktuellen Geräte-Modus, damit CSS bei Bedarf reagieren kann
   document.body.classList.toggle('mode-tablet', isTabletMode());
   document.body.classList.toggle('mode-phone', !isTabletMode());
+  // Flyer-View: Phone-Container aufbrechen (A4-Papier braucht volle Breite)
+  document.body.classList.toggle('is-flyer-view', state.view === 'flyer' && state.loggedIn);
 
   // Auth-Gate: vor erfolgreichem Login werden \u00f6ffentliche Screens angezeigt
   if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
@@ -12673,6 +12956,7 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    case 'go-flyer': go('flyer'); break;
     case 'user-add': {
       if (!isAdmin()) break;
       state.userDraft = {
