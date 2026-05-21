@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.73';
+const APP_VERSION = 'v1.74';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2524,10 +2524,13 @@ function effectivePriceForUser(it) {
     const disc = Number(APP_KEYS.user?.distributorDiscount || 0) || 0;
     return { value: base * (1 - disc/100), label: t('price.purchase') || 'Einkaufspreis', visible: true, isDistributorPrice: true, discount: disc };
   }
-  // Sub-Customer unter Distributor: Endpreis = Distributor-EK × (1 + Marge/100), nur wenn freigegeben
+  // Sub-Customer unter Distributor: Endpreis = Distributor-EK × (1 + Marge/100)
+  // Preis-Sichtbarkeit wird pro Sub-Customer vom Distributor explizit freigegeben
+  // (Flag show_prices auf dem User-Record selbst, nicht mehr global beim Distributor)
   if (isUnderDistributor()) {
     const pd = APP_KEYS.parentDistributor;
-    if (!pd || !pd.distributorShowPrices) return { value: null, label: '', visible: false };
+    if (!pd) return { value: null, label: '', visible: false };
+    if (!APP_KEYS.user?.showPrices) return { value: null, label: '', visible: false };
     const disc = Number(pd.distributorDiscount || 0) || 0;
     const marg = Number(pd.distributorMargin   || 0) || 0;
     const distPurchase = base * (1 - disc/100);
@@ -2599,6 +2602,8 @@ const USER_FIELDS = [
   { name: 'distributor_show_prices', type: 'singleLineText' },
   // parent_distributor_id: recordId des Distributors, dem dieser Sub-Customer gehört
   { name: 'parent_distributor_id', type: 'singleLineText' },
+  // show_prices: '1' = dieser Sub-Customer darf Preise sehen (vom Distributor freigegeben), default leer/aus
+  { name: 'show_prices', type: 'singleLineText' },
   // distributor_logo: Distributor-Logo (Attachment, max. 1 Datei) — wird neben FLP-Logo beim Sub-Customer angezeigt
   { name: 'distributor_logo', type: 'multipleAttachments' },
   { name: 'created', type: 'singleLineText' },
@@ -2641,6 +2646,8 @@ function recordToUser(rec) {
     distributorMargin:   Number(f.distributor_margin   || 0) || 0,
     distributorShowPrices: String(f.distributor_show_prices || '').trim() === '1' || String(f.distributor_show_prices || '').toLowerCase() === 'true',
     parentDistributorId: f.parent_distributor_id || '',
+    // Pro Sub-Customer: vom Distributor freigegeben? (default false)
+    showPrices: String(f.show_prices || '').trim() === '1' || String(f.show_prices || '').toLowerCase() === 'true',
     // distributor_logo: Array von Airtable-Attachments [{ url, thumbnails: { small, large, full } }]
     distributorLogo: Array.isArray(f.distributor_logo) ? f.distributor_logo : [],
     created: f.created || '',
@@ -2706,6 +2713,7 @@ async function persistUser(u) {
   if (u.distributorMargin   !== undefined) fields.distributor_margin   = (Number(u.distributorMargin) || 0).toString();
   if (u.distributorShowPrices !== undefined) fields.distributor_show_prices = u.distributorShowPrices ? '1' : '';
   if (u.parentDistributorId !== undefined) fields.parent_distributor_id = u.parentDistributorId || '';
+  if (u.showPrices !== undefined) fields.show_prices = u.showPrices ? '1' : '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
   if (u.created) fields.created = u.created;
   if (u._recordId) {
@@ -2944,6 +2952,14 @@ const I18N = {
     'dist.margin.sub': 'Wird auf deinen EK aufgeschlagen, wenn deine Kunden Preise sehen dürfen.',
     'dist.showPrices': 'Meine Kunden sollen Preise sehen',
     'dist.showPrices.sub': 'Wenn aktiv, sehen deine Sub-Kunden Endpreise (EK + Marge). Sonst keine Preise.',
+    'dist.customers': 'Meine Kunden',
+    'dist.customers.sub': 'Standard ist „keine Preise sichtbar". Aktivere pro Kunde individuell, wer Preise (EK + Marge) sehen darf.',
+    'dist.customers.loading': 'Kunden werden geladen …',
+    'dist.customers.empty': 'Noch keine Kunden verknüpft.',
+    'dist.customers.empty.sub': 'Teile deinen Einladungs-Link weiter unten, damit Kunden sich registrieren können.',
+    'dist.customers.reload': 'Neu laden',
+    'dist.customers.pricesOn': 'Preise an',
+    'dist.customers.pricesOff': 'Preise aus',
     'dist.example': 'Beispiel',
     'dist.example.flp': 'FLP-VP',
     'dist.example.mine': 'Dein EK',
@@ -3139,6 +3155,14 @@ const I18N = {
     'dist.margin.sub': 'Added on top of your purchase price when your customers can see prices.',
     'dist.showPrices': 'Let my customers see prices',
     'dist.showPrices.sub': 'If active, your sub-customers see end prices (purchase + margin). Otherwise no prices.',
+    'dist.customers': 'My customers',
+    'dist.customers.sub': 'Default is “no prices visible”. Enable individually per customer who may see prices (purchase + margin).',
+    'dist.customers.loading': 'Loading customers …',
+    'dist.customers.empty': 'No customers linked yet.',
+    'dist.customers.empty.sub': 'Share your invite link below so customers can register.',
+    'dist.customers.reload': 'Reload',
+    'dist.customers.pricesOn': 'Prices on',
+    'dist.customers.pricesOff': 'Prices off',
     'dist.example': 'Example',
     'dist.example.flp': 'FLP price',
     'dist.example.mine': 'Your purchase price',
@@ -3329,6 +3353,14 @@ const I18N = {
     'dist.margin.sub': 'Se añade a tu precio de compra si tus clientes pueden ver precios.',
     'dist.showPrices': 'Mostrar precios a mis clientes',
     'dist.showPrices.sub': 'Si está activo, tus subclientes verán los precios finales (compra + margen). Si no, ningún precio.',
+    'dist.customers': 'Mis clientes',
+    'dist.customers.sub': 'Por defecto "sin precios". Activa individualmente por cliente quién puede ver los precios (compra + margen).',
+    'dist.customers.loading': 'Cargando clientes …',
+    'dist.customers.empty': 'Aún no hay clientes vinculados.',
+    'dist.customers.empty.sub': 'Comparte tu enlace de invitación abajo para que los clientes se registren.',
+    'dist.customers.reload': 'Recargar',
+    'dist.customers.pricesOn': 'Precios sí',
+    'dist.customers.pricesOff': 'Precios no',
     'dist.example': 'Ejemplo',
     'dist.example.flp': 'Precio FLP',
     'dist.example.mine': 'Tu compra',
@@ -3519,6 +3551,14 @@ const I18N = {
     'dist.margin.sub': 'Wordt opgeteld bij je inkoopprijs als je klanten prijzen mogen zien.',
     'dist.showPrices': 'Mijn klanten zien prijzen',
     'dist.showPrices.sub': 'Indien actief zien je subklanten eindprijzen (inkoop + marge). Anders geen prijzen.',
+    'dist.customers': 'Mijn klanten',
+    'dist.customers.sub': 'Standaard "geen prijzen zichtbaar". Activeer per klant wie prijzen (inkoop + marge) mag zien.',
+    'dist.customers.loading': 'Klanten laden …',
+    'dist.customers.empty': 'Nog geen klanten gekoppeld.',
+    'dist.customers.empty.sub': 'Deel je uitnodigingslink hieronder zodat klanten zich kunnen aanmelden.',
+    'dist.customers.reload': 'Herladen',
+    'dist.customers.pricesOn': 'Prijzen aan',
+    'dist.customers.pricesOff': 'Prijzen uit',
     'dist.example': 'Voorbeeld',
     'dist.example.flp': 'FLP-prijs',
     'dist.example.mine': 'Jouw inkoop',
@@ -3709,6 +3749,14 @@ const I18N = {
     'dist.margin.sub': 'Ajoutée à ton prix d’achat lorsque tes clients peuvent voir les prix.',
     'dist.showPrices': 'Mes clients voient les prix',
     'dist.showPrices.sub': 'Si activé, tes sous-clients voient les prix finaux (achat + marge). Sinon aucun prix.',
+    'dist.customers': 'Mes clients',
+    'dist.customers.sub': 'Par défaut « pas de prix visibles ». Active individuellement par client qui peut voir les prix (achat + marge).',
+    'dist.customers.loading': 'Chargement des clients …',
+    'dist.customers.empty': 'Aucun client lié pour le moment.',
+    'dist.customers.empty.sub': 'Partage ton lien d’invitation ci-dessous pour que des clients s’inscrivent.',
+    'dist.customers.reload': 'Recharger',
+    'dist.customers.pricesOn': 'Prix activés',
+    'dist.customers.pricesOff': 'Prix désactivés',
     'dist.example': 'Exemple',
     'dist.example.flp': 'Prix FLP',
     'dist.example.mine': 'Ton achat',
@@ -4447,6 +4495,38 @@ async function ensurePublicCompanies() {
   cachePublicCompanies(list);
   if (state.view === 'landing' && !state.loggedIn) render();
 }
+// L\u00e4dt alle Sub-Customer eines Distributors (User-Records mit parent_distributor_id = aktuelle ID)
+// Setzt state.distSubCustomers = [...] und triggert re-render.
+async function loadDistributorSubCustomers() {
+  if (!isDistributor() || !APP_KEYS.user?._recordId) return;
+  if (state.distSubCustomersLoading) return;
+  state.distSubCustomersLoading = true;
+  if (state.view === 'customerSettings') render();
+  try {
+    const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+    const formula = "{parent_distributor_id}='" + APP_KEYS.user._recordId.replace(/'/g, "\\'") + "'";
+    const r = await fetch(
+      'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_USERS + '?filterByFormula=' + encodeURIComponent(formula),
+      { headers }
+    );
+    if (r.ok) {
+      const data = await r.json();
+      const list = (data.records || []).map(recordToUser).sort((a, b) => {
+        const n1 = ([a.firstName, a.lastName].filter(Boolean).join(' ') || a.name || a.email || '').toLowerCase();
+        const n2 = ([b.firstName, b.lastName].filter(Boolean).join(' ') || b.name || b.email || '').toLowerCase();
+        return n1.localeCompare(n2);
+      });
+      state.distSubCustomers = list;
+    } else {
+      state.distSubCustomers = [];
+    }
+  } catch (e) {
+    state.distSubCustomers = [];
+  }
+  state.distSubCustomersLoading = false;
+  if (state.view === 'customerSettings') render();
+}
+
 // L\u00e4dt das Profil eines Distributors pre-login (f\u00fcr Co-Branding auf Landing + Register)
 // Nutzt den Public-Read-Token. Setzt state.signupDistributor = {name, companyName, distributorLogo[]}.
 async function fetchSignupDistributor(recordId) {
@@ -7439,14 +7519,48 @@ function renderCustomerSettings() {
           <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.margin.sub')}</div>
         </div>
 
-        <!-- Toggle: meine Kunden sehen Preise -->
-        <label style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);cursor:pointer">
-          <input type="checkbox" data-action="distributor-toggle-show-prices" ${showPrices ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:#5A3F00">${t('dist.showPrices')}</div>
-            <div style="font-size:11px;color:#7A5400;margin-top:2px;line-height:1.4">${t('dist.showPrices.sub')}</div>
+        <!-- Meine Kunden — pro Kunde "Preise sichtbar"-Schalter -->
+        ${(() => {
+          const subs = state.distSubCustomers;
+          const loading = !!state.distSubCustomersLoading;
+          // Lazy-Load beim ersten Render des Distributor-Settings-Screens
+          if (subs === undefined && !loading) {
+            setTimeout(() => loadDistributorSubCustomers(), 0);
+          }
+          return `
+          <div style="margin-top:12px;padding:14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+              <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em">${t('dist.customers')}</div>
+              <button data-action="distributor-reload-customers" ${loading ? 'disabled' : ''} title="${t('dist.customers.reload')}" style="background:transparent;border:0;color:#7A5400;padding:4px 6px;cursor:pointer;border-radius:6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600${loading ? ';opacity:.5' : ''}">${svg('rotate-ccw', 11, 2.5)}</button>
+            </div>
+            <div style="font-size:11.5px;color:#5A3F00;line-height:1.4;margin-bottom:10px">${t('dist.customers.sub')}</div>
+            ${loading ? `
+              <div style="display:flex;align-items:center;gap:8px;padding:14px;justify-content:center;color:#7A5400;font-size:12px"><div class="spinner spinner--sm" style="border-color:rgba(122,84,0,.2);border-top-color:#7A5400"></div> ${t('dist.customers.loading')}</div>
+            ` : !subs || subs.length === 0 ? `
+              <div style="padding:14px;background:#fff;border:1px dashed rgba(122,84,0,.3);border-radius:8px;text-align:center;font-size:12px;color:#7A5400;line-height:1.5">${t('dist.customers.empty')}<br><span style="font-size:10.5px;opacity:.85">${t('dist.customers.empty.sub')}</span></div>
+            ` : `
+              <div style="display:flex;flex-direction:column;gap:6px">
+                ${subs.map(sc => {
+                  const fullName = [sc.firstName, sc.lastName].filter(Boolean).join(' ') || sc.name || sc.email;
+                  const checked = !!sc.showPrices;
+                  const updating = state.distSubUpdatingId === sc._recordId;
+                  return `
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid rgba(122,84,0,.15);border-radius:8px;cursor:${updating?'wait':'pointer'};${updating?'opacity:.6':''}">
+                    <input type="checkbox" data-action="distributor-toggle-customer-prices" data-rid="${sc._recordId}" ${checked ? 'checked' : ''} ${updating ? 'disabled' : ''} style="width:16px;height:16px;cursor:${updating?'wait':'pointer'};flex-shrink:0">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12.5px;font-weight:600;color:#5A3F00">${fullName.replace(/</g,'&lt;')}</div>
+                      ${sc.companyName ? `<div style="font-size:10.5px;color:#7A5400;margin-top:1px">${sc.companyName.replace(/</g,'&lt;')}</div>` : ''}
+                      ${sc.email ? `<div style="font-size:10.5px;color:#7A5400;opacity:.85;margin-top:1px">${sc.email.replace(/</g,'&lt;')}</div>` : ''}
+                    </div>
+                    ${updating ? `<div class="spinner spinner--sm" style="border-color:rgba(122,84,0,.2);border-top-color:#7A5400;width:14px;height:14px;border-width:2px"></div>` : `<span style="font-size:10px;font-weight:700;color:${checked?'#0A6B2C':'#7A5400'};text-transform:uppercase;letter-spacing:.04em">${checked ? t('dist.customers.pricesOn') : t('dist.customers.pricesOff')}</span>`}
+                  </label>
+                  `;
+                }).join('')}
+              </div>
+            `}
           </div>
-        </label>
+          `;
+        })()}
 
         <!-- Preis-Beispiel -->
         <div style="margin-top:12px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);font-size:11.5px;line-height:1.6;color:#5A3F00;font-family:var(--f-mono)">
@@ -13282,12 +13396,39 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'distributor-toggle-show-prices': {
-      const u = APP_KEYS.user;
-      if (!u || !isDistributor()) break;
-      u.distributorShowPrices = !u.distributorShowPrices;
-      persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
-        .catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+      // Legacy-Handler — der globale Toggle ist entfernt. Falls noch irgendwo aufgerufen: no-op
+      break;
+    }
+    case 'distributor-reload-customers': {
+      if (!isDistributor()) break;
+      loadDistributorSubCustomers();
+      break;
+    }
+    case 'distributor-toggle-customer-prices': {
+      // Distributor schaltet Preis-Sichtbarkeit für einen seiner Sub-Customer um
+      if (!isDistributor()) break;
+      const rid = btn.dataset.rid;
+      if (!rid) break;
+      const list = state.distSubCustomers || [];
+      const sub = list.find(x => x._recordId === rid);
+      if (!sub) break;
+      const newVal = !sub.showPrices;
+      state.distSubUpdatingId = rid;
       render();
+      airUpdate(TBL_USERS, rid, { show_prices: newVal ? '1' : '' })
+        .then(() => {
+          // Optimistic update lokal
+          sub.showPrices = newVal;
+          state.distSubUpdatingId = null;
+          state.cSetSavedFlash = true;
+          render();
+          setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1500);
+        })
+        .catch(e => {
+          state.distSubUpdatingId = null;
+          state.cSetError = 'Aktualisieren fehlgeschlagen: ' + (e?.message || '');
+          render();
+        });
       break;
     }
     case 'distributor-margin-input': /* input event */ break;
