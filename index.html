@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.66';
+const APP_VERSION = 'v1.67';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2174,7 +2174,7 @@ const state = {
   deviceMode: 'phone',                       // 'phone' | 'tablet' — steuert ob Anlegen-UI sichtbar ist
   customerOnboardStep: 0,                    // 0 = nicht im Onboarding, 1-3 = aktiver Schritt
   customerOnboarding: false,                 // aktiv = Customer-Onboarding-Screen anzeigen
-  lang: 'de',                                 // Aktive UI-Sprache (de | en | es | nl | fr)
+  lang: 'en',                                 // Aktive UI-Sprache (wird in init() per detectInitialLang() überschrieben). Fallback EN statt DE.
   editForm: null,
   galleryIndex: 0,           // aktuell sichtbares Foto im Detail-Hero
   cameraShowLive: true,      // true = Live-Cam im Camera-Screen zeigen, false = Preview eines bereits aufgenommenen Fotos
@@ -3567,15 +3567,31 @@ const I18N = {
   },
 };
 function detectInitialLang() {
+  // Manuelle Auswahl (per Switcher) hat IMMER Vorrang
   try {
     const stored = localStorage.getItem('flp_lang');
     if (stored && I18N[stored]) return stored;
   } catch(e) {}
-  const nav = (navigator.language || 'de').slice(0, 2).toLowerCase();
-  return I18N[nav] ? nav : 'de';
+  // Sammelt Browser-Hinweise in Reihenfolge: navigator.languages (sortiert nach Präferenz),
+  // navigator.language, Intl-Locale. Erstes Match gegen unsere unterstützten Sprachen gewinnt.
+  const hints = [];
+  try {
+    if (Array.isArray(navigator.languages)) hints.push(...navigator.languages);
+    if (navigator.language) hints.push(navigator.language);
+    try {
+      const intl = Intl.DateTimeFormat().resolvedOptions().locale;
+      if (intl) hints.push(intl);
+    } catch(e) {}
+  } catch(e) {}
+  for (const h of hints) {
+    const code = String(h || '').slice(0, 2).toLowerCase();
+    if (I18N[code]) return code;
+  }
+  // Sprache für Land nicht verfügbar → Englisch (vorher: Deutsch)
+  return 'en';
 }
 function setLang(code) {
-  if (!I18N[code]) code = 'de';
+  if (!I18N[code]) code = 'en';
   state.lang = code;
   try { localStorage.setItem('flp_lang', code); } catch(e) {}
   // Falls Customer eingeloggt: in seinem User-Record persistieren
@@ -3585,8 +3601,8 @@ function setLang(code) {
   }
 }
 function t(key, params) {
-  const lang = state.lang || 'de';
-  const dict = I18N[lang] || I18N.de;
+  const lang = state.lang || 'en';
+  const dict = I18N[lang] || I18N.en || I18N.de;
   let str = (key in dict) ? dict[key] : (I18N.de[key] || key);
   if (params) Object.keys(params).forEach(k => {
     str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
