@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.81';
+const APP_VERSION = 'v1.82';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -5784,11 +5784,14 @@ const itemCard = (it, opts = {}) => {
     const lbl = cust && typeof funcLabel === 'function' ? funcLabel(it.func) : c.short;
     return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${lbl}</span>`;
   })();
-  // Preis-Chip f\u00fcr Customer (Distributor sieht EK, Sub-Customer sieht End-Preis falls freigegeben)
+  // Preis-Chip f\u00fcr Customer (Distributor sieht EK, Sub-Customer sieht End-Preis falls freigegeben).
+  // inShop-Gate gilt nur f\u00fcr regul\u00e4ren FLP-Direktkunden \u2014 Distributor + autorisierte Sub-Kunden
+  // sehen Preise unabh\u00e4ngig vom Webshop-Flag.
   let priceChip = '';
   if (cust && it.vp != null && !it.sold) {
     const ep = (typeof effectivePriceForUser === 'function') ? effectivePriceForUser(it) : { visible: false };
-    if (ep.visible && ep.value != null && (isDistributor() || it.inShop)) {
+    const passesShopGate = !(typeof isRegularCustomer === 'function' && isRegularCustomer() && !it.inShop);
+    if (ep.visible && ep.value != null && passesShopGate) {
       const isDist = ep.isDistributorPrice;
       const bg = isDist ? '#FFF8E1' : '#E6F4EA';
       const fg = isDist ? '#5A3F00' : '#0A6B2C';
@@ -8517,15 +8520,16 @@ function renderDetail() {
     })() : ''}
     ${(() => {
       // Effektiver Preis je nach Rolle:
-      //   • Admin / interner User mit Preis-Freigabe: VP IMMER (Label "Verkaufspreis" oder "Im Webshop")
-      //   • Distributor: EK immer (mit Rabatt-Badge)
-      //   • Sub-Customer mit Preis-Freigabe: Endpreis, nur wenn inShop
-      //   • Regulärer Customer: VP, nur wenn inShop ("Im Webshop")
+      //   • Admin / interner User mit Preis-Freigabe: VP IMMER
+      //   • Distributor: EK IMMER (mit Rabatt-Badge)
+      //   • Sub-Customer mit Preis-Freigabe: Endpreis IMMER (Distributor entscheidet — kein FLP-Webshop-Gate)
+      //   • Regulärer FLP-Direktkunde: VP nur wenn inShop ("Im Webshop")
       if (it.vp == null || it.sold) return '';
       const ep = effectivePriceForUser(it);
       if (!ep.visible || ep.value == null) return '';
-      // inShop-Gate gilt nur für Customer-Rollen (Distributor + Admin/User sehen immer)
-      if (isCustomer() && !isDistributor() && !it.inShop) return '';
+      // inShop-Gate gilt NUR für reguläre FLP-Direktkunden (public-Webshop-Semantik).
+      // Distributor + autorisierte Sub-Kunden + interne User sehen Preise immer.
+      if (isRegularCustomer() && !it.inShop) return '';
       const isDist = ep.isDistributorPrice;
       const isMark = ep.isMarkedUp;
       const isInternal = !isCustomer(); // Admin oder interner User
