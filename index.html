@@ -1096,7 +1096,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.88';
+const APP_VERSION = 'v1.89';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3190,6 +3190,34 @@ const I18N = {
     'home.browse.subFrom': 'Beispiele aus {name}',
     'home.help.title': 'Nichts passendes gefunden?',
     'home.help.sub': 'Schreib uns direkt — wir melden uns schnell zurück.',
+    'home.helpButton': 'Hilfe anzeigen',
+    'home.installBanner.dismiss': 'Hinweis ausblenden',
+    'home.itemsCount': '{n} Artikel',
+    'home.itemsAvailable': '{n} Artikel verfügbar',
+    'home.activePill': 'aktiv',
+    'home.warehouseSingle': 'Lager',
+    'nav.logout': 'Abmelden',
+    // User-Bar (Statusleiste oben)
+    'userbar.role.admin': 'Admin',
+    'userbar.role.distributor': 'Distributor',
+    'userbar.role.customer': 'Kunde',
+    'userbar.role.user': 'User',
+    'userbar.perm.fullAccess': 'Voller Zugriff',
+    'userbar.perm.fullAccess.tip': 'Voller Schreibzugriff auf alle Daten',
+    'userbar.perm.distEk': 'EK −{n}%',
+    'userbar.perm.distEk.tip': 'Dein Rabatt von FLP auf VP',
+    'userbar.perm.margin.tip': 'Aufschlag für deine Sub-Kunden',
+    'userbar.perm.priceLocked': 'Preise gesperrt',
+    'userbar.perm.priceLocked.tip': 'FLP-Admin hat dir noch keine Preise freigegeben',
+    'userbar.perm.via': 'via {name}',
+    'userbar.perm.via.tip': 'Du bist Sub-Kunde dieses Distributors',
+    'userbar.perm.prices': 'Preise',
+    'userbar.perm.pricesOn.tip': 'Dein Distributor hat dir Preise freigegeben',
+    'userbar.perm.pricesOff.tip': 'Dein Distributor hat dir noch keine Preise freigegeben',
+    'userbar.perm.flpDirect': 'FLP-Direkt',
+    'userbar.perm.flpDirect.tip': 'Direkter FLP-Kunde',
+    'userbar.perm.internalPrices.tip': 'Admin hat Preise freigegeben',
+    'userbar.perm.internalLocked.tip': 'Preise sind für dich gesperrt — Admin kann sie freigeben',
     // Customer Detail
     'detail.inquiry.button': 'Anfrage stellen',
     // Inquiry Sheet
@@ -3409,6 +3437,33 @@ const I18N = {
     'home.browse.subFrom': 'Examples from {name}',
     'home.help.title': 'Nothing matches?',
     'home.help.sub': 'Write to us directly — we’ll get back to you quickly.',
+    'home.helpButton': 'Show help',
+    'home.installBanner.dismiss': 'Hide notice',
+    'home.itemsCount': '{n} items',
+    'home.itemsAvailable': '{n} items available',
+    'home.activePill': 'active',
+    'home.warehouseSingle': 'Warehouse',
+    'nav.logout': 'Sign out',
+    'userbar.role.admin': 'Admin',
+    'userbar.role.distributor': 'Distributor',
+    'userbar.role.customer': 'Customer',
+    'userbar.role.user': 'User',
+    'userbar.perm.fullAccess': 'Full access',
+    'userbar.perm.fullAccess.tip': 'Full write access to all data',
+    'userbar.perm.distEk': 'EK −{n}%',
+    'userbar.perm.distEk.tip': 'Your discount from FLP on RRP',
+    'userbar.perm.margin.tip': 'Markup for your sub-customers',
+    'userbar.perm.priceLocked': 'Prices locked',
+    'userbar.perm.priceLocked.tip': 'FLP admin has not unlocked prices for you yet',
+    'userbar.perm.via': 'via {name}',
+    'userbar.perm.via.tip': 'You are a sub-customer of this distributor',
+    'userbar.perm.prices': 'Prices',
+    'userbar.perm.pricesOn.tip': 'Your distributor has unlocked prices for you',
+    'userbar.perm.pricesOff.tip': 'Your distributor has not unlocked prices for you yet',
+    'userbar.perm.flpDirect': 'FLP-Direct',
+    'userbar.perm.flpDirect.tip': 'Direct FLP customer',
+    'userbar.perm.internalPrices.tip': 'Admin has unlocked prices',
+    'userbar.perm.internalLocked.tip': 'Prices are locked for you — admin can unlock them',
     'detail.inquiry.button': 'Send inquiry',
     'inquiry.title': 'Send inquiry',
     'inquiry.intro': 'A team member will reply to the email address you set as the quote recipient.',
@@ -3619,6 +3674,33 @@ const I18N = {
     'home.browse.subFrom': 'Ejemplos de {name}',
     'home.help.title': '¿No encuentras nada?',
     'home.help.sub': 'Escríbenos directamente — te respondemos rápido.',
+    'home.helpButton': 'Mostrar ayuda',
+    'home.installBanner.dismiss': 'Ocultar aviso',
+    'home.itemsCount': '{n} artículos',
+    'home.itemsAvailable': '{n} artículos disponibles',
+    'home.activePill': 'activo',
+    'home.warehouseSingle': 'Almacén',
+    'nav.logout': 'Cerrar sesión',
+    'userbar.role.admin': 'Admin',
+    'userbar.role.distributor': 'Distribuidor',
+    'userbar.role.customer': 'Cliente',
+    'userbar.role.user': 'Usuario',
+    'userbar.perm.fullAccess': 'Acceso total',
+    'userbar.perm.fullAccess.tip': 'Acceso completo de escritura a todos los datos',
+    'userbar.perm.distEk': 'EK −{n}%',
+    'userbar.perm.distEk.tip': 'Tu descuento de FLP sobre PVP',
+    'userbar.perm.margin.tip': 'Margen para tus subclientes',
+    'userbar.perm.priceLocked': 'Precios bloqueados',
+    'userbar.perm.priceLocked.tip': 'El admin de FLP aún no te ha desbloqueado los precios',
+    'userbar.perm.via': 'vía {name}',
+    'userbar.perm.via.tip': 'Eres subcliente de este distribuidor',
+    'userbar.perm.prices': 'Precios',
+    'userbar.perm.pricesOn.tip': 'Tu distribuidor te ha desbloqueado los precios',
+    'userbar.perm.pricesOff.tip': 'Tu distribuidor aún no te ha desbloqueado los precios',
+    'userbar.perm.flpDirect': 'FLP-Directo',
+    'userbar.perm.flpDirect.tip': 'Cliente directo de FLP',
+    'userbar.perm.internalPrices.tip': 'El admin ha desbloqueado los precios',
+    'userbar.perm.internalLocked.tip': 'Los precios están bloqueados — el admin puede desbloquearlos',
     'detail.inquiry.button': 'Enviar consulta',
     'inquiry.title': 'Enviar consulta',
     'inquiry.intro': 'Un compañero responderá a la dirección de email que has fijado como destinatario de presupuestos.',
@@ -3829,6 +3911,33 @@ const I18N = {
     'home.browse.subFrom': 'Voorbeelden uit {name}',
     'home.help.title': 'Niets gevonden?',
     'home.help.sub': 'Stuur ons direct een bericht — we reageren snel.',
+    'home.helpButton': 'Help tonen',
+    'home.installBanner.dismiss': 'Melding verbergen',
+    'home.itemsCount': '{n} artikelen',
+    'home.itemsAvailable': '{n} artikelen beschikbaar',
+    'home.activePill': 'actief',
+    'home.warehouseSingle': 'Magazijn',
+    'nav.logout': 'Afmelden',
+    'userbar.role.admin': 'Admin',
+    'userbar.role.distributor': 'Distributeur',
+    'userbar.role.customer': 'Klant',
+    'userbar.role.user': 'Gebruiker',
+    'userbar.perm.fullAccess': 'Volledige toegang',
+    'userbar.perm.fullAccess.tip': 'Volledige schrijftoegang tot alle gegevens',
+    'userbar.perm.distEk': 'EK −{n}%',
+    'userbar.perm.distEk.tip': 'Je korting van FLP op adviesprijs',
+    'userbar.perm.margin.tip': 'Marge voor je subklanten',
+    'userbar.perm.priceLocked': 'Prijzen vergrendeld',
+    'userbar.perm.priceLocked.tip': 'FLP-admin heeft prijzen nog niet vrijgegeven',
+    'userbar.perm.via': 'via {name}',
+    'userbar.perm.via.tip': 'Je bent subklant van deze distributeur',
+    'userbar.perm.prices': 'Prijzen',
+    'userbar.perm.pricesOn.tip': 'Je distributeur heeft prijzen vrijgegeven',
+    'userbar.perm.pricesOff.tip': 'Je distributeur heeft prijzen nog niet vrijgegeven',
+    'userbar.perm.flpDirect': 'FLP-Direct',
+    'userbar.perm.flpDirect.tip': 'Directe FLP-klant',
+    'userbar.perm.internalPrices.tip': 'Admin heeft prijzen vrijgegeven',
+    'userbar.perm.internalLocked.tip': 'Prijzen zijn vergrendeld — admin kan ze vrijgeven',
     'detail.inquiry.button': 'Aanvraag versturen',
     'inquiry.title': 'Aanvraag versturen',
     'inquiry.intro': 'Een medewerker antwoordt op het emailadres dat je als offerte-ontvanger hebt ingesteld.',
@@ -4039,6 +4148,33 @@ const I18N = {
     'home.browse.subFrom': 'Exemples de {name}',
     'home.help.title': 'Rien ne convient ?',
     'home.help.sub': 'Écris-nous directement — nous répondons vite.',
+    'home.helpButton': 'Afficher l’aide',
+    'home.installBanner.dismiss': 'Masquer l’avis',
+    'home.itemsCount': '{n} articles',
+    'home.itemsAvailable': '{n} articles disponibles',
+    'home.activePill': 'actif',
+    'home.warehouseSingle': 'Entrepôt',
+    'nav.logout': 'Se déconnecter',
+    'userbar.role.admin': 'Admin',
+    'userbar.role.distributor': 'Distributeur',
+    'userbar.role.customer': 'Client',
+    'userbar.role.user': 'Utilisateur',
+    'userbar.perm.fullAccess': 'Accès complet',
+    'userbar.perm.fullAccess.tip': 'Accès en écriture à toutes les données',
+    'userbar.perm.distEk': 'EK −{n}%',
+    'userbar.perm.distEk.tip': 'Ta remise FLP sur le PVP',
+    'userbar.perm.margin.tip': 'Marge pour tes sous-clients',
+    'userbar.perm.priceLocked': 'Prix verrouillés',
+    'userbar.perm.priceLocked.tip': 'L’admin FLP n’a pas encore débloqué les prix',
+    'userbar.perm.via': 'via {name}',
+    'userbar.perm.via.tip': 'Tu es sous-client de ce distributeur',
+    'userbar.perm.prices': 'Prix',
+    'userbar.perm.pricesOn.tip': 'Ton distributeur a débloqué les prix',
+    'userbar.perm.pricesOff.tip': 'Ton distributeur n’a pas encore débloqué les prix',
+    'userbar.perm.flpDirect': 'FLP-Direct',
+    'userbar.perm.flpDirect.tip': 'Client direct FLP',
+    'userbar.perm.internalPrices.tip': 'L’admin a débloqué les prix',
+    'userbar.perm.internalLocked.tip': 'Les prix sont verrouillés — l’admin peut les débloquer',
     'detail.inquiry.button': 'Envoyer la demande',
     'inquiry.title': 'Envoyer la demande',
     'inquiry.intro': 'Un membre de l’équipe répondra à l’adresse email que tu as définie comme destinataire des devis.',
@@ -7503,11 +7639,11 @@ function renderCustomerHomeMain() {
   return `
 <div class="screen customer-home">
   <div class="header">
-    <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
+    <button class="logout-btn" data-action="logout" title="${t('nav.logout') || 'Abmelden'}">${svg('log-out', 16, 2.4)}</button>
     ${renderCoBrandedHeader('Stock Manager')}
     <div style="display:flex;gap:4px;align-items:center">
       <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
-      <button class="icon-btn" data-action="show-onboard-again" title="Hilfe anzeigen">${svg('info', 16, 2.4)}</button>
+      <button class="icon-btn" data-action="show-onboard-again" title="${t('home.helpButton')}">${svg('info', 16, 2.4)}</button>
     </div>
   </div>
 
@@ -7526,11 +7662,11 @@ function renderCustomerHomeMain() {
       <div class="install-banner">
         <div class="install-banner__icon">${svg('smartphone', 18, 2.4)}</div>
         <div style="flex:1;min-width:0">
-          <div class="install-banner__title">App auf Startbildschirm</div>
-          <div class="install-banner__sub">Damit du uns mit einem Tap erreichst</div>
+          <div class="install-banner__title">${t('home.installBanner.title')}</div>
+          <div class="install-banner__sub">${t('home.installBanner.sub')}</div>
         </div>
         <button data-action="show-install-help" class="install-banner__btn">${svg('arrow-right', 14, 2.4)}</button>
-        <button data-action="dismiss-install" class="install-banner__close" title="Hinweis ausblenden">${svg('x', 12, 2.5)}</button>
+        <button data-action="dismiss-install" class="install-banner__close" title="${t('home.installBanner.dismiss')}">${svg('x', 12, 2.5)}</button>
       </div>
     ` : ''}
 
@@ -7539,10 +7675,10 @@ function renderCustomerHomeMain() {
       <div class="lager-section">
         <div class="lager-section__head">
           <div>
-            <div class="lager-section__label">${svg('boxes', 12, 2.5)} Du bist gerade hier</div>
+            <div class="lager-section__label">${svg('boxes', 12, 2.5)} ${t('home.warehouseSection.label')}</div>
             <div class="lager-section__title">${activeCo?.name || '—'}</div>
           </div>
-          <span class="lager-section__count">${coCount} Lager</span>
+          <span class="lager-section__count">${t('home.warehouseSection.count', { n: coCount })}</span>
         </div>
         <div class="lager-carousel">
           ${companies.map(c => {
@@ -7552,8 +7688,8 @@ function renderCustomerHomeMain() {
               <button data-action="select-company" data-id="${c.id}" class="lager-tile ${active ? 'lager-tile--active' : ''}" style="${active ? `border-color:${c.color};box-shadow:0 4px 18px ${c.color}33` : ''}">
                 <div class="lager-tile__icon" style="background:${c.color}">${svg('boxes', 22, 2.2)}</div>
                 <div class="lager-tile__name">${c.name}</div>
-                <div class="lager-tile__meta">${itemCount} Artikel</div>
-                ${active ? `<div class="lager-tile__active-pill" style="background:${c.color}">${svg('check', 9, 3.5)} aktiv</div>` : ''}
+                <div class="lager-tile__meta">${t('home.itemsCount', { n: itemCount })}</div>
+                ${active ? `<div class="lager-tile__active-pill" style="background:${c.color}">${svg('check', 9, 3.5)} ${t('home.activePill')}</div>` : ''}
               </button>
             `;
           }).join('')}
@@ -7561,9 +7697,9 @@ function renderCustomerHomeMain() {
       </div>
     ` : `
       <div class="lager-section lager-section--single">
-        <div class="lager-section__label">${svg('boxes', 12, 2.5)} Lager</div>
+        <div class="lager-section__label">${svg('boxes', 12, 2.5)} ${t('home.warehouseSingle')}</div>
         <div class="lager-section__title">${activeCo?.name || '—'}</div>
-        <div class="lager-section__meta">${(activeCo?.inventory || []).length} Artikel verfügbar</div>
+        <div class="lager-section__meta">${t('home.itemsAvailable', { n: (activeCo?.inventory || []).length })}</div>
       </div>
     `}
 
@@ -7575,13 +7711,13 @@ function renderCustomerHomeMain() {
           <div class="photo-cta__camera-icon">${svg('camera', 36, 2.2)}</div>
         </div>
         <div class="photo-cta__text">
-          <h2 class="photo-cta__title">Foto vom Typenschild</h2>
-          <p class="photo-cta__sub">Tipp drauf und wir scannen es für dich.</p>
+          <h2 class="photo-cta__title">${t('home.photoCta.title')}</h2>
+          <p class="photo-cta__sub">${t('home.photoCta.sub')}</p>
         </div>
         <div class="photo-cta__arrow">${svg('arrow-right', 22, 2.5)}</div>
       </div>
       <div class="photo-cta__hint">
-        ${svg('sparkles', 11, 2.5)} <span>KI erkennt Hersteller &amp; Modell automatisch</span>
+        ${svg('sparkles', 11, 2.5)} <span>${t('home.photoCta.hint')}</span>
       </div>
     </button>
 
@@ -7589,7 +7725,7 @@ function renderCustomerHomeMain() {
     <div style="margin-top:14px">
       <div class="search-input" style="position:relative">
         <span class="search-input__icon">${svg('search', 15, 2.5)}</span>
-        <input type="text" placeholder="Oder Modellname tippen ..." data-action="customer-search-input" value="${(state.customerSearch || '').replace(/"/g, '&quot;')}" autocomplete="off" inputmode="search">
+        <input type="text" placeholder="${t('home.search.placeholder').replace(/"/g,'&quot;')}" data-action="customer-search-input" value="${(state.customerSearch || '').replace(/"/g, '&quot;')}" autocomplete="off" inputmode="search">
       </div>
       ${(() => {
         const q = (state.customerSearch || '').trim();
@@ -7599,7 +7735,7 @@ function renderCustomerHomeMain() {
           const hay = `${it.title} ${it.maker} ${it.id} ${it.cat || ''}`;
           return searchMatch(q, hay);
         }).slice(0, 8);
-        if (matches.length === 0) return `<div style="margin-top:10px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12px;color:var(--c-ink-mute)">Hier nicht gefunden — vielleicht in einem anderen Lager?${coCount > 1 ? ' <button data-action="open-company-switcher" style="color:var(--c-blue);font-weight:600">Lager wechseln</button>' : ''}</div>`;
+        if (matches.length === 0) return `<div style="margin-top:10px;padding:14px;background:var(--c-bg-soft);border-radius:var(--r-md);text-align:center;font-size:12px;color:var(--c-ink-mute)">${t('home.search.noMatchHere')}${coCount > 1 ? ' <button data-action="open-company-switcher" style="color:var(--c-blue);font-weight:600">'+t('home.search.switchWarehouse')+'</button>' : ''}</div>`;
         return `<div class="item-list" style="margin-top:12px">${matches.map(it => itemCard(it)).join('')}</div>`;
       })()}
     </div>
@@ -7616,8 +7752,8 @@ function renderCustomerHomeMain() {
       return `
       <div style="margin-top:24px">
         <div class="section-head" style="margin-bottom:6px">
-          <h2 class="section-head__title">${svg('eye', 13, 2.5)} ${t('home.browse.title') || 'Stöbern'}</h2>
-          <span style="font-size:11px;color:var(--c-ink-mute);font-weight:500">${browseAll.length} ${browseAll.length === 1 ? 'Artikel' : 'Artikel'} · ${activeCo?.name || ''}</span>
+          <h2 class="section-head__title">${svg('eye', 13, 2.5)} ${t('home.browse.title')}</h2>
+          <span style="font-size:11px;color:var(--c-ink-mute);font-weight:500">${t('home.itemsCount', { n: browseAll.length })} · ${activeCo?.name || ''}</span>
         </div>
         ${cats.map(cat => `
           <div style="margin-top:18px">
@@ -7634,8 +7770,8 @@ function renderCustomerHomeMain() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div style="width:36px;height:36px;border-radius:50%;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center">${svg('message-circle', 16, 2.4)}</div>
         <div>
-          <div style="font-size:13.5px;font-weight:600">Nichts passendes gefunden?</div>
-          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:2px">Schreib uns direkt — wir melden uns schnell zurück.</div>
+          <div style="font-size:13.5px;font-weight:600">${t('home.help.title')}</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:2px">${t('home.help.sub')}</div>
         </div>
       </div>
       <a href="mailto:service@flp-shop.com?subject=Anfrage%20FLP%20Stockmanager" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:10px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;text-decoration:none">${svg('message-circle', 13, 2.4)} service@flp-shop.com</a>
@@ -8506,7 +8642,7 @@ function renderBestand() {
       <span style="font-size:12px;font-weight:600;letter-spacing:-.005em;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${state.company?.name || ''}</span>
       ${svg('chevron-down', 11, 2.5)}
     </button>
-    <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
+    <button class="logout-btn" data-action="logout" title="${t('nav.logout') || 'Abmelden'}">${svg('log-out', 16, 2.4)}</button>
   </div>
 
   <div style="padding:0 20px 4px">
@@ -12642,40 +12778,40 @@ function updateUserBar() {
   const pd   = APP_KEYS.parentDistributor;
   // Rolle (Haupt-Pill)
   let roleLabel, roleClass;
-  if (admin)       { roleLabel = 'Admin';       roleClass = 'user-bar__role--admin'; }
-  else if (dist)   { roleLabel = 'Distributor'; roleClass = 'user-bar__role--distributor'; }
-  else if (customer){ roleLabel = 'Kunde';      roleClass = 'user-bar__role--customer'; }
-  else             { roleLabel = 'User';        roleClass = ''; }
+  if (admin)       { roleLabel = t('userbar.role.admin');       roleClass = 'user-bar__role--admin'; }
+  else if (dist)   { roleLabel = t('userbar.role.distributor'); roleClass = 'user-bar__role--distributor'; }
+  else if (customer){ roleLabel = t('userbar.role.customer');   roleClass = 'user-bar__role--customer'; }
+  else             { roleLabel = t('userbar.role.user');        roleClass = ''; }
 
   // Berechtigungs-/Kontext-Pills (kompakt, max. 2-3 Stück)
   const perms = [];
   if (admin) {
-    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Voller Schreibzugriff auf alle Daten">${svg('shield', 9, 2.6)} Voller Zugriff</span>`);
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.fullAccess.tip')}">${svg('shield', 9, 2.6)} ${t('userbar.perm.fullAccess')}</span>`);
   } else if (dist) {
     const disc = Number(u.distributorDiscount || 0) || 0;
     const marg = Number(u.distributorMargin   || 0) || 0;
     if (u.showPrices) {
-      perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Dein Rabatt von FLP auf VP">${svg('badge-check', 9, 2.6)} EK −${disc.toFixed(disc % 1 === 0 ? 0 : 1)}%</span>`);
-      if (marg > 0) perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Aufschlag für deine Sub-Kunden">+${marg.toFixed(marg % 1 === 0 ? 0 : 1)}%</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.distEk.tip')}">${svg('badge-check', 9, 2.6)} ${t('userbar.perm.distEk', { n: disc.toFixed(disc % 1 === 0 ? 0 : 1) })}</span>`);
+      if (marg > 0) perms.push(`<span class="user-bar__perm user-bar__perm--on" title="${t('userbar.perm.margin.tip')}">+${marg.toFixed(marg % 1 === 0 ? 0 : 1)}%</span>`);
     } else {
-      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="FLP-Admin hat dir noch keine Preise freigegeben">${svg('eye', 9, 2.6)} Preise gesperrt</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="${t('userbar.perm.priceLocked.tip')}">${svg('eye', 9, 2.6)} ${t('userbar.perm.priceLocked')}</span>`);
     }
   } else if (sub) {
     const distName = pd ? (pd.companyName || pd.name || '—') : '—';
-    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Du bist Sub-Kunde dieses Distributors">${svg('badge-check', 9, 2.6)} via ${String(distName).replace(/</g,'&lt;').slice(0, 20)}</span>`);
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.via.tip')}">${svg('badge-check', 9, 2.6)} ${t('userbar.perm.via', { name: String(distName).replace(/</g,'&lt;').slice(0, 20) })}</span>`);
     if (u.showPrices) {
-      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Dein Distributor hat dir Preise freigegeben">${svg('eye', 9, 2.6)} Preise</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="${t('userbar.perm.pricesOn.tip')}">${svg('eye', 9, 2.6)} ${t('userbar.perm.prices')}</span>`);
     } else {
-      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="Dein Distributor hat dir noch keine Preise freigegeben">${svg('eye', 9, 2.6)} —</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="${t('userbar.perm.pricesOff.tip')}">${svg('eye', 9, 2.6)} —</span>`);
     }
   } else if (customer) {
-    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Direkter FLP-Kunde">${svg('boxes', 9, 2.6)} FLP-Direkt</span>`);
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.flpDirect.tip')}">${svg('boxes', 9, 2.6)} ${t('userbar.perm.flpDirect')}</span>`);
   } else {
     // Internal user
     if (u.showPrices) {
-      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Admin hat Preise freigegeben">${svg('eye', 9, 2.6)} Preise</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="${t('userbar.perm.internalPrices.tip')}">${svg('eye', 9, 2.6)} ${t('userbar.perm.prices')}</span>`);
     } else {
-      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="Preise sind für dich gesperrt — Admin kann sie freigeben">${svg('eye', 9, 2.6)} Preise gesperrt</span>`);
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="${t('userbar.perm.internalLocked.tip')}">${svg('eye', 9, 2.6)} ${t('userbar.perm.priceLocked')}</span>`);
     }
   }
 
