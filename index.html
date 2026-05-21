@@ -1032,6 +1032,10 @@ body.is-flyer-view .version-badge{display:none !important}
 
 /* Das A4-Papier-Element */
 .flyer{width:210mm;min-height:297mm;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,29,55,.18);overflow:hidden;color:#0F1830;display:flex;flex-direction:column;position:relative}
+/* Page-Break-Strategie: einzelne Karten/Phones nicht in der Mitte trennen,
+   Mockup-Sektion startet auf Seite 2. Gilt im Print, auf Screen unauffällig. */
+.flyer__step,.flyer__perk,.flyer__mock-card{break-inside:avoid;page-break-inside:avoid}
+.flyer__page-break{break-before:page;page-break-before:always;height:0}
 .flyer__header{padding:14mm 14mm 8mm;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;position:relative;overflow:hidden}
 .flyer__header::after{content:'';position:absolute;right:-40px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.15) 0%,transparent 70%);pointer-events:none}
 .flyer__brand{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#0F1830;padding:6px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-weight:700;font-size:14px;letter-spacing:-.01em}
@@ -1089,7 +1093,15 @@ body.is-flyer-view .version-badge{display:none !important}
   .phone__inner { all: unset !important; display: block !important; height: auto !important; }
   #app { display: block !important; height: auto !important; }
   .flyer-screen { padding: 0 !important; background: #fff !important; gap: 0 !important; min-height: auto !important; display: block !important; }
-  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; max-width: none !important; margin: 0 !important; page-break-inside: avoid; }
+  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: visible !important; display: block !important; }
+  /* Mockup-Sektion soll auf neuer Seite starten (saubere 2-Seiten-Aufteilung) */
+  .flyer__mock-section { break-before: page; page-break-before: always; }
+  /* Hero-Header + Steps + Perks bleiben oben auf Seite 1 */
+  .flyer__header, .flyer__steps-section { break-after: auto; }
+  /* Einzelne Karten/Phones NICHT in der Mitte trennen */
+  .flyer__step, .flyer__perk, .flyer__mock-card, .flyer__cta { break-inside: avoid; page-break-inside: avoid; }
+  /* Hintergründe behalten beim Drucken (Browser-Default ist sonst "weiß", was Farben killt) */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 }
 </style>
 </head>
@@ -1114,7 +1126,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.93';
+const APP_VERSION = 'v1.94';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -10581,6 +10593,7 @@ function renderFlyer() {
 
     <!-- BODY -->
     <div class="flyer__body">
+      <div class="flyer__steps-section">
       <h2 class="flyer__h2">${tF('flyer.steps.title')}</h2>
       <div class="flyer__steps">
         ${[
@@ -10598,6 +10611,7 @@ function renderFlyer() {
         `).join('')}
       </div>
 
+      </div><!-- /flyer__steps-section -->
       <h2 class="flyer__h2">${tF('flyer.why.title')}</h2>
       <div class="flyer__perks">
         <div class="flyer__perk">
@@ -10614,7 +10628,8 @@ function renderFlyer() {
         </div>
       </div>
 
-      <!-- Mini-Mockup als visuelles Beispiel -->
+      <!-- Mini-Mockup als visuelles Beispiel — startet im Print auf Seite 2 -->
+      <div class="flyer__mock-section">
       <h2 class="flyer__h2">${tF('flyer.mock.title')}</h2>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;align-items:start">
         ${[
@@ -10656,7 +10671,7 @@ function renderFlyer() {
             </div>
           ` },
         ].map(m => `
-          <div>
+          <div class="flyer__mock-card">
             <div class="flyer__phone">
               <div class="flyer__phone-notch"></div>
               <div class="flyer__phone-screen">
@@ -10667,6 +10682,7 @@ function renderFlyer() {
           </div>
         `).join('')}
       </div>
+      </div><!-- /flyer__mock-section -->
     </div>
 
     <!-- CTA -->
