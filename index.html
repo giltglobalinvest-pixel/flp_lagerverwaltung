@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.83';
+const APP_VERSION = 'v1.84';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -12278,7 +12278,12 @@ function render() {
     savedFocus = { action: activeEl.dataset.action, key: activeEl.dataset.key, target: activeEl.dataset.target, pos: activeEl.selectionStart };
   }
 
-  // Safety-Net: wenn ein Render-Aufruf wirft, zeigen wir den Fehler statt eines leeren Screens
+  // Safety-Net 1: state.view auf 'home' zurücksetzen falls auf einem Pre-Login-View gehängt
+  // (passiert z.B. wenn Login direkt vom 'login'-View aus erfolgt — screens['login'] gibt's nicht).
+  if (state.loggedIn && !screens[state.view]) {
+    state.view = 'home';
+  }
+  // Safety-Net 2: wenn ein Render-Aufruf wirft, zeigen wir den Fehler statt eines leeren Screens
   let _html = '';
   let _overlay = '';
   try { _html = screens[state.view]?.() || ''; }
@@ -12431,6 +12436,9 @@ async function handleLogin() {
     state.loginPending = false;
     state.loggedIn = true;
     state.loginInput = '';
+    // Nach Login: View auf 'home' setzen, sonst bleibt sie auf 'login' / 'register' / 'landing' h\u00e4ngen
+    // und screens[state.view] gibt undefined zur\u00fcck \u2192 leerer Screen
+    state.view = 'home';
     render();
     showToast('Willkommen, ' + (APP_KEYS.user.name || 'Benutzer'), 'success');
     await bootData();
