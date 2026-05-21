@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.70';
+const APP_VERSION = 'v1.71';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4432,6 +4432,28 @@ async function ensurePublicCompanies() {
   cachePublicCompanies(list);
   if (state.view === 'landing' && !state.loggedIn) render();
 }
+// L\u00e4dt das Profil eines Distributors pre-login (f\u00fcr Co-Branding auf Landing + Register)
+// Nutzt den Public-Read-Token. Setzt state.signupDistributor = {name, companyName, distributorLogo[]}.
+async function fetchSignupDistributor(recordId) {
+  // Cache: einmal geladen reicht
+  if (state.signupDistributor && state.signupDistributor._recordId === recordId) return;
+  try {
+    const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+    const r = await fetch(
+      'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_USERS + '/' + encodeURIComponent(recordId),
+      { headers }
+    );
+    if (!r.ok) return;
+    const data = await r.json();
+    const u = recordToUser(data);
+    // Nur akzeptieren wenn tats\u00e4chlich ein Distributor
+    if (!u.isDistributor) return;
+    state.signupDistributor = u;
+    // Re-Render falls auf einer Pre-Login-View
+    if (!state.loggedIn) render();
+  } catch (e) { /* still fine */ }
+}
+
 function relTime(iso) {
   if (!iso) return '\u2014';
   const ts = Date.parse(iso); if (isNaN(ts)) return '\u2014';
@@ -11096,7 +11118,23 @@ function renderLanding() {
   </header>
 
   <section class="landing__hero">
-    <img src="icon-180.png?v=3" alt="FLP Stockmanager" class="landing__hero-icon">
+    ${(() => {
+      const sd = state.signupDistributor;
+      const distLogo = sd ? distributorLogoUrl(sd, 'large') : null;
+      const distName = sd ? (sd.companyName || sd.name || '') : '';
+      if (!distLogo) return `<img src="icon-180.png?v=3" alt="FLP Stockmanager" class="landing__hero-icon">`;
+      // Co-Branding: FLP-Icon + Distributor-Logo nebeneinander
+      return `
+        <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin:8px auto 18px;flex-wrap:wrap">
+          <img src="icon-180.png?v=3" alt="FLP Stockmanager" style="width:84px;height:84px;border-radius:20px;box-shadow:var(--elev-2);object-fit:cover;background:#fff;display:block">
+          <div style="display:flex;align-items:center;gap:8px;font-size:32px;color:rgba(0,0,0,.25);font-weight:300">×</div>
+          <div style="width:84px;height:84px;border-radius:20px;box-shadow:var(--elev-2);background:#fff;display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box">
+            <img src="${distLogo}" alt="${distName.replace(/"/g,'&quot;')}" title="${distName.replace(/"/g,'&quot;')}" style="max-width:100%;max-height:100%;object-fit:contain">
+          </div>
+        </div>
+        ${distName ? `<div style="font-size:12.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-bottom:14px;letter-spacing:.02em">${svg('badge-check', 12, 2.5)} <span style="vertical-align:middle">In Kooperation mit <strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong></span></div>` : ''}
+      `;
+    })()}
     <h1 class="landing__hero-title">Such dein Ersatzteil<br>per Foto.</h1>
     <p class="landing__hero-sub">
       Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom
@@ -11435,7 +11473,24 @@ function renderRegister() {
 <div class="login-screen">
   <div class="login-card" style="max-width:520px;text-align:left;padding:24px 28px 32px">
     <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
-      <img src="icon-180.png?v=3" alt="FLP Stockmanager" style="width:72px;height:72px;border-radius:18px;box-shadow:var(--elev-1);object-fit:cover;background:#fff">
+      ${(() => {
+        const sd = state.signupDistributor;
+        const distLogo = sd ? distributorLogoUrl(sd, 'large') : null;
+        const distName = sd ? (sd.companyName || sd.name || '') : '';
+        if (!distLogo) {
+          return `<img src="icon-180.png?v=3" alt="FLP Stockmanager" style="width:72px;height:72px;border-radius:18px;box-shadow:var(--elev-1);object-fit:cover;background:#fff">`;
+        }
+        return `
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center">
+            <img src="icon-180.png?v=3" alt="FLP Stockmanager" style="width:60px;height:60px;border-radius:14px;box-shadow:var(--elev-1);object-fit:cover;background:#fff">
+            <span style="font-size:24px;color:rgba(0,0,0,.25);font-weight:300">×</span>
+            <div style="width:60px;height:60px;border-radius:14px;box-shadow:var(--elev-1);background:#fff;display:flex;align-items:center;justify-content:center;padding:8px;box-sizing:border-box">
+              <img src="${distLogo}" alt="${distName.replace(/"/g,'&quot;')}" title="${distName.replace(/"/g,'&quot;')}" style="max-width:100%;max-height:100%;object-fit:contain">
+            </div>
+          </div>
+          ${distName ? `<div style="font-size:11.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-top:8px">In Kooperation mit <strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong></div>` : ''}
+        `;
+      })()}
     </div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <button class="icon-btn" data-action="go-login" title="Zurück zum Login">${svg('arrow-left', 16, 2.4)}</button>
@@ -14289,6 +14344,11 @@ async function init() {
       try { state.signupDistributorId = localStorage.getItem('flp_signup_dist') || ''; } catch(e) {}
     }
   } catch(e) {}
+  // Wenn Signup-Distributor-ID vorhanden: dessen Profil (Logo + Name) im Hintergrund laden
+  // damit Landing + Registrierungs-Seite das Co-Branding zeigen k\u00f6nnen \u2014 auch vor Login.
+  if (state.signupDistributorId) {
+    fetchSignupDistributor(state.signupDistributorId).catch(() => { /* ignorieren */ });
+  }
   // Erst rendern (zeigt Boot-Spinner), dann Auto-Login probieren
   render();
   const ok = await tryAutoLogin();
