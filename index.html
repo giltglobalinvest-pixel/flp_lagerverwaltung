@@ -1002,10 +1002,13 @@ body.mode-tablet .bottom-bar>*{flex:1}
   .phone,.version-badge{display:none !important}
 }
 
-/* Flyer-View: Phone-Container aufbrechen damit das A4-Papier sichtbar + scrollbar wird */
-body.is-flyer-view{align-items:flex-start;padding:0;background:#E9F0FB;overflow:auto;height:auto;min-height:100vh}
-body.is-flyer-view .phone{max-width:none;width:100%;min-height:auto;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB;overflow:visible;height:auto}
-body.is-flyer-view .phone__inner{height:auto;min-height:100vh;overflow:visible}
+/* Flyer-View: Phone-Container komplett aufbrechen damit Browser-Scroll wieder greift.
+   body wird von display:flex auf display:block umgestellt, damit das HTML-Element scrollt. */
+html.flyer-active{height:auto;overflow:auto}
+body.is-flyer-view{display:block !important;align-items:initial;justify-content:initial;padding:0;background:#E9F0FB;overflow:visible;height:auto;min-height:100vh}
+body.is-flyer-view .phone{max-width:none;width:100%;min-height:auto;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB;overflow:visible;height:auto;position:static}
+body.is-flyer-view .phone__inner{height:auto;min-height:auto;overflow:visible;display:block}
+body.is-flyer-view #app{height:auto;overflow:visible;display:block}
 body.is-flyer-view .version-badge{display:none}
 
 /* ============================================================
@@ -1102,7 +1105,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.90';
+const APP_VERSION = 'v1.91';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -12853,8 +12856,10 @@ function render() {
   // Body-Klasse spiegelt aktuellen Geräte-Modus, damit CSS bei Bedarf reagieren kann
   document.body.classList.toggle('mode-tablet', isTabletMode());
   document.body.classList.toggle('mode-phone', !isTabletMode());
-  // Flyer-View: Phone-Container aufbrechen (A4-Papier braucht volle Breite)
-  document.body.classList.toggle('is-flyer-view', state.view === 'flyer' && state.loggedIn);
+  // Flyer-View: Phone-Container aufbrechen (A4-Papier braucht volle Breite + Scrollen)
+  const inFlyer = state.view === 'flyer' && state.loggedIn;
+  document.body.classList.toggle('is-flyer-view', inFlyer);
+  document.documentElement.classList.toggle('flyer-active', inFlyer);
 
   // Auth-Gate: vor erfolgreichem Login werden \u00f6ffentliche Screens angezeigt
   if (!state.authReady) { app.innerHTML = renderBoot('Lade \u2026'); return; }
