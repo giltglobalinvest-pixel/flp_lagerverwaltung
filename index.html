@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.68';
+const APP_VERSION = 'v1.69';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1304,23 +1304,43 @@ async function uploadLogoToRecord(table, recordId, attachmentField, file) {
 
 // Distributor-Logo Upload: vom Distributor selbst in seinen Settings
 async function uploadDistributorLogo(file) {
+  console.log('[distLogo] upload start', { hasUser: !!APP_KEYS.user, isDistributor: isDistributor(), recordId: APP_KEYS.user?._recordId, fileSize: file?.size, fileType: file?.type, fileName: file?.name });
   const u = APP_KEYS.user;
-  if (!u || !isDistributor()) return;
+  if (!u) {
+    showToast('Kein User-Datensatz aktiv — bitte neu einloggen', 'error', 3500);
+    return;
+  }
+  if (!u._recordId) {
+    showToast('User hat keine recordId — bitte neu einloggen', 'error', 3500);
+    return;
+  }
+  if (!isDistributor()) {
+    showToast('Logo-Upload nur für Distributoren — Flag fehlt im User-Record', 'error', 4000);
+    return;
+  }
+  showToast('Logo wird hochgeladen …', 'info', 2000);
   state.distLogoUploading = true;
   render();
   try {
     const rec = await uploadLogoToRecord(TBL_USERS, u._recordId, 'distributor_logo', file);
+    console.log('[distLogo] upload response', rec);
     // rec.fields enthält jetzt die aktualisierte Attachment-Liste
     if (rec?.fields?.distributor_logo) {
       u.distributorLogo = rec.fields.distributor_logo;
+      showToast('Logo hochgeladen ✓', 'success', 2200);
+    } else {
+      showToast('Upload ok, aber Server lieferte keine Logo-Daten zurück', 'info', 3500);
     }
     state.distLogoUploading = false;
     state.cSetSavedFlash = true;
     render();
     setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800);
   } catch (e) {
+    console.error('[distLogo] upload failed', e);
     state.distLogoUploading = false;
-    state.cSetError = 'Logo-Upload fehlgeschlagen: ' + (e?.message || '');
+    const msg = 'Logo-Upload fehlgeschlagen: ' + (e?.message || 'unbekannt');
+    state.cSetError = msg;
+    showToast(msg, 'error', 5000);
     render();
   }
 }
@@ -13121,7 +13141,9 @@ document.addEventListener('click', (e) => {
     case 'distributor-logo-pick': {
       // Triggert verstecktes Datei-Input — Distributor wählt sein Logo
       const inp = document.getElementById('distributorLogoInput');
-      if (inp) inp.click();
+      console.log('[distLogo] pick clicked, input found:', !!inp);
+      if (!inp) { showToast('Logo-Input nicht gefunden — bitte neu laden', 'error', 3000); break; }
+      inp.click();
       break;
     }
     case 'distributor-logo-remove': {
@@ -14084,6 +14106,7 @@ document.addEventListener('change', (e) => {
     if (!hallName) return;
     uploadHallPhoto(hallName, file);
   } else if (a === 'distributor-logo-picked') {
+    console.log('[distLogo] change event fired, file:', file?.name, file?.type, file?.size);
     t.value = '';
     uploadDistributorLogo(file);
   } else if (a === 'admin-distributor-logo-picked') {
