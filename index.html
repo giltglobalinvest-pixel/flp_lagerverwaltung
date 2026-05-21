@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.80';
+const APP_VERSION = 'v1.81';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2255,6 +2255,7 @@ const ICONS = {
   'log-out': '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
   'key-round': '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
   'cloud-upload': '<path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/>',
+  'cloud-download': '<path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m16 17-4 4-4-4"/>',
   'log-in': '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-4"/>',
   user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   'qr-code': '<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>',
@@ -12130,8 +12131,11 @@ function updateUserBar() {
     <button class="user-bar__reload" data-action="toggle-device-mode" title="${tablet ? 'Auf Mobil-Modus umschalten' : 'Auf iPad-Modus umschalten (kein Anlegen)'}">
       ${svg(tablet ? 'tablet' : 'smartphone', 11, 2.4)}
     </button>
-    <button class="user-bar__reload ${reloading ? 'user-bar__reload--spin' : ''}" data-action="reload-all-data" ${reloading ? 'disabled' : ''} title="Daten neu laden">
+    <button class="user-bar__reload ${reloading ? 'user-bar__reload--spin' : ''}" data-action="reload-all-data" ${reloading ? 'disabled' : ''} title="Daten neu laden (nur Airtable-Inventar)">
       ${svg('rotate-ccw', 11, 2.4)}
+    </button>
+    <button class="user-bar__reload" data-action="update-app" title="App-Update prüfen (neue Version aus GitHub laden)">
+      ${svg('cloud-download', 11, 2.4)}
     </button>
     <span class="user-bar__version">${APP_VERSION}</span>
   `;
@@ -12791,6 +12795,27 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'reload-all-data': reloadAllData(); break;
+    case 'update-app': {
+      // Force-Update: gecachtes App-HTML löschen + via Loader frische Version vom Server holen.
+      // Der Loader holt index.html mit cache:'no-store' direkt von raw.githubusercontent.com.
+      if (!confirm('Neueste App-Version laden? Du wirst kurz neu eingeloggt.')) break;
+      try {
+        // App-Cache vom Loader entfernen (sonst zieht der Loader im Offline-Fall die alte Version)
+        const REPO = 'giltglobalinvest-pixel/flp_lagerverwaltung';
+        const cacheKey = 'app_cache_' + REPO;
+        localStorage.removeItem(cacheKey);
+        localStorage.removeItem(cacheKey + '_at');
+        localStorage.removeItem(cacheKey + '_seen_sha');
+        localStorage.removeItem(cacheKey + '_suppress');
+      } catch(e) {}
+      showToast('App wird aktualisiert …', 'info', 1500);
+      // Loader direkt aufrufen mit Cache-Buster — egal von welcher URL aus
+      const baseUrl = location.origin + location.pathname.replace(/[^/]*$/, '');
+      setTimeout(() => {
+        location.href = baseUrl + 'loader.html?v=' + Date.now();
+      }, 300);
+      break;
+    }
 
     /* ===== Landing-Page (vor Login) ===== */
     case 'go-landing': {
