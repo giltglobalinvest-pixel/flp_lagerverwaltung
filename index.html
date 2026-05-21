@@ -1002,10 +1002,10 @@ body.mode-tablet .bottom-bar>*{flex:1}
   .phone,.version-badge{display:none !important}
 }
 
-/* Flyer-View: Phone-Container aufbrechen damit das A4-Papier sichtbar wird */
-body.is-flyer-view{align-items:flex-start;padding:0;background:#E9F0FB}
-body.is-flyer-view .phone{max-width:none;width:100%;min-height:100vh;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB}
-body.is-flyer-view .phone__inner{height:auto;min-height:100vh}
+/* Flyer-View: Phone-Container aufbrechen damit das A4-Papier sichtbar + scrollbar wird */
+body.is-flyer-view{align-items:flex-start;padding:0;background:#E9F0FB;overflow:auto;height:auto;min-height:100vh}
+body.is-flyer-view .phone{max-width:none;width:100%;min-height:auto;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB;overflow:visible;height:auto}
+body.is-flyer-view .phone__inner{height:auto;min-height:100vh;overflow:visible}
 body.is-flyer-view .version-badge{display:none}
 
 /* ============================================================
@@ -1067,11 +1067,17 @@ body.is-flyer-view .version-badge{display:none}
 
 @page { size: A4; margin: 0; }
 @media print {
-  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-  .phone, .user-bar, .version-badge, .rotate-prompt, body > *:not(#app-print-host) { display: none !important; }
-  .flyer-screen { padding: 0 !important; background: #fff !important; }
-  .flyer-toolbar { display: none !important; }
-  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; }
+  /* Print: nur das A4-Flyer-Papier zeigen, sonst alles ausblenden */
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; display: block !important; overflow: visible !important; }
+  /* User-Bar + Version-Badge + Rotate-Prompt verstecken */
+  .user-bar, .version-badge, .rotate-prompt, .flyer-toolbar { display: none !important; }
+  /* Phone-Container "auflösen" damit die Flyer-Inhalte direkt in den Print-Flow gelangen.
+     ACHTUNG: display:none NICHT — das würde den Flyer mit ausblenden, weil er ein Kind ist. */
+  .phone { all: unset !important; display: block !important; width: 100% !important; height: auto !important; min-height: 0 !important; background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; overflow: visible !important; aspect-ratio: auto !important; position: static !important; }
+  .phone__inner { all: unset !important; display: block !important; height: auto !important; }
+  #app { display: block !important; height: auto !important; }
+  .flyer-screen { padding: 0 !important; background: #fff !important; gap: 0 !important; min-height: auto !important; display: block !important; }
+  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; max-width: none !important; margin: 0 !important; page-break-inside: avoid; }
 }
 </style>
 </head>
@@ -1096,7 +1102,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.89';
+const APP_VERSION = 'v1.90';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
