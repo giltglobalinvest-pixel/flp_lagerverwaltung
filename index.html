@@ -324,7 +324,15 @@ body.mode-tablet .user-bar__user::after{
    Eigenes scrollbares Layout, das die phone-frame-Box füllt.
    ============================================================ */
 .landing{position:absolute;inset:0;background:linear-gradient(180deg,#F0F4FA 0%,#E0E8F3 100%);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:200}
-.landing__topbar{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid rgba(15,24,48,0.06);z-index:5}
+.landing__topbar{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid rgba(15,24,48,0.06);z-index:5;flex-wrap:nowrap;min-width:0}
+.landing__topbar > *{min-width:0}
+.landing__topbar > div:last-child{flex-shrink:0}
+@media (max-width:380px){
+  .landing__topbar{padding:10px 10px}
+  .landing__brand-name{display:none}
+  .landing__login-btn{padding:7px 10px;font-size:11.5px}
+  .landing__login-btn span{display:none}
+}
 .landing__brand{display:flex;align-items:center;gap:8px}
 .landing__brand-name{font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink)}
 .landing__login-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--c-ink);color:#fff;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;border:0;cursor:pointer;transition:transform .1s}
@@ -1088,7 +1096,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.85';
+const APP_VERSION = 'v1.86';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2844,10 +2852,29 @@ async function persistUser(u) {
   if (u.showPrices !== undefined) fields.show_prices = u.showPrices ? '1' : '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
   if (u.created) fields.created = u.created;
-  if (u._recordId) {
-    return await airUpdate(TBL_USERS, u._recordId, fields);
+  // Auto-Retry: wenn Airtable über ein unbekanntes Feld meckert, dieses entfernen + nochmal probieren
+  // (Schutz vor Schema-Drift wenn ensureFieldsExist nicht durchgelaufen ist)
+  async function tryWrite(fieldsToWrite) {
+    if (u._recordId) {
+      return await airUpdate(TBL_USERS, u._recordId, fieldsToWrite);
+    }
+    return await airWrite(TBL_USERS, fieldsToWrite);
   }
-  return await airWrite(TBL_USERS, fields);
+  try {
+    return await tryWrite(fields);
+  } catch (e) {
+    const msg = String(e?.message || '');
+    // Airtable-Fehler-Format: "Unknown field name: \"foo_bar\""
+    const match = msg.match(/Unknown field name:\s*[`"']?([a-z_0-9]+)[`"']?/i);
+    if (!match) throw e;
+    const badField = match[1];
+    console.warn('[persistUser] Airtable kennt Feld nicht, lasse weg + retry:', badField);
+    const cleaned = { ...fields };
+    delete cleaned[badField];
+    // Pflicht-Felder (name, role, status, api_key) NICHT entfernen — falls die fehlen ist die Tabelle kaputt
+    if (['name','role','status','api_key'].includes(badField)) throw e;
+    return await tryWrite(cleaned);
+  }
 }
 
 async function removeUser(u) {
@@ -13065,8 +13092,10 @@ document.addEventListener('click', (e) => {
       const isNew = !d._recordId;
       const userToSave = { ...d, name, apiKey };
       setLoading(true, isNew ? 'User wird angelegt …' : 'User wird gespeichert …');
+      console.log('[user-save] start', { isNew, name, role: d.role, fieldsSet: Object.keys(d).filter(k => d[k] !== undefined && d[k] !== null && d[k] !== '') });
       persistUser(userToSave)
         .then(rec => {
+          console.log('[user-save] success', rec?.id);
           // Lokal aktualisieren
           if (isNew) {
             const u = recordToUser(rec);
@@ -13078,7 +13107,7 @@ document.addEventListener('click', (e) => {
             state.users = (state.users || []).map(u => u._recordId === d._recordId ? { ...u, ...userToSave } : u);
             // Falls eigener User: APP_KEYS aktualisieren
             if (APP_KEYS.user && APP_KEYS.user._recordId === d._recordId) {
-              APP_KEYS.user = { ...APP_KEYS.user, name: userToSave.name, role: userToSave.role, api_key: userToSave.apiKey };
+              APP_KEYS.user = { ...APP_KEYS.user, name: userToSave.name, role: userToSave.role, apiKey: userToSave.apiKey };
               // Auch persistierten Login-Key aktualisieren falls Schlüssel rotiert wurde
               try { localStorage.setItem('user_key_' + APP_CONFIG.PROJECT_ID, userToSave.apiKey); } catch(e) {}
             }
@@ -13087,7 +13116,15 @@ document.addEventListener('click', (e) => {
           state.userDraft = null;
           render();
         })
-        .catch(err => showToast('Speichern fehlgeschlagen: ' + err.message, 'error', 3500))
+        .catch(err => {
+          console.error('[user-save] failed', err);
+          const msg = err?.message || String(err);
+          showToast('Speichern fehlgeschlagen: ' + msg, 'error', 6000);
+          // Bei Schema-Fehlern: zusätzlich Browser-Alert, damit der Fehler garantiert sichtbar ist
+          if (/Unknown field|UNKNOWN_FIELD_NAME|INVALID_VALUE|FIELD_NAME/i.test(msg)) {
+            setTimeout(() => alert('Airtable-Schema-Fehler beim Speichern:\n\n' + msg + '\n\nVermutlich fehlt ein Feld in der User-Tabelle. Bitte FLP-Team informieren.'), 100);
+          }
+        })
         .finally(() => setLoading(false));
       break;
     }
@@ -13323,6 +13360,9 @@ document.addEventListener('click', (e) => {
           if ((d.phone || '').trim()) newUserFields.phone = (d.phone || '').trim();
           if ((d.company || '').trim()) newUserFields.company_name = (d.company || '').trim();
           if (adminTenant) newUserFields.tenant_key = adminTenant;
+          // Sprache mitspeichern, die der Customer beim Registrieren in der App hatte —
+          // damit er beim ersten Login direkt in seiner Sprache landet (auch auf anderem Gerät).
+          if (state.lang && I18N[state.lang]) newUserFields.lang = state.lang;
           // Distributor-Verknüpfung: kommt aus ?dist= URL-Param (detectDistributorParam beim Init)
           if (state.signupDistributorId) {
             // Nur akzeptieren wenn der Distributor wirklich existiert UND is_distributor ist
