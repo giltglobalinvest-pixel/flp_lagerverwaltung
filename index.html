@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.71';
+const APP_VERSION = 'v1.72';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2840,6 +2840,8 @@ const I18N = {
     'landing.cta.register': 'Kostenlosen Zugang erstellen',
     'landing.cta.alreadyRegistered': 'Schon registriert?',
     'landing.steps.title': 'So einfach geht’s',
+    'landing.step': 'Schritt {n}',
+    'landing.cooperation': 'In Kooperation mit {name}',
     'landing.steps.1.title': 'Typenschild fotografieren',
     'landing.steps.1.sub': 'Halt dein Handy auf das Schild — Mehr nicht.',
     'landing.steps.2.title': 'KI erkennt das Teil',
@@ -2889,6 +2891,7 @@ const I18N = {
     'register.submitting': 'Lege Zugang an …',
     'register.alreadyHaveCode': 'Schon einen Code?',
     'register.loginHere': 'Hier einloggen',
+    'register.distInviteDetected': '<strong>Distributor-Einladung erkannt.</strong> Du wirst automatisch mit deinem FLP-Vertriebspartner verknüpft.',
     // Register Success
     'registerSuccess.welcome': 'Willkommen, {name}!',
     'registerSuccess.intro': 'Dein persönlicher Zugangs-Code ist bereit. Wir haben ihn zusätzlich an {email} versendet (sobald die E-Mail-Anbindung steht).',
@@ -3040,6 +3043,8 @@ const I18N = {
     'landing.cta.register': 'Create a free account',
     'landing.cta.alreadyRegistered': 'Already registered?',
     'landing.steps.title': 'How it works',
+    'landing.step': 'Step {n}',
+    'landing.cooperation': 'In cooperation with {name}',
     'landing.steps.1.title': 'Photograph the type plate',
     'landing.steps.1.sub': 'Hold your phone up to the plate — that’s it.',
     'landing.steps.2.title': 'AI identifies the part',
@@ -3087,6 +3092,7 @@ const I18N = {
     'register.submitting': 'Creating account …',
     'register.alreadyHaveCode': 'Already have a code?',
     'register.loginHere': 'Sign in here',
+    'register.distInviteDetected': '<strong>Distributor invitation detected.</strong> You will be linked to your FLP sales partner automatically.',
     'registerSuccess.welcome': 'Welcome, {name}!',
     'registerSuccess.intro': 'Your personal access code is ready. We have also sent it to {email} (once email delivery is wired up).',
     'registerSuccess.codeLabel': 'Your access code',
@@ -3227,6 +3233,8 @@ const I18N = {
     'landing.cta.register': 'Crear cuenta gratuita',
     'landing.cta.alreadyRegistered': '¿Ya estás registrado?',
     'landing.steps.title': 'Así de fácil',
+    'landing.step': 'Paso {n}',
+    'landing.cooperation': 'En colaboración con {name}',
     'landing.steps.1.title': 'Fotografía la placa',
     'landing.steps.1.sub': 'Apunta con el móvil a la placa — nada más.',
     'landing.steps.2.title': 'La IA reconoce la pieza',
@@ -3274,6 +3282,7 @@ const I18N = {
     'register.submitting': 'Creando cuenta …',
     'register.alreadyHaveCode': '¿Ya tienes clave?',
     'register.loginHere': 'Iniciar sesión',
+    'register.distInviteDetected': '<strong>Invitación de distribuidor detectada.</strong> Quedarás vinculado automáticamente a tu socio comercial de FLP.',
     'registerSuccess.welcome': '¡Bienvenido, {name}!',
     'registerSuccess.intro': 'Tu clave personal está lista. También la hemos enviado a {email} (una vez que el envío por email esté activo).',
     'registerSuccess.codeLabel': 'Tu clave de acceso',
@@ -3414,6 +3423,8 @@ const I18N = {
     'landing.cta.register': 'Gratis account aanmaken',
     'landing.cta.alreadyRegistered': 'Al geregistreerd?',
     'landing.steps.title': 'Zo werkt het',
+    'landing.step': 'Stap {n}',
+    'landing.cooperation': 'In samenwerking met {name}',
     'landing.steps.1.title': 'Typeplaatje fotograferen',
     'landing.steps.1.sub': 'Houd je telefoon op het plaatje — meer hoeft niet.',
     'landing.steps.2.title': 'AI herkent het onderdeel',
@@ -3461,6 +3472,7 @@ const I18N = {
     'register.submitting': 'Account aanmaken …',
     'register.alreadyHaveCode': 'Al een code?',
     'register.loginHere': 'Hier inloggen',
+    'register.distInviteDetected': '<strong>Distributeur-uitnodiging gedetecteerd.</strong> Je wordt automatisch gekoppeld aan je FLP-verkooppartner.',
     'registerSuccess.welcome': 'Welkom, {name}!',
     'registerSuccess.intro': 'Je persoonlijke toegangscode is klaar. We hebben hem ook naar {email} gestuurd (zodra de mailbezorging actief is).',
     'registerSuccess.codeLabel': 'Je toegangscode',
@@ -3601,6 +3613,8 @@ const I18N = {
     'landing.cta.register': 'Créer un compte gratuit',
     'landing.cta.alreadyRegistered': 'Déjà inscrit ?',
     'landing.steps.title': 'Comment ça marche',
+    'landing.step': 'Étape {n}',
+    'landing.cooperation': 'En coopération avec {name}',
     'landing.steps.1.title': 'Photographier la plaque',
     'landing.steps.1.sub': 'Pointe ton téléphone sur la plaque — rien de plus.',
     'landing.steps.2.title': 'L’IA reconnaît la pièce',
@@ -3648,6 +3662,7 @@ const I18N = {
     'register.submitting': 'Création du compte …',
     'register.alreadyHaveCode': 'Déjà une clé ?',
     'register.loginHere': 'Se connecter ici',
+    'register.distInviteDetected': '<strong>Invitation distributeur détectée.</strong> Tu seras automatiquement lié à ton partenaire commercial FLP.',
     'registerSuccess.welcome': 'Bienvenue, {name} !',
     'registerSuccess.intro': 'Ta clé d’accès personnelle est prête. Nous l’avons aussi envoyée à {email} (dès que l’envoi email sera actif).',
     'registerSuccess.codeLabel': 'Ta clé d’accès',
@@ -11132,41 +11147,36 @@ function renderLanding() {
             <img src="${distLogo}" alt="${distName.replace(/"/g,'&quot;')}" title="${distName.replace(/"/g,'&quot;')}" style="max-width:100%;max-height:100%;object-fit:contain">
           </div>
         </div>
-        ${distName ? `<div style="font-size:12.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-bottom:14px;letter-spacing:.02em">${svg('badge-check', 12, 2.5)} <span style="vertical-align:middle">In Kooperation mit <strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong></span></div>` : ''}
+        ${distName ? `<div style="font-size:12.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-bottom:14px;letter-spacing:.02em">${svg('badge-check', 12, 2.5)} <span style="vertical-align:middle">${t('landing.cooperation', { name: `<strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong>` })}</span></div>` : ''}
       `;
     })()}
-    <h1 class="landing__hero-title">Such dein Ersatzteil<br>per Foto.</h1>
-    <p class="landing__hero-sub">
-      Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom
-      Typenschild — wir prüfen sofort, ob wir das passende Ersatzteil
-      bei FLP Lift Parts auf Lager haben und melden uns mit Preis und
-      Verfügbarkeit zurück.
-    </p>
+    <h1 class="landing__hero-title">${t('landing.hero.title')}</h1>
+    <p class="landing__hero-sub">${t('landing.hero.sub')}</p>
     <div class="landing__hero-cta">
       <button data-action="go-register" class="landing__btn landing__btn--primary">
-        ${svg('sparkles', 14, 2.5)} Kostenlosen Zugang erstellen
+        ${svg('sparkles', 14, 2.5)} ${t('landing.cta.register')}
       </button>
       <button data-action="go-login-screen" class="landing__btn landing__btn--ghost">
-        Schon registriert? ${svg('arrow-right', 13, 2.5)}
+        ${t('landing.cta.alreadyRegistered')} ${svg('arrow-right', 13, 2.5)}
       </button>
     </div>
   </section>
 
   <!-- 3-Schritt-Erklärung -->
   <section class="landing__steps">
-    <h2 class="landing__h2">So einfach geht's</h2>
+    <h2 class="landing__h2">${t('landing.steps.title')}</h2>
     <div class="landing__steps-grid">
       ${[
-        { n: 1, icon: 'camera', title: 'Typenschild fotografieren', sub: 'Halt dein Handy auf das Schild — Mehr nicht.', color: '#2456E5' },
-        { n: 2, icon: 'scan-text', title: 'KI erkennt das Teil', sub: 'Hersteller, Modell, Code — alles automatisch ausgelesen.', color: '#7C3AED' },
-        { n: 3, icon: 'boxes', title: 'Treffer im Lager', sub: 'Du siehst sofort ob wir es haben, mit Foto und Details.', color: '#0F766E' },
-        { n: 4, icon: 'message-circle', title: 'Anfrage stellen', sub: 'Mit einem Tap landet deine Anfrage bei uns.', color: '#D97706' },
+        { n: 1, icon: 'camera',         color: '#2456E5' },
+        { n: 2, icon: 'scan-text',      color: '#7C3AED' },
+        { n: 3, icon: 'boxes',          color: '#0F766E' },
+        { n: 4, icon: 'message-circle', color: '#D97706' },
       ].map(s => `
         <div class="landing__step">
           <div class="landing__step-icon" style="background:${s.color}">${svg(s.icon, 22, 2.4)}</div>
-          <div class="landing__step-num">Schritt ${s.n}</div>
-          <div class="landing__step-title">${s.title}</div>
-          <div class="landing__step-sub">${s.sub}</div>
+          <div class="landing__step-num">${t('landing.step', { n: s.n })}</div>
+          <div class="landing__step-title">${t('landing.steps.' + s.n + '.title')}</div>
+          <div class="landing__step-sub">${t('landing.steps.' + s.n + '.sub')}</div>
         </div>
       `).join('')}
     </div>
@@ -11174,16 +11184,16 @@ function renderLanding() {
 
   <!-- Firma-Auswahl-Kacheln -->
   <section class="landing__firmen" id="firmen">
-    <h2 class="landing__h2">${svg('boxes', 16, 2.5)} Verfügbare Lager</h2>
-    <p class="landing__sub-h2">Wähle den Bestand, in dem du suchen möchtest. Du kannst später jederzeit zwischen den Lagern wechseln.</p>
+    <h2 class="landing__h2">${svg('boxes', 16, 2.5)} ${t('landing.warehouses.title')}</h2>
+    <p class="landing__sub-h2">${t('landing.warehouses.sub')}</p>
     <div class="landing__firmen-grid">
       ${loading ? `
         <div class="landing__firmen-loading">
           <div class="spinner spinner--sm"></div>
-          <span>Lager werden geladen …</span>
+          <span>${t('landing.warehouses.loading')}</span>
         </div>
       ` : companies.length === 0 ? `
-        <div class="landing__firmen-empty">Aktuell keine Lager verfügbar. Bitte später noch einmal versuchen.</div>
+        <div class="landing__firmen-empty">${t('landing.warehouses.empty')}</div>
       ` : companies.map(c => {
         const itemCount = (c.inventory && c.inventory.length) || 0;
         return `
@@ -11193,15 +11203,15 @@ function renderLanding() {
             </div>
             <div class="landing__firma-body">
               <div class="landing__firma-name">${c.name || '—'}</div>
-              <div class="landing__firma-meta">${itemCount > 0 ? `${itemCount} Artikel verfügbar` : 'Bestand wird gefüllt'}</div>
-              <div class="landing__firma-cta">Zugang erstellen ${svg('arrow-right', 12, 2.4)}</div>
+              <div class="landing__firma-meta">${itemCount > 0 ? t('landing.warehouses.itemsAvailable', { n: itemCount }) : t('landing.warehouses.filling')}</div>
+              <div class="landing__firma-cta">${t('landing.warehouses.tileCta')} ${svg('arrow-right', 12, 2.4)}</div>
             </div>
           </button>
         `;
       }).join('')}
     </div>
     <p class="landing__firmen-hint">
-      ${svg('sparkles', 11, 2.5)} Es kommen laufend neue Lager dazu. Schau gerne wieder rein.
+      ${svg('sparkles', 11, 2.5)} ${t('landing.warehouses.more')}
     </p>
   </section>
 
@@ -11209,27 +11219,27 @@ function renderLanding() {
   <section class="landing__perks">
     <div class="landing__perk">
       <div class="landing__perk-icon">${svg('sparkles', 18, 2.4)}</div>
-      <div class="landing__perk-title">Kostenlos</div>
-      <div class="landing__perk-sub">Suchen und Anfragen sind komplett kostenlos.</div>
+      <div class="landing__perk-title">${t('landing.perks.free.title')}</div>
+      <div class="landing__perk-sub">${t('landing.perks.free.sub')}</div>
     </div>
     <div class="landing__perk">
       <div class="landing__perk-icon">${svg('camera', 18, 2.4)}</div>
-      <div class="landing__perk-title">Kein Tippen</div>
-      <div class="landing__perk-sub">Foto genügt — wir lesen den Rest selbst.</div>
+      <div class="landing__perk-title">${t('landing.perks.noType.title')}</div>
+      <div class="landing__perk-sub">${t('landing.perks.noType.sub')}</div>
     </div>
     <div class="landing__perk">
       <div class="landing__perk-icon">${svg('message-circle', 18, 2.4)}</div>
-      <div class="landing__perk-title">Direkt zum Profi</div>
-      <div class="landing__perk-sub">Deine Anfrage geht direkt an unser FLP-Team.</div>
+      <div class="landing__perk-title">${t('landing.perks.direct.title')}</div>
+      <div class="landing__perk-sub">${t('landing.perks.direct.sub')}</div>
     </div>
   </section>
 
   <!-- CTA-Footer -->
   <section class="landing__cta-bottom">
-    <h2 class="landing__h2">Bereit loszulegen?</h2>
-    <p class="landing__sub-h2">In zwei Minuten bist du registriert und kannst dein erstes Foto abschicken.</p>
+    <h2 class="landing__h2">${t('landing.bottom.title')}</h2>
+    <p class="landing__sub-h2">${t('landing.bottom.sub')}</p>
     <button data-action="go-register" class="landing__btn landing__btn--primary landing__btn--big">
-      ${svg('sparkles', 15, 2.4)} Jetzt kostenlos starten
+      ${svg('sparkles', 15, 2.4)} ${t('landing.bottom.cta')}
     </button>
   </section>
 
@@ -11241,11 +11251,11 @@ function renderLanding() {
         <span>Stockmanager</span>
       </div>
       <nav class="landing__footer-links">
-        <button data-action="go-impressum">Impressum</button>
+        <button data-action="go-impressum">${t('landing.footer.imprint')}</button>
         <span class="landing__footer-dot">·</span>
-        <button data-action="go-privacy">Datenschutz</button>
+        <button data-action="go-privacy">${t('landing.footer.privacy')}</button>
         <span class="landing__footer-dot">·</span>
-        <a href="mailto:service@flp-shop.com">Kontakt</a>
+        <a href="mailto:service@flp-shop.com">${t('landing.footer.contact')}</a>
       </nav>
     </div>
     <div class="landing__footer-copy">© ${new Date().getFullYear()} FLP Lift Parts GmbH</div>
@@ -11488,63 +11498,63 @@ function renderRegister() {
               <img src="${distLogo}" alt="${distName.replace(/"/g,'&quot;')}" title="${distName.replace(/"/g,'&quot;')}" style="max-width:100%;max-height:100%;object-fit:contain">
             </div>
           </div>
-          ${distName ? `<div style="font-size:11.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-top:8px">In Kooperation mit <strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong></div>` : ''}
+          ${distName ? `<div style="font-size:11.5px;font-weight:600;color:var(--c-ink-mute);text-align:center;margin-top:8px">${t('landing.cooperation', { name: `<strong style="color:var(--c-ink)">${distName.replace(/</g,'&lt;')}</strong>` })}</div>` : ''}
         `;
       })()}
     </div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
-      <button class="icon-btn" data-action="go-login" title="Zurück zum Login">${svg('arrow-left', 16, 2.4)}</button>
+      <button class="icon-btn" data-action="go-login" title="${t('nav.back')}">${svg('arrow-left', 16, 2.4)}</button>
       <div style="flex:1">
-        <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0">Als Kunde anmelden</h1>
-        <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:4px 0 0;line-height:1.4">Trag deine Daten ein — wir schicken dir den persönlichen Zugangs-Code zu.</p>
+        <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0">${t('register.title')}</h1>
+        <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-mute);margin:4px 0 0;line-height:1.4">${t('register.sub')}</p>
       </div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field">
-          <label class="field__label">Vorname *</label>
+          <label class="field__label">${t('register.field.firstName')} *</label>
           <input class="field__input" data-action="register-input" data-key="firstName" value="${(d.firstName || '').replace(/"/g, '&quot;')}" placeholder="Max" autocomplete="given-name" ${pending ? 'disabled' : ''}>
         </div>
         <div class="field">
-          <label class="field__label">Nachname *</label>
+          <label class="field__label">${t('register.field.lastName')} *</label>
           <input class="field__input" data-action="register-input" data-key="lastName" value="${(d.lastName || '').replace(/"/g, '&quot;')}" placeholder="Mustermann" autocomplete="family-name" ${pending ? 'disabled' : ''}>
         </div>
       </div>
       <div class="field">
-        <label class="field__label">Email *</label>
+        <label class="field__label">${t('register.field.email')} *</label>
         <input class="field__input" data-action="register-input" data-key="email" value="${(d.email || '').replace(/"/g, '&quot;')}" placeholder="max@firma.de" type="email" inputmode="email" autocomplete="email" ${pending ? 'disabled' : ''} style="${errors.email ? 'border-color:var(--c-red)' : ''}">
         ${errors.email ? `<div style="font-size:11px;color:var(--c-red);margin-top:5px">${errors.email}</div>` : ''}
       </div>
       <div class="field">
-        <label class="field__label">Handynummer</label>
+        <label class="field__label">${t('register.field.phone')}</label>
         <input class="field__input" data-action="register-input" data-key="phone" value="${(d.phone || '').replace(/"/g, '&quot;')}" placeholder="+49 170 1234567" type="tel" inputmode="tel" autocomplete="tel" ${pending ? 'disabled' : ''}>
       </div>
       <div class="field">
-        <label class="field__label">Firma</label>
+        <label class="field__label">${t('register.field.company')}</label>
         <input class="field__input" data-action="register-input" data-key="company" value="${(d.company || '').replace(/"/g, '&quot;')}" placeholder="Aufzug-Service GmbH" autocomplete="organization" ${pending ? 'disabled' : ''}>
       </div>
     </div>
 
     <div style="margin-top:18px;padding:12px 14px;background:var(--c-blue-soft);border-radius:var(--r-md);font-size:12px;color:var(--c-blue-deep);display:flex;align-items:flex-start;gap:10px">
       <span style="flex-shrink:0;margin-top:2px">${svg('sparkles', 13, 2.5)}</span>
-      <span>Nach der Registrierung bekommst du sofort einen persönlichen Zugangs-Code angezeigt. Damit kannst du Artikel per Foto suchen und Anfragen stellen.</span>
+      <span>${t('register.hint')}</span>
     </div>
 
     ${state.signupDistributorId ? `
       <div style="margin-top:12px;padding:11px 14px;background:#FFF8E1;border:1px solid #F5C95B;border-radius:var(--r-md);font-size:12px;color:#5A3F00;display:flex;align-items:flex-start;gap:10px">
         <span style="flex-shrink:0;margin-top:2px">${svg('badge-check', 13, 2.5)}</span>
-        <span><strong>Distributor-Einladung erkannt.</strong> Du wirst automatisch mit deinem FLP-Vertriebspartner verknüpft.</span>
+        <span>${t('register.distInviteDetected')}</span>
       </div>
     ` : ''}
 
     ${state.registerError ? `<div class="login-error" style="margin-top:14px">${svg('alert-triangle', 13, 2.5)}<span>${state.registerError}</span></div>` : ''}
 
     <button id="registerSubmitBtn" data-action="register-submit" class="login-btn" style="margin-top:18px;width:100%;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);opacity:${(valid && !pending) ? '1' : '.55'};cursor:${pending ? 'default' : 'pointer'}" ${pending ? 'disabled' : ''}>
-      ${pending ? '<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lege Zugang an …' : svg('arrow-right', 14, 2.5) + ' Zugang anlegen'}
+      ${pending ? `<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> ${t('register.submitting')}` : svg('arrow-right', 14, 2.5) + ' ' + t('register.submit')}
     </button>
 
-    <div style="margin-top:14px;font-size:11px;color:var(--c-ink-mute);text-align:center">Schon einen Code? <button data-action="go-login" style="color:var(--c-blue);font-weight:600">Hier einloggen</button></div>
+    <div style="margin-top:14px;font-size:11px;color:var(--c-ink-mute);text-align:center">${t('register.alreadyHaveCode')} <button data-action="go-login" style="color:var(--c-blue);font-weight:600">${t('register.loginHere')}</button></div>
   </div>
 </div>`;
 }
