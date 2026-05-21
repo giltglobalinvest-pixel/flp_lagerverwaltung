@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.82';
+const APP_VERSION = 'v1.83';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2555,6 +2555,33 @@ function effectivePriceForUser(it) {
   // Regulärer FLP-Kunde: Original-VP (wie bisher), nur wenn it.inShop
   return { value: base, label: t('price.shop') || 'Im Webshop', visible: !!it.inShop };
 }
+// Routing für Bestellungen + Sub-Customer-Anfragen — entscheidet wer Empfänger ist.
+// Gibt { to, cc, channel } zurück.
+//   channel = 'mailto'    → Mailprogramm öffnen
+//             'freshdesk' → bestehender Proxy (nur für reguläre FLP-Kunden bei Anfragen)
+function getOrderRouting() {
+  const u = APP_KEYS.user || {};
+  const fallbackFlp = 'service@flp-shop.com';
+  const myFirm = (u.firmEmail || '').trim();
+  // Sub-Customer eines Distributors → Email an Distributor, CC an eigene Firmen-Email
+  if (isUnderDistributor()) {
+    const pd = APP_KEYS.parentDistributor;
+    const distEmail = (pd?.distributorInquiryEmail || '').trim();
+    return {
+      channel: 'mailto',
+      to: distEmail || pd?.email || fallbackFlp,
+      cc: myFirm || u.email || '',
+      noDistEmail: !distEmail, // Hinweis falls Distributor seine Sammeladresse nicht gesetzt hat
+    };
+  }
+  // Distributor selbst → Email an FLP, CC an seine Firmen-Email
+  if (isDistributor()) {
+    return { channel: 'mailto', to: fallbackFlp, cc: myFirm || u.email || '' };
+  }
+  // Regulärer Kunde → Email an FLP, CC an seine Firmen-Email
+  return { channel: 'mailto', to: fallbackFlp, cc: myFirm || u.email || '' };
+}
+
 // Invite-Link für Distributor: legt seine recordId in den URL-Parameter
 function getDistributorInviteLink() {
   const u = APP_KEYS.user;
@@ -2601,6 +2628,8 @@ const USER_FIELDS = [
   { name: 'firm_zip', type: 'singleLineText' },
   { name: 'firm_city', type: 'singleLineText' },
   { name: 'firm_country', type: 'singleLineText' },
+  // Firmen-Email: separate Adresse für Bestellungen / Anfragen-CCs (nicht persönliche Email)
+  { name: 'firm_email', type: 'singleLineText' },
   // Mitarbeiter des Kunden (JSON-Array von {id, firstName, lastName, email, phone, role})
   { name: 'employees', type: 'multilineText' },
   // ID des Mitarbeiters, an den Angebote geschickt werden
@@ -2616,6 +2645,8 @@ const USER_FIELDS = [
   { name: 'distributor_margin', type: 'singleLineText' },
   // distributor_show_prices: '1' = Sub-Kunden sehen Preise (mit Marge), sonst nicht
   { name: 'distributor_show_prices', type: 'singleLineText' },
+  // distributor_inquiry_email: Email-Adresse, an die Anfragen/Bestellungen der Sub-Kunden geschickt werden
+  { name: 'distributor_inquiry_email', type: 'singleLineText' },
   // parent_distributor_id: recordId des Distributors, dem dieser Sub-Customer gehört
   { name: 'parent_distributor_id', type: 'singleLineText' },
   // show_prices: '1' = dieser Sub-Customer darf Preise sehen (vom Distributor freigegeben), default leer/aus
@@ -2653,6 +2684,7 @@ function recordToUser(rec) {
     firmZip: f.firm_zip || '',
     firmCity: f.firm_city || '',
     firmCountry: f.firm_country || '',
+    firmEmail: f.firm_email || '',
     employees: (() => { try { return f.employees ? JSON.parse(f.employees) : []; } catch(e) { return []; } })(),
     quoteRecipientId: f.quote_recipient_id || '',
     lang: f.lang || '',
@@ -2661,6 +2693,7 @@ function recordToUser(rec) {
     distributorDiscount: Number(f.distributor_discount || 0) || 0,
     distributorMargin:   Number(f.distributor_margin   || 0) || 0,
     distributorShowPrices: String(f.distributor_show_prices || '').trim() === '1' || String(f.distributor_show_prices || '').toLowerCase() === 'true',
+    distributorInquiryEmail: f.distributor_inquiry_email || '',
     parentDistributorId: f.parent_distributor_id || '',
     // Pro Sub-Customer: vom Distributor freigegeben? (default false)
     showPrices: String(f.show_prices || '').trim() === '1' || String(f.show_prices || '').toLowerCase() === 'true',
@@ -2721,6 +2754,7 @@ async function persistUser(u) {
   if (u.firmZip !== undefined) fields.firm_zip = u.firmZip || '';
   if (u.firmCity !== undefined) fields.firm_city = u.firmCity || '';
   if (u.firmCountry !== undefined) fields.firm_country = u.firmCountry || '';
+  if (u.firmEmail !== undefined) fields.firm_email = u.firmEmail || '';
   if (u.employees !== undefined) fields.employees = JSON.stringify(u.employees || []);
   if (u.quoteRecipientId !== undefined) fields.quote_recipient_id = u.quoteRecipientId || '';
   // Distributor-Felder
@@ -2728,6 +2762,7 @@ async function persistUser(u) {
   if (u.distributorDiscount !== undefined) fields.distributor_discount = (Number(u.distributorDiscount) || 0).toString();
   if (u.distributorMargin   !== undefined) fields.distributor_margin   = (Number(u.distributorMargin) || 0).toString();
   if (u.distributorShowPrices !== undefined) fields.distributor_show_prices = u.distributorShowPrices ? '1' : '';
+  if (u.distributorInquiryEmail !== undefined) fields.distributor_inquiry_email = u.distributorInquiryEmail || '';
   if (u.parentDistributorId !== undefined) fields.parent_distributor_id = u.parentDistributorId || '';
   if (u.showPrices !== undefined) fields.show_prices = u.showPrices ? '1' : '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
@@ -3062,6 +3097,11 @@ const I18N = {
     'cset.firm.zip': 'PLZ',
     'cset.firm.city': 'Ort',
     'cset.firm.country': 'Land',
+    'cset.firm.email': 'Firmen-Email',
+    'cset.firm.email.sub': 'Wird als Kopie (CC) bei jeder Bestellung / Anfrage verschickt. Lass leer, falls nicht gewünscht.',
+    'dist.inquiryEmail': 'Email für Anfragen + Bestellungen deiner Kunden',
+    'dist.inquiryEmail.sub': 'An diese Adresse gehen Anfragen + Bestellungen deiner Sub-Kunden direkt (nicht über FLP).',
+    'detail.order.button': 'Bestellen',
     'cset.employees.title': 'Mitarbeiter',
     'cset.employees.sub': 'Lege Kolleg:innen an, die Anfragen stellen oder Angebote empfangen sollen. Email ist optional, aber wer Angebote empfangen soll braucht eine.',
     'cset.employees.empty': 'Noch keine Mitarbeiter angelegt.',
@@ -3266,6 +3306,11 @@ const I18N = {
     'cset.firm.zip': 'Postal code',
     'cset.firm.city': 'City',
     'cset.firm.country': 'Country',
+    'cset.firm.email': 'Company email',
+    'cset.firm.email.sub': 'Sent as carbon copy (CC) on every order / inquiry. Leave blank if not needed.',
+    'dist.inquiryEmail': 'Email for inquiries + orders from your customers',
+    'dist.inquiryEmail.sub': 'Your sub-customers’ inquiries and orders go directly to this address (not via FLP).',
+    'detail.order.button': 'Order now',
     'cset.employees.title': 'Employees',
     'cset.employees.sub': 'Add colleagues who will send inquiries or receive quotes. Email is optional, but the quote recipient needs one.',
     'cset.employees.empty': 'No employees added yet.',
@@ -3469,6 +3514,11 @@ const I18N = {
     'cset.firm.zip': 'Código postal',
     'cset.firm.city': 'Ciudad',
     'cset.firm.country': 'País',
+    'cset.firm.email': 'Email de empresa',
+    'cset.firm.email.sub': 'Se envía como copia (CC) en cada pedido / consulta. Déjalo vacío si no es necesario.',
+    'dist.inquiryEmail': 'Email para consultas + pedidos de tus clientes',
+    'dist.inquiryEmail.sub': 'Las consultas y pedidos de tus subclientes llegan directamente a esta dirección (no a través de FLP).',
+    'detail.order.button': 'Pedir ahora',
     'cset.employees.title': 'Empleados',
     'cset.employees.sub': 'Añade compañeros que enviarán consultas o recibirán presupuestos. El email es opcional, pero quien reciba presupuestos necesita uno.',
     'cset.employees.empty': 'Aún no hay empleados.',
@@ -3672,6 +3722,11 @@ const I18N = {
     'cset.firm.zip': 'Postcode',
     'cset.firm.city': 'Plaats',
     'cset.firm.country': 'Land',
+    'cset.firm.email': 'Bedrijfsemail',
+    'cset.firm.email.sub': 'Wordt als kopie (CC) verzonden bij elke bestelling / aanvraag. Leeg laten indien niet nodig.',
+    'dist.inquiryEmail': 'Email voor aanvragen + bestellingen van je klanten',
+    'dist.inquiryEmail.sub': 'Aanvragen en bestellingen van je subklanten gaan rechtstreeks naar dit adres (niet via FLP).',
+    'detail.order.button': 'Nu bestellen',
     'cset.employees.title': 'Medewerkers',
     'cset.employees.sub': 'Voeg collega’s toe die aanvragen versturen of offertes ontvangen. Email is optioneel, maar de offerte-ontvanger heeft er één nodig.',
     'cset.employees.empty': 'Nog geen medewerkers.',
@@ -3875,6 +3930,11 @@ const I18N = {
     'cset.firm.zip': 'Code postal',
     'cset.firm.city': 'Ville',
     'cset.firm.country': 'Pays',
+    'cset.firm.email': 'Email de l’entreprise',
+    'cset.firm.email.sub': 'Envoyé en copie (CC) lors de chaque commande / demande. Laisser vide si non souhaité.',
+    'dist.inquiryEmail': 'Email pour demandes + commandes de tes clients',
+    'dist.inquiryEmail.sub': 'Les demandes et commandes de tes sous-clients arrivent directement à cette adresse (pas via FLP).',
+    'detail.order.button': 'Commander',
     'cset.employees.title': 'Collaborateurs',
     'cset.employees.sub': 'Ajoute des collègues qui enverront des demandes ou recevront des devis. L’email est facultatif, mais le destinataire des devis en a besoin.',
     'cset.employees.empty': 'Pas encore de collaborateurs.',
@@ -7584,6 +7644,13 @@ function renderCustomerSettings() {
           <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.margin.sub')}</div>
         </div>
 
+        <!-- Inquiry-Email: an diese Adresse gehen Anfragen + Bestellungen deiner Sub-Kunden -->
+        <div class="field" style="margin-top:12px">
+          <label class="field__label" style="color:#5A3F00">${t('dist.inquiryEmail')}</label>
+          <input class="field__input" type="email" data-action="distributor-inquiry-email-input" value="${(u.distributorInquiryEmail||'').replace(/"/g,'&quot;')}" placeholder="bestellungen@deinefirma.de" autocomplete="email" inputmode="email" style="background:#FFFCEF;border-color:rgba(122,84,0,.2)">
+          <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.inquiryEmail.sub')}</div>
+        </div>
+
         <!-- Meine Kunden — pro Kunde "Preise sichtbar"-Schalter -->
         ${(() => {
           const subs = state.distSubCustomers;
@@ -7730,6 +7797,11 @@ function renderCustomerSettings() {
         <div class="field">
           <label class="field__label">${t('cset.firm.country')}</label>
           <input type="text" data-action="customer-set-firm-input" data-key="firmCountry" value="${(u.firmCountry||'').replace(/"/g,'&quot;')}" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+        </div>
+        <div class="field">
+          <label class="field__label">${t('cset.firm.email')}</label>
+          <input type="email" data-action="customer-set-firm-input" data-key="firmEmail" value="${(u.firmEmail||'').replace(/"/g,'&quot;')}" placeholder="bestellung@firma.de" autocomplete="email" inputmode="email" style="width:100%;padding:11px 13px;border:1px solid var(--c-border);border-radius:var(--r-md);font-size:14px;background:var(--c-surface);color:var(--c-ink);outline:none">
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">${t('cset.firm.email.sub')}</div>
         </div>
       </div>
     </div>
@@ -8741,13 +8813,23 @@ function renderDetail() {
     </div><!-- /detail-grid__right -->
     </div><!-- /detail-grid -->
   </div>
-  ${isCustomer() ? `
-    <div class="action-bar" style="grid-template-columns:1fr;padding:6px;gap:6px">
+  ${isCustomer() ? (() => {
+    // Bestellen-Button: nur sichtbar wenn Preis für diesen User wirklich angezeigt würde
+    const ep = (it.vp != null && !it.sold) ? effectivePriceForUser(it) : { visible: false };
+    const showOrder = !!(ep.visible && ep.value != null && !(isRegularCustomer() && !it.inShop));
+    return `
+    <div class="action-bar" style="grid-template-columns:${showOrder ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
       <button class="action-bar__btn action-bar__btn--primary" data-action="open-inquiry-sheet" data-id="${it.id}" style="padding:16px;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);border:none;color:#fff;box-shadow:var(--elev-blue);font-size:14.5px">
         ${svg('message-circle', 15, 2.5)} ${t('detail.inquiry.button')}
       </button>
+      ${showOrder ? `
+        <button class="action-bar__btn action-bar__btn--primary" data-action="open-order-mailto" data-id="${it.id}" style="padding:16px;background:linear-gradient(135deg,#10B981 0%,#059669 100%);border:none;color:#fff;box-shadow:0 6px 18px rgba(16,185,129,.35);font-size:14.5px">
+          ${svg('boxes', 15, 2.5)} ${t('detail.order.button')}
+        </button>
+      ` : ''}
     </div>
-  ` : `
+    `;
+  })() : `
     <div class="action-bar" style="grid-template-columns:${(isAdmin() && (!it.sold || isPendingReturn(it))) ? '1fr 1fr' : '1fr'};padding:6px;gap:6px">
       <button class="action-bar__btn" data-action="go-edit" style="padding:14px">${svg('pencil', 14, 2.5)} Bearbeiten</button>
       ${(isAdmin() && !it.sold) ? `
@@ -13900,6 +13982,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'distributor-margin-input': /* input event */ break;
+    case 'distributor-inquiry-email-input': /* input event */ break;
     case 'copy-distributor-link': {
       const link = getDistributorInviteLink();
       if (!link) break;
@@ -13944,6 +14027,55 @@ document.addEventListener('click', (e) => {
     }
 
     /* Customer-Anfrage-Sheet — POSTet an Freshdesk-Proxy (Phase B); Phase A: zeigt Hinweis falls Proxy fehlt */
+    case 'open-order-mailto': {
+      // Bestellen-Button: öffnet Mailprogramm mit vorbereiteter Bestellung.
+      // Routing je nach Rolle: Sub-Kunde → Distributor, Distributor/regulär → FLP. CC immer an Firmen-Email.
+      const it = state.item;
+      if (!it) break;
+      const u = APP_KEYS.user || {};
+      const route = getOrderRouting();
+      if (route.noDistEmail) {
+        showToast('Dein Distributor hat noch keine Email-Adresse für Bestellungen hinterlegt. Bitte direkt bei ihm anfragen.', 'info', 5000);
+        // Fallback: trotzdem fortfahren mit der Backup-Adresse (pd.email oder FLP)
+      }
+      const ep = effectivePriceForUser(it);
+      const priceStr = (ep.visible && ep.value != null) ? formatVp(ep.value) : (it.vp != null ? formatVp(it.vp) : '');
+      const senderName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || 'Kunde';
+      const co = state.company;
+      const activeCoName = co?.name || '';
+      const subject = `Bestellung: ${it.title} (#${it.id})${u.companyName ? ' — ' + u.companyName : ''}`;
+      const body = [
+        `Hallo,`,
+        ``,
+        `hiermit möchte ich folgenden Artikel verbindlich bestellen:`,
+        ``,
+        `Artikel: ${it.title}`,
+        `Artikel-Nr.: ${it.id}`,
+        it.maker ? `Hersteller: ${it.maker}` : '',
+        it.cat ? `Kategorie: ${it.cat}` : '',
+        activeCoName ? `Lager: ${activeCoName}` : '',
+        priceStr ? `Preis (aus App): ${priceStr}` : '',
+        ``,
+        `── BESTELLER ──`,
+        `${senderName}`,
+        u.companyName ? `${u.companyName}` : '',
+        [u.firmStreet, [u.firmZip, u.firmCity].filter(Boolean).join(' '), u.firmCountry].filter(Boolean).join(', '),
+        u.email ? `Email: ${u.email}` : '',
+        u.phone ? `Telefon: ${u.phone}` : '',
+        ``,
+        `Bitte um Auftragsbestätigung mit Liefertermin.`,
+        ``,
+        `Viele Grüße`,
+        senderName,
+      ].filter(Boolean).join('\n');
+      const params = new URLSearchParams();
+      params.set('subject', subject);
+      params.set('body', body);
+      if (route.cc) params.set('cc', route.cc);
+      const mailto = 'mailto:' + encodeURIComponent(route.to) + '?' + params.toString().replace(/\+/g, '%20');
+      window.location.href = mailto;
+      break;
+    }
     case 'open-inquiry-sheet': {
       if (!state.item) break;
       state.quickEdit = 'inquiry';
@@ -14007,6 +14139,25 @@ document.addEventListener('click', (e) => {
         '── NACHRICHT DES KUNDEN ──',
         note || '(keine zusätzliche Nachricht)',
       ].filter(Boolean).join('\n');
+
+      // Sub-Kunden (Kunden eines Distributors) gehen NICHT über Freshdesk —
+      // Anfragen + Bestellungen werden als ganz normale Email an den Distributor geschickt.
+      if (isUnderDistributor()) {
+        const route = getOrderRouting();
+        if (route.noDistEmail) {
+          showToast('Dein Distributor hat noch keine Email-Adresse für Anfragen hinterlegt. Bitte direkt bei ihm anfragen.', 'info', 4500);
+        }
+        const params = new URLSearchParams();
+        params.set('subject', subject);
+        params.set('body', description);
+        if (route.cc) params.set('cc', route.cc);
+        const mailto = 'mailto:' + encodeURIComponent(route.to) + '?' + params.toString().replace(/\+/g, '%20');
+        window.location.href = mailto;
+        state.inquirySent = true;
+        state.inquirySending = false;
+        render();
+        break;
+      }
 
       // Requester für Freshdesk = Recipient (damit Antwort dorthin geht)
       const customerEmail = recipientEmail;
@@ -14674,6 +14825,15 @@ document.addEventListener('input', (e) => {
         // Beispiel-Vorschau live updaten ohne kompletten Re-Render? Einfach: full render
         render();
       }).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+    }, 600);
+  }
+  else if (a === 'distributor-inquiry-email-input') {
+    const u = APP_KEYS.user;
+    if (!u || !isDistributor()) return;
+    u.distributorInquiryEmail = t.value;
+    if (window.__cInqEmailTimer) clearTimeout(window.__cInqEmailTimer);
+    window.__cInqEmailTimer = setTimeout(() => {
+      persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
     }, 600);
   }
   else if (a === 'customer-set-profile-input') {
