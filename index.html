@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.67';
+const APP_VERSION = 'v1.68';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1228,6 +1228,126 @@ async function uploadFileToRecord(table, recordId, attachmentField, file) {
     throw new Error('Upload fehlgeschlagen: ' + (err.error?.message || res.status));
   }
   return await res.json();
+}
+
+// Logo-Verarbeitung: anders als bei Item-Fotos — KEIN Crop, KEIN JPEG-Convert.
+// Behält Transparenz (PNG bleibt PNG, SVG/GIF werden unverändert hochgeladen).
+// Nur Skalierung auf max. 512px längste Kante damit Uploads schlank bleiben.
+async function processLogo(inputFile) {
+  if (!inputFile.type.startsWith('image/')) return inputFile;
+  // SVG: unverändert hochladen — Vektor-Logos sollen nicht rasterisiert werden
+  if (inputFile.type === 'image/svg+xml' || /\.svg$/i.test(inputFile.name || '')) return inputFile;
+  // GIF: könnte animiert sein, lieber unverändert lassen
+  if (inputFile.type === 'image/gif') return inputFile;
+
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('FileReader-Fehler'));
+    r.readAsDataURL(inputFile);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Bild-Decoder-Fehler'));
+    i.src = dataUrl;
+  });
+  const srcW = img.naturalWidth, srcH = img.naturalHeight;
+  if (!srcW || !srcH) throw new Error('Logo hat keine gültige Größe');
+  const MAX_EDGE = 512;
+  let outW = srcW, outH = srcH;
+  const longest = Math.max(srcW, srcH);
+  if (longest > MAX_EDGE) {
+    const scale = MAX_EDGE / longest;
+    outW = Math.round(srcW * scale);
+    outH = Math.round(srcH * scale);
+  } else {
+    // Klein genug → Original behalten (PNG-Transparenz, etc.)
+    return inputFile;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, outW, outH);
+  // PNG behält Alpha-Kanal — bei JPEG würde Transparenz schwarz/weiß
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) return inputFile;
+  const baseName = (inputFile.name || 'logo').replace(/\.[^./]+$/, '');
+  return new File([blob], baseName + '.png', { type: 'image/png', lastModified: Date.now() });
+}
+
+// Upload-Variante für Logos: nutzt processLogo statt processImage
+async function uploadLogoToRecord(table, recordId, attachmentField, file) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  const processed = await processLogo(file);
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(processed);
+  });
+  const url = 'https://content.airtable.com/v0/' + AIR_BASE() + '/' + recordId + '/' + attachmentField + '/uploadAttachment';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType: processed.type, file: base64, filename: processed.name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Upload fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  return await res.json();
+}
+
+// Distributor-Logo Upload: vom Distributor selbst in seinen Settings
+async function uploadDistributorLogo(file) {
+  const u = APP_KEYS.user;
+  if (!u || !isDistributor()) return;
+  state.distLogoUploading = true;
+  render();
+  try {
+    const rec = await uploadLogoToRecord(TBL_USERS, u._recordId, 'distributor_logo', file);
+    // rec.fields enthält jetzt die aktualisierte Attachment-Liste
+    if (rec?.fields?.distributor_logo) {
+      u.distributorLogo = rec.fields.distributor_logo;
+    }
+    state.distLogoUploading = false;
+    state.cSetSavedFlash = true;
+    render();
+    setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800);
+  } catch (e) {
+    state.distLogoUploading = false;
+    state.cSetError = 'Logo-Upload fehlgeschlagen: ' + (e?.message || '');
+    render();
+  }
+}
+
+// Admin-Variante: lädt Logo für den User-Datensatz im Admin-User-Editor
+async function uploadAdminDistributorLogo(file) {
+  if (!isAdmin() || !state.userDraft || !state.userDraft._recordId) {
+    showToast('Bitte erst speichern — Logo kann nur für bestehende User hochgeladen werden', 'info', 3200);
+    return;
+  }
+  state.userDraftLogoUploading = true;
+  render();
+  try {
+    const rec = await uploadLogoToRecord(TBL_USERS, state.userDraft._recordId, 'distributor_logo', file);
+    if (rec?.fields?.distributor_logo) {
+      state.userDraft.distributorLogo = rec.fields.distributor_logo;
+      // Auch in der Users-Liste reflektieren
+      state.users = (state.users || []).map(x => x._recordId === state.userDraft._recordId ? { ...x, distributorLogo: rec.fields.distributor_logo } : x);
+    }
+    state.userDraftLogoUploading = false;
+    showToast('Logo hochgeladen', 'success', 2000);
+    render();
+  } catch (e) {
+    state.userDraftLogoUploading = false;
+    showToast('Logo-Upload fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+    render();
+  }
 }
 
 /* ============================================================
@@ -2446,6 +2566,8 @@ const USER_FIELDS = [
   { name: 'distributor_show_prices', type: 'singleLineText' },
   // parent_distributor_id: recordId des Distributors, dem dieser Sub-Customer gehört
   { name: 'parent_distributor_id', type: 'singleLineText' },
+  // distributor_logo: Distributor-Logo (Attachment, max. 1 Datei) — wird neben FLP-Logo beim Sub-Customer angezeigt
+  { name: 'distributor_logo', type: 'multipleAttachments' },
   { name: 'created', type: 'singleLineText' },
 ];
 
@@ -2486,8 +2608,34 @@ function recordToUser(rec) {
     distributorMargin:   Number(f.distributor_margin   || 0) || 0,
     distributorShowPrices: String(f.distributor_show_prices || '').trim() === '1' || String(f.distributor_show_prices || '').toLowerCase() === 'true',
     parentDistributorId: f.parent_distributor_id || '',
+    // distributor_logo: Array von Airtable-Attachments [{ url, thumbnails: { small, large, full } }]
+    distributorLogo: Array.isArray(f.distributor_logo) ? f.distributor_logo : [],
     created: f.created || '',
   };
+}
+// URL eines Distributor-Logos (bevorzugt large-thumbnail) — nimmt erstes Element
+function distributorLogoUrl(u, size = 'large') {
+  const arr = u?.distributorLogo;
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const p = arr[0];
+  return p?.thumbnails?.[size]?.url || p?.url || null;
+}
+// Co-Branding-Header: zeigt FLP-Logo + (wenn Sub-Customer unter einem Distributor) das Distributor-Logo daneben
+// wordmark: Text rechts neben den Logos ("Stock Manager" o.ä.)
+function renderCoBrandedHeader(wordmark) {
+  const pd = isUnderDistributor() ? APP_KEYS.parentDistributor : null;
+  const distLogo = pd ? distributorLogoUrl(pd, 'large') : null;
+  const distName = pd ? (pd.companyName || pd.name || '') : '';
+  return `
+    <div class="flp-brand" title="FLP Stock Manager${distName ? ' · ' + distName.replace(/"/g,'&quot;') : ''}">
+      <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
+      ${distLogo ? `
+        <span aria-hidden="true" style="display:inline-block;width:1px;height:18px;background:rgba(255,255,255,.25);margin:0 2px"></span>
+        <img src="${distLogo}" alt="${distName.replace(/"/g,'&quot;')}" style="height:22px;max-width:80px;object-fit:contain;border-radius:4px;background:#fff;padding:2px 4px" title="${distName.replace(/"/g,'&quot;')}">
+      ` : ''}
+      <span class="flp-brand__wordmark">${wordmark}</span>
+    </div>
+  `;
 }
 
 async function loadUsers() {
@@ -2768,6 +2916,11 @@ const I18N = {
     'dist.inviteLink.sub': 'Wer sich über diesen Link registriert, wird automatisch dir zugeordnet.',
     'dist.inviteLink.copy': 'Link kopieren',
     'dist.inviteLink.copied': 'Link in Zwischenablage kopiert',
+    'dist.logo': 'Dein Logo',
+    'dist.logo.sub': 'Wird neben dem FLP-Logo bei deinen Kunden angezeigt. PNG mit Transparenz wird empfohlen.',
+    'dist.logo.upload': 'Logo hochladen',
+    'dist.logo.replace': 'Logo ersetzen',
+    'dist.logo.confirmDelete': 'Logo wirklich löschen?',
     'price.purchase': 'Einkaufspreis',
     'price.endprice': 'Preis',
     'price.shop': 'Im Webshop',
@@ -2955,6 +3108,11 @@ const I18N = {
     'dist.inviteLink.sub': 'Anyone registering via this link will be linked to you automatically.',
     'dist.inviteLink.copy': 'Copy link',
     'dist.inviteLink.copied': 'Link copied to clipboard',
+    'dist.logo': 'Your logo',
+    'dist.logo.sub': 'Shown next to the FLP logo for your customers. PNG with transparency recommended.',
+    'dist.logo.upload': 'Upload logo',
+    'dist.logo.replace': 'Replace logo',
+    'dist.logo.confirmDelete': 'Really delete logo?',
     'price.purchase': 'Purchase price',
     'price.endprice': 'Price',
     'price.shop': 'In webshop',
@@ -3137,6 +3295,11 @@ const I18N = {
     'dist.inviteLink.sub': 'Quien se registre por este enlace quedará vinculado a ti automáticamente.',
     'dist.inviteLink.copy': 'Copiar enlace',
     'dist.inviteLink.copied': 'Enlace copiado al portapapeles',
+    'dist.logo': 'Tu logotipo',
+    'dist.logo.sub': 'Se muestra junto al logo de FLP para tus clientes. Se recomienda PNG con transparencia.',
+    'dist.logo.upload': 'Subir logotipo',
+    'dist.logo.replace': 'Reemplazar logotipo',
+    'dist.logo.confirmDelete': '¿Eliminar el logotipo?',
     'price.purchase': 'Precio de compra',
     'price.endprice': 'Precio',
     'price.shop': 'En la tienda',
@@ -3319,6 +3482,11 @@ const I18N = {
     'dist.inviteLink.sub': 'Wie zich via deze link aanmeldt, wordt automatisch aan jou gekoppeld.',
     'dist.inviteLink.copy': 'Link kopiëren',
     'dist.inviteLink.copied': 'Link gekopieerd naar klembord',
+    'dist.logo': 'Jouw logo',
+    'dist.logo.sub': 'Wordt naast het FLP-logo getoond aan je klanten. PNG met transparantie aanbevolen.',
+    'dist.logo.upload': 'Logo uploaden',
+    'dist.logo.replace': 'Logo vervangen',
+    'dist.logo.confirmDelete': 'Logo echt verwijderen?',
     'price.purchase': 'Inkoopprijs',
     'price.endprice': 'Prijs',
     'price.shop': 'In webshop',
@@ -3501,6 +3669,11 @@ const I18N = {
     'dist.inviteLink.sub': 'Toute personne qui s’inscrit via ce lien sera automatiquement liée à toi.',
     'dist.inviteLink.copy': 'Copier le lien',
     'dist.inviteLink.copied': 'Lien copié dans le presse-papier',
+    'dist.logo': 'Ton logo',
+    'dist.logo.sub': 'Affiché à côté du logo FLP pour tes clients. PNG avec transparence recommandé.',
+    'dist.logo.upload': 'Téléverser le logo',
+    'dist.logo.replace': 'Remplacer le logo',
+    'dist.logo.confirmDelete': 'Vraiment supprimer le logo ?',
     'price.purchase': 'Prix d’achat',
     'price.endprice': 'Prix',
     'price.shop': 'En boutique',
@@ -6812,10 +6985,7 @@ function renderCustomerHomeMain() {
 <div class="screen customer-home">
   <div class="header">
     <button class="logout-btn" data-action="logout" title="Abmelden">${svg('log-out', 16, 2.4)}</button>
-    <div class="flp-brand" title="FLP Stock Manager">
-      <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
-      <span class="flp-brand__wordmark">Stock Manager</span>
-    </div>
+    ${renderCoBrandedHeader('Stock Manager')}
     <div style="display:flex;gap:4px;align-items:center">
       <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
       <button class="icon-btn" data-action="show-onboard-again" title="Hilfe anzeigen">${svg('info', 16, 2.4)}</button>
@@ -7081,10 +7251,7 @@ function renderCustomerSettings() {
 <div class="screen customer-home">
   <div class="header">
     <button class="logout-btn" data-action="back-to-customer-home" title="Zurück">${svg('arrow-left', 16, 2.4)}</button>
-    <div class="flp-brand" title="FLP Stock Manager">
-      <span class="flp-brand__sq flp-brand__sq--gray">F</span><span class="flp-brand__sq flp-brand__sq--blue">L</span><span class="flp-brand__sq flp-brand__sq--blue">P</span>
-      <span class="flp-brand__wordmark">${t('cset.title')}</span>
-    </div>
+    ${renderCoBrandedHeader(t('cset.title'))}
     <div style="width:32px"></div>
   </div>
 
@@ -7120,6 +7287,30 @@ function renderCustomerSettings() {
             <div style="font-size:11px;color:#7A5400;line-height:1.3;margin-top:1px">${t('dist.sub')}</div>
           </div>
         </div>
+
+        <!-- Logo-Upload -->
+        ${(() => {
+          const logoUrl = distributorLogoUrl(u, 'large');
+          const uploading = !!state.distLogoUploading;
+          return `
+          <div style="margin-top:14px;padding:14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md)">
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${t('dist.logo')}</div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="width:74px;height:74px;border-radius:12px;background:#fff;border:1px solid rgba(122,84,0,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;position:relative">
+                ${uploading ? `<div class="spinner spinner--sm" style="border-color:rgba(122,84,0,.2);border-top-color:#7A5400"></div>` : (logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-width:100%;max-height:100%;object-fit:contain">` : `<span style="color:rgba(122,84,0,.4)">${svg('image', 28, 1.8)}</span>`)}
+              </div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:11.5px;color:#5A3F00;line-height:1.4">${t('dist.logo.sub')}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button data-action="distributor-logo-pick" ${uploading ? 'disabled' : ''} style="padding:7px 12px;background:#7A5400;color:#FFF8E1;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px${uploading ? ';opacity:.5;cursor:default' : ''}">${svg('cloud-upload', 12, 2.5)} ${logoUrl ? t('dist.logo.replace') : t('dist.logo.upload')}</button>
+                  ${logoUrl ? `<button data-action="distributor-logo-remove" ${uploading ? 'disabled' : ''} style="padding:7px 12px;background:transparent;color:#7A5400;border:1px solid rgba(122,84,0,.3);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('trash', 12, 2.4)} ${t('nav.delete')}</button>` : ''}
+                </div>
+              </div>
+            </div>
+            <input type="file" id="distributorLogoInput" accept="image/*" class="photo-input" data-action="distributor-logo-picked">
+          </div>
+          `;
+        })()}
 
         <!-- Mein Rabatt (read-only) -->
         <div style="margin-top:14px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -9741,6 +9932,30 @@ function renderUsers() {
                     </div>
                     <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Der Distributor sieht Preise als VP × (1 − Rabatt). Beispiel: VP 100 €, Rabatt 30 % → 70 € EK</div>
                   </div>
+                  <!-- Distributor-Logo Upload (Admin-Variante) -->
+                  <div class="field" style="margin:0">
+                    <label class="field__label">Distributor-Logo</label>
+                    ${(() => {
+                      const logoUrl = distributorLogoUrl(d, 'large');
+                      const uploading = !!state.userDraftLogoUploading;
+                      const canUpload = !!d._recordId; // Erst nach erstem Speichern hochladbar
+                      return `
+                      <div style="display:flex;gap:10px;align-items:center">
+                        <div style="width:64px;height:64px;border-radius:10px;background:#fff;border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+                          ${uploading ? `<div class="spinner spinner--sm"></div>` : (logoUrl ? `<img src="${logoUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">` : `<span style="color:var(--c-ink-subtle)">${svg('image', 24, 1.8)}</span>`)}
+                        </div>
+                        <div style="flex:1;min-width:0">
+                          <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button type="button" data-action="admin-distributor-logo-pick" ${(uploading || !canUpload) ? 'disabled' : ''} style="padding:7px 12px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px${(uploading || !canUpload) ? ';opacity:.5;cursor:default' : ''}">${svg('cloud-upload', 12, 2.5)} ${logoUrl ? 'Ersetzen' : 'Hochladen'}</button>
+                            ${logoUrl ? `<button type="button" data-action="admin-distributor-logo-remove" ${uploading ? 'disabled' : ''} style="padding:7px 12px;background:transparent;color:var(--c-red);border:1px solid rgba(229,72,77,.3);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('trash', 12, 2.4)} Löschen</button>` : ''}
+                          </div>
+                          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">${!canUpload ? 'Zuerst User speichern, dann lässt sich das Logo hochladen.' : 'PNG (Transparenz wird erhalten) oder JPG, max. 512 px längste Kante.'}</div>
+                        </div>
+                      </div>
+                      <input type="file" id="adminDistributorLogoInput" accept="image/*" class="photo-input" data-action="admin-distributor-logo-picked">
+                      `;
+                    })()}
+                  </div>
                 ` : ''}
               </div>
             ` : ''}
@@ -11836,6 +12051,33 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    case 'admin-distributor-logo-pick': {
+      if (!isAdmin() || !state.userDraft) break;
+      if (!state.userDraft._recordId) { showToast('Bitte zuerst speichern', 'info', 2400); break; }
+      const inp = document.getElementById('adminDistributorLogoInput');
+      if (inp) inp.click();
+      break;
+    }
+    case 'admin-distributor-logo-remove': {
+      if (!isAdmin() || !state.userDraft || !state.userDraft._recordId) break;
+      if (!confirm('Logo wirklich löschen?')) break;
+      state.userDraftLogoUploading = true;
+      render();
+      airUpdate(TBL_USERS, state.userDraft._recordId, { distributor_logo: [] })
+        .then(() => {
+          state.userDraft.distributorLogo = [];
+          state.users = (state.users || []).map(x => x._recordId === state.userDraft._recordId ? { ...x, distributorLogo: [] } : x);
+          state.userDraftLogoUploading = false;
+          showToast('Logo entfernt', 'success', 1800);
+          render();
+        })
+        .catch(e => {
+          state.userDraftLogoUploading = false;
+          showToast('Löschen fehlgeschlagen: ' + (e?.message || ''), 'error', 3000);
+          render();
+        });
+      break;
+    }
     case 'user-toggle-distributor': {
       if (!state.userDraft) break;
       state.userDraft.isDistributor = !state.userDraft.isDistributor;
@@ -12876,6 +13118,33 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    case 'distributor-logo-pick': {
+      // Triggert verstecktes Datei-Input — Distributor wählt sein Logo
+      const inp = document.getElementById('distributorLogoInput');
+      if (inp) inp.click();
+      break;
+    }
+    case 'distributor-logo-remove': {
+      const u = APP_KEYS.user;
+      if (!u || !isDistributor()) break;
+      if (!confirm(t('dist.logo.confirmDelete') || 'Logo wirklich löschen?')) break;
+      state.distLogoUploading = true;
+      render();
+      airUpdate(TBL_USERS, u._recordId, { distributor_logo: [] })
+        .then(() => {
+          u.distributorLogo = [];
+          state.distLogoUploading = false;
+          state.cSetSavedFlash = true;
+          render();
+          setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800);
+        })
+        .catch(e => {
+          state.distLogoUploading = false;
+          state.cSetError = 'Logo entfernen fehlgeschlagen: ' + (e?.message || '');
+          render();
+        });
+      break;
+    }
     case 'distributor-toggle-show-prices': {
       const u = APP_KEYS.user;
       if (!u || !isDistributor()) break;
@@ -13814,6 +14083,12 @@ document.addEventListener('change', (e) => {
     state._hallPhotoPickFor = null;
     if (!hallName) return;
     uploadHallPhoto(hallName, file);
+  } else if (a === 'distributor-logo-picked') {
+    t.value = '';
+    uploadDistributorLogo(file);
+  } else if (a === 'admin-distributor-logo-picked') {
+    t.value = '';
+    uploadAdminDistributorLogo(file);
   }
 });
 
