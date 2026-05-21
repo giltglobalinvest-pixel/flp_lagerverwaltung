@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.75';
+const APP_VERSION = 'v1.76';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2521,23 +2521,31 @@ function isDistributor() { return isCustomer() && !!APP_KEYS.user?.isDistributor
 function isUnderDistributor() { return isCustomer() && !!APP_KEYS.user?.parentDistributorId && !!APP_KEYS.parentDistributor; }
 function isRegularCustomer() { return isCustomer() && !isDistributor() && !isUnderDistributor(); }
 // Effektiver Preis für aktuellen User — gibt { value, label, visible }
+// Preis-Sichtbarkeit (Flag `show_prices` auf User-Record):
+//   • Admin: immer sichtbar
+//   • Interner User: nur wenn show_prices = true (von Admin freigegeben)
+//   • Distributor: nur wenn show_prices = true (von Admin freigegeben)
+//   • Sub-Customer unter Distributor: nur wenn show_prices = true (vom Distributor freigegeben)
+//   • Regulärer FLP-Kunde: nur wenn it.inShop (wie bisher, kein show_prices-Gate)
 function effectivePriceForUser(it) {
   if (!it || it.vp == null) return { value: null, label: '', visible: false };
   const base = Number(it.vp);
-  // Admin / interner User: Original-VP
-  if (!isCustomer()) return { value: base, label: 'Verkaufspreis', visible: true };
-  // Distributor: EK = VP × (1 - Rabatt/100)
+  const sp = !!APP_KEYS.user?.showPrices;
+  // Admin: immer sichtbar
+  if (isAdmin()) return { value: base, label: 'Verkaufspreis', visible: true };
+  // Interner User (Mitarbeiter): nur wenn freigegeben
+  if (!isCustomer()) return { value: base, label: 'Verkaufspreis', visible: sp };
+  // Distributor: EK = VP × (1 - Rabatt/100), nur wenn freigegeben
   if (isDistributor()) {
+    if (!sp) return { value: null, label: '', visible: false };
     const disc = Number(APP_KEYS.user?.distributorDiscount || 0) || 0;
     return { value: base * (1 - disc/100), label: t('price.purchase') || 'Einkaufspreis', visible: true, isDistributorPrice: true, discount: disc };
   }
-  // Sub-Customer unter Distributor: Endpreis = Distributor-EK × (1 + Marge/100)
-  // Preis-Sichtbarkeit wird pro Sub-Customer vom Distributor explizit freigegeben
-  // (Flag show_prices auf dem User-Record selbst, nicht mehr global beim Distributor)
+  // Sub-Customer unter Distributor: Endpreis = Distributor-EK × (1 + Marge/100), nur wenn freigegeben
   if (isUnderDistributor()) {
     const pd = APP_KEYS.parentDistributor;
     if (!pd) return { value: null, label: '', visible: false };
-    if (!APP_KEYS.user?.showPrices) return { value: null, label: '', visible: false };
+    if (!sp) return { value: null, label: '', visible: false };
     const disc = Number(pd.distributorDiscount || 0) || 0;
     const marg = Number(pd.distributorMargin   || 0) || 0;
     const distPurchase = base * (1 - disc/100);
@@ -10202,6 +10210,17 @@ function renderUsers() {
               </div>
               ${isMyself ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px">Du kannst dich nicht selbst deaktivieren.</div>` : ''}
             </div>
+            ${d.role !== 'admin' ? `
+              <div class="field" style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);margin:0">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+                  <input type="checkbox" data-action="user-toggle-show-prices" ${d.showPrices ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:var(--c-ink)">Darf Preise sehen</div>
+                    <div style="font-size:11px;color:var(--c-ink-mute);line-height:1.4;margin-top:2px">${d.role === 'customer' && d.isDistributor ? 'Distributor sieht erst EK-Preise (VP × (1 − Rabatt)), wenn aktiv.' : d.role === 'customer' ? 'Sub-Kunden bekommen Preise normalerweise vom Distributor freigegeben — diese Option überschreibt das.' : 'Interne Mitarbeiter sehen VP-Preise nur wenn aktiv.'}</div>
+                  </div>
+                </label>
+              </div>
+            ` : ''}
             <div class="field">
               <label class="field__label">Persönlicher Schlüssel</label>
               <div style="display:flex;gap:8px;align-items:stretch">
@@ -11809,15 +11828,19 @@ function updateUserBar() {
   else if (customer){ roleLabel = 'Kunde';      roleClass = 'user-bar__role--customer'; }
   else             { roleLabel = 'User';        roleClass = ''; }
 
-  // Berechtigungs-/Kontext-Pills (kompakt, max. 2 Stück)
+  // Berechtigungs-/Kontext-Pills (kompakt, max. 2-3 Stück)
   const perms = [];
   if (admin) {
     perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Voller Schreibzugriff auf alle Daten">${svg('shield', 9, 2.6)} Voller Zugriff</span>`);
   } else if (dist) {
     const disc = Number(u.distributorDiscount || 0) || 0;
     const marg = Number(u.distributorMargin   || 0) || 0;
-    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Dein Rabatt von FLP auf VP">${svg('badge-check', 9, 2.6)} EK −${disc.toFixed(disc % 1 === 0 ? 0 : 1)}%</span>`);
-    if (marg > 0) perms.push(`<span class="user-bar__perm" title="Aufschlag für deine Sub-Kunden">+${marg.toFixed(marg % 1 === 0 ? 0 : 1)}%</span>`);
+    if (u.showPrices) {
+      perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Dein Rabatt von FLP auf VP">${svg('badge-check', 9, 2.6)} EK −${disc.toFixed(disc % 1 === 0 ? 0 : 1)}%</span>`);
+      if (marg > 0) perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Aufschlag für deine Sub-Kunden">+${marg.toFixed(marg % 1 === 0 ? 0 : 1)}%</span>`);
+    } else {
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="FLP-Admin hat dir noch keine Preise freigegeben">${svg('eye', 9, 2.6)} Preise gesperrt</span>`);
+    }
   } else if (sub) {
     const distName = pd ? (pd.companyName || pd.name || '—') : '—';
     perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Du bist Sub-Kunde dieses Distributors">${svg('badge-check', 9, 2.6)} via ${String(distName).replace(/</g,'&lt;').slice(0, 20)}</span>`);
@@ -11830,7 +11853,11 @@ function updateUserBar() {
     perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Direkter FLP-Kunde">${svg('boxes', 9, 2.6)} FLP-Direkt</span>`);
   } else {
     // Internal user
-    perms.push(`<span class="user-bar__perm" title="Interner Mitarbeiter">${svg('user', 9, 2.6)} Intern</span>`);
+    if (u.showPrices) {
+      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Admin hat Preise freigegeben">${svg('eye', 9, 2.6)} Preise</span>`);
+    } else {
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="Preise sind für dich gesperrt — Admin kann sie freigeben">${svg('eye', 9, 2.6)} Preise gesperrt</span>`);
+    }
   }
 
   bar.classList.add('user-bar--shown');
@@ -12373,6 +12400,12 @@ document.addEventListener('click', (e) => {
       if (!state.userDraft) break;
       state.userDraft.isDistributor = !state.userDraft.isDistributor;
       if (!state.userDraft.isDistributor) state.userDraft.distributorDiscount = 0;
+      render();
+      break;
+    }
+    case 'user-toggle-show-prices': {
+      if (!state.userDraft) break;
+      state.userDraft.showPrices = !state.userDraft.showPrices;
       render();
       break;
     }
