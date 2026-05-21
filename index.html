@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.64';
+const APP_VERSION = 'v1.65';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1799,6 +1799,21 @@ async function loginWithUserKey(userKey) {
     state.lang = APP_KEYS.user.lang;
     try { localStorage.setItem('flp_lang', APP_KEYS.user.lang); } catch(e) {}
   }
+  // Wenn dieser User einem Distributor unterstellt ist \u2192 dessen Profil nachladen
+  // (f\u00fcr Marge + Show-Prices-Flag bei der Preis-Anzeige)
+  APP_KEYS.parentDistributor = null;
+  if (APP_KEYS.user.parentDistributorId) {
+    try {
+      const pdRes = await fetch(
+        'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User/' + encodeURIComponent(APP_KEYS.user.parentDistributorId),
+        { headers }
+      );
+      if (pdRes.ok) {
+        const pdData = await pdRes.json();
+        APP_KEYS.parentDistributor = recordToUser(pdData);
+      }
+    } catch(e) { /* still continue without parent */ }
+  }
 
   // Project-spezifische Keys
   const projectKeysRes = await fetch(
@@ -2341,6 +2356,40 @@ async function ensureFieldsExist(tableName, expectedFields) {
 function userRole() { return String(APP_KEYS.user?.role || 'user').toLowerCase(); }
 function isAdmin() { return userRole() === 'admin'; }
 function isCustomer() { return userRole() === 'customer'; }
+// Distributor-Helfer (Distributor = Customer + Flag is_distributor)
+function isDistributor() { return isCustomer() && !!APP_KEYS.user?.isDistributor; }
+function isUnderDistributor() { return isCustomer() && !!APP_KEYS.user?.parentDistributorId && !!APP_KEYS.parentDistributor; }
+function isRegularCustomer() { return isCustomer() && !isDistributor() && !isUnderDistributor(); }
+// Effektiver Preis für aktuellen User — gibt { value, label, visible }
+function effectivePriceForUser(it) {
+  if (!it || it.vp == null) return { value: null, label: '', visible: false };
+  const base = Number(it.vp);
+  // Admin / interner User: Original-VP
+  if (!isCustomer()) return { value: base, label: 'Verkaufspreis', visible: true };
+  // Distributor: EK = VP × (1 - Rabatt/100)
+  if (isDistributor()) {
+    const disc = Number(APP_KEYS.user?.distributorDiscount || 0) || 0;
+    return { value: base * (1 - disc/100), label: t('price.purchase') || 'Einkaufspreis', visible: true, isDistributorPrice: true, discount: disc };
+  }
+  // Sub-Customer unter Distributor: Endpreis = Distributor-EK × (1 + Marge/100), nur wenn freigegeben
+  if (isUnderDistributor()) {
+    const pd = APP_KEYS.parentDistributor;
+    if (!pd || !pd.distributorShowPrices) return { value: null, label: '', visible: false };
+    const disc = Number(pd.distributorDiscount || 0) || 0;
+    const marg = Number(pd.distributorMargin   || 0) || 0;
+    const distPurchase = base * (1 - disc/100);
+    return { value: distPurchase * (1 + marg/100), label: t('price.endprice') || 'Preis', visible: true, isMarkedUp: true };
+  }
+  // Regulärer FLP-Kunde: Original-VP (wie bisher), nur wenn it.inShop
+  return { value: base, label: t('price.shop') || 'Im Webshop', visible: !!it.inShop };
+}
+// Invite-Link für Distributor: legt seine recordId in den URL-Parameter
+function getDistributorInviteLink() {
+  const u = APP_KEYS.user;
+  if (!u || !isDistributor()) return '';
+  const base = (location.origin + location.pathname).replace(/\/?loader\.html$/i, '/');
+  return base + '?dist=' + encodeURIComponent(u._recordId);
+}
 
 // Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
 // und ist gleichzeitig der Filter beim Laden. Mehrere User können sich Daten teilen,
@@ -2386,6 +2435,17 @@ const USER_FIELDS = [
   { name: 'quote_recipient_id', type: 'singleLineText' },
   // Bevorzugte Sprache des Kunden
   { name: 'lang', type: 'singleLineText' },
+  // ── Distributor-Felder ──────────────────────────────────────
+  // is_distributor: '1' = User ist Distributor (Kunde mit Vertriebs-Funktion)
+  { name: 'is_distributor', type: 'singleLineText' },
+  // distributor_discount: Rabatt in % auf FLP-VP (von Admin gesetzt, nur wenn is_distributor)
+  { name: 'distributor_discount', type: 'singleLineText' },
+  // distributor_margin: Marge in % die der Distributor auf seinen EK aufschlägt für seine Kunden
+  { name: 'distributor_margin', type: 'singleLineText' },
+  // distributor_show_prices: '1' = Sub-Kunden sehen Preise (mit Marge), sonst nicht
+  { name: 'distributor_show_prices', type: 'singleLineText' },
+  // parent_distributor_id: recordId des Distributors, dem dieser Sub-Customer gehört
+  { name: 'parent_distributor_id', type: 'singleLineText' },
   { name: 'created', type: 'singleLineText' },
 ];
 
@@ -2420,6 +2480,12 @@ function recordToUser(rec) {
     employees: (() => { try { return f.employees ? JSON.parse(f.employees) : []; } catch(e) { return []; } })(),
     quoteRecipientId: f.quote_recipient_id || '',
     lang: f.lang || '',
+    // Distributor-Felder
+    isDistributor: String(f.is_distributor || '').trim() === '1' || String(f.is_distributor || '').toLowerCase() === 'true',
+    distributorDiscount: Number(f.distributor_discount || 0) || 0,
+    distributorMargin:   Number(f.distributor_margin   || 0) || 0,
+    distributorShowPrices: String(f.distributor_show_prices || '').trim() === '1' || String(f.distributor_show_prices || '').toLowerCase() === 'true',
+    parentDistributorId: f.parent_distributor_id || '',
     created: f.created || '',
   };
 }
@@ -2453,6 +2519,12 @@ async function persistUser(u) {
   if (u.firmCountry !== undefined) fields.firm_country = u.firmCountry || '';
   if (u.employees !== undefined) fields.employees = JSON.stringify(u.employees || []);
   if (u.quoteRecipientId !== undefined) fields.quote_recipient_id = u.quoteRecipientId || '';
+  // Distributor-Felder
+  if (u.isDistributor !== undefined) fields.is_distributor = u.isDistributor ? '1' : '';
+  if (u.distributorDiscount !== undefined) fields.distributor_discount = (Number(u.distributorDiscount) || 0).toString();
+  if (u.distributorMargin   !== undefined) fields.distributor_margin   = (Number(u.distributorMargin) || 0).toString();
+  if (u.distributorShowPrices !== undefined) fields.distributor_show_prices = u.distributorShowPrices ? '1' : '';
+  if (u.parentDistributorId !== undefined) fields.parent_distributor_id = u.parentDistributorId || '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
   if (u.created) fields.created = u.created;
   if (u._recordId) {
@@ -2679,6 +2751,27 @@ const I18N = {
     'inquiry.noRecipient.goToSettings': 'Zu den Einstellungen',
     // Settings (Customer)
     'cset.title': 'Einstellungen',
+    // Distributor-Settings (für Customer mit is_distributor)
+    'dist.title': 'Distributor-Einstellungen',
+    'dist.sub': 'Du bist Vertriebspartner — verwalte Marge und Sub-Kunden hier.',
+    'dist.myDiscount': 'Dein Rabatt von FLP',
+    'dist.myDiscount.sub': 'Dieser Rabatt wird von FLP für dich festgelegt.',
+    'dist.margin': 'Marge für deine Kunden (Aufschlag in %)',
+    'dist.margin.sub': 'Wird auf deinen EK aufgeschlagen, wenn deine Kunden Preise sehen dürfen.',
+    'dist.showPrices': 'Meine Kunden sollen Preise sehen',
+    'dist.showPrices.sub': 'Wenn aktiv, sehen deine Sub-Kunden Endpreise (EK + Marge). Sonst keine Preise.',
+    'dist.example': 'Beispiel',
+    'dist.example.flp': 'FLP-VP',
+    'dist.example.mine': 'Dein EK',
+    'dist.example.customer': 'Kundenpreis',
+    'dist.inviteLink': 'Einladungs-Link für neue Kunden',
+    'dist.inviteLink.sub': 'Wer sich über diesen Link registriert, wird automatisch dir zugeordnet.',
+    'dist.inviteLink.copy': 'Link kopieren',
+    'dist.inviteLink.copied': 'Link in Zwischenablage kopiert',
+    'price.purchase': 'Einkaufspreis',
+    'price.endprice': 'Preis',
+    'price.shop': 'Im Webshop',
+    'price.distEK': 'Dein EK',
     // Detail screen — Customer-Facing
     'detail.by': 'von',
     'detail.condition': 'Zustand',
@@ -2846,6 +2939,26 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Before you can send an inquiry, you need to add at least one employee with an email address in Settings and mark them as quote recipient.',
     'inquiry.noRecipient.goToSettings': 'Open settings',
     'cset.title': 'Settings',
+    'dist.title': 'Distributor settings',
+    'dist.sub': 'You are a sales partner — manage your margin and sub-customers here.',
+    'dist.myDiscount': 'Your discount from FLP',
+    'dist.myDiscount.sub': 'This discount is set by FLP for you.',
+    'dist.margin': 'Margin for your customers (markup in %)',
+    'dist.margin.sub': 'Added on top of your purchase price when your customers can see prices.',
+    'dist.showPrices': 'Let my customers see prices',
+    'dist.showPrices.sub': 'If active, your sub-customers see end prices (purchase + margin). Otherwise no prices.',
+    'dist.example': 'Example',
+    'dist.example.flp': 'FLP price',
+    'dist.example.mine': 'Your purchase price',
+    'dist.example.customer': 'Customer price',
+    'dist.inviteLink': 'Invite link for new customers',
+    'dist.inviteLink.sub': 'Anyone registering via this link will be linked to you automatically.',
+    'dist.inviteLink.copy': 'Copy link',
+    'dist.inviteLink.copied': 'Link copied to clipboard',
+    'price.purchase': 'Purchase price',
+    'price.endprice': 'Price',
+    'price.shop': 'In webshop',
+    'price.distEK': 'Your price',
     'detail.by': 'by',
     'detail.condition': 'Condition',
     'detail.function': 'Function',
@@ -3008,6 +3121,26 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Antes de enviar una consulta tienes que añadir en Ajustes al menos un empleado con email y marcarlo como destinatario de presupuestos.',
     'inquiry.noRecipient.goToSettings': 'Ir a Ajustes',
     'cset.title': 'Ajustes',
+    'dist.title': 'Ajustes de distribuidor',
+    'dist.sub': 'Eres socio comercial — gestiona aquí tu margen y subclientes.',
+    'dist.myDiscount': 'Tu descuento de FLP',
+    'dist.myDiscount.sub': 'Este descuento lo establece FLP para ti.',
+    'dist.margin': 'Margen para tus clientes (recargo en %)',
+    'dist.margin.sub': 'Se añade a tu precio de compra si tus clientes pueden ver precios.',
+    'dist.showPrices': 'Mostrar precios a mis clientes',
+    'dist.showPrices.sub': 'Si está activo, tus subclientes verán los precios finales (compra + margen). Si no, ningún precio.',
+    'dist.example': 'Ejemplo',
+    'dist.example.flp': 'Precio FLP',
+    'dist.example.mine': 'Tu compra',
+    'dist.example.customer': 'Precio cliente',
+    'dist.inviteLink': 'Enlace de invitación para nuevos clientes',
+    'dist.inviteLink.sub': 'Quien se registre por este enlace quedará vinculado a ti automáticamente.',
+    'dist.inviteLink.copy': 'Copiar enlace',
+    'dist.inviteLink.copied': 'Enlace copiado al portapapeles',
+    'price.purchase': 'Precio de compra',
+    'price.endprice': 'Precio',
+    'price.shop': 'En la tienda',
+    'price.distEK': 'Tu precio',
     'detail.by': 'de',
     'detail.condition': 'Estado',
     'detail.function': 'Función',
@@ -3170,6 +3303,26 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Voor je een aanvraag kunt versturen moet je in Instellingen minstens één medewerker met emailadres toevoegen en als offerte-ontvanger markeren.',
     'inquiry.noRecipient.goToSettings': 'Naar instellingen',
     'cset.title': 'Instellingen',
+    'dist.title': 'Distributeur-instellingen',
+    'dist.sub': 'Je bent verkooppartner — beheer hier je marge en subklanten.',
+    'dist.myDiscount': 'Jouw korting van FLP',
+    'dist.myDiscount.sub': 'Deze korting wordt door FLP voor jou bepaald.',
+    'dist.margin': 'Marge voor je klanten (opslag in %)',
+    'dist.margin.sub': 'Wordt opgeteld bij je inkoopprijs als je klanten prijzen mogen zien.',
+    'dist.showPrices': 'Mijn klanten zien prijzen',
+    'dist.showPrices.sub': 'Indien actief zien je subklanten eindprijzen (inkoop + marge). Anders geen prijzen.',
+    'dist.example': 'Voorbeeld',
+    'dist.example.flp': 'FLP-prijs',
+    'dist.example.mine': 'Jouw inkoop',
+    'dist.example.customer': 'Klantprijs',
+    'dist.inviteLink': 'Uitnodigingslink voor nieuwe klanten',
+    'dist.inviteLink.sub': 'Wie zich via deze link aanmeldt, wordt automatisch aan jou gekoppeld.',
+    'dist.inviteLink.copy': 'Link kopiëren',
+    'dist.inviteLink.copied': 'Link gekopieerd naar klembord',
+    'price.purchase': 'Inkoopprijs',
+    'price.endprice': 'Prijs',
+    'price.shop': 'In webshop',
+    'price.distEK': 'Jouw prijs',
     'detail.by': 'van',
     'detail.condition': 'Staat',
     'detail.function': 'Functie',
@@ -3332,6 +3485,26 @@ const I18N = {
     'inquiry.noRecipient.sub': 'Avant d’envoyer une demande, tu dois ajouter dans Paramètres au moins un employé avec adresse email et le marquer comme destinataire des devis.',
     'inquiry.noRecipient.goToSettings': 'Aller aux paramètres',
     'cset.title': 'Paramètres',
+    'dist.title': 'Paramètres distributeur',
+    'dist.sub': 'Tu es partenaire commercial — gère ta marge et tes sous-clients ici.',
+    'dist.myDiscount': 'Ta remise FLP',
+    'dist.myDiscount.sub': 'Cette remise est définie par FLP pour toi.',
+    'dist.margin': 'Marge pour tes clients (majoration en %)',
+    'dist.margin.sub': 'Ajoutée à ton prix d’achat lorsque tes clients peuvent voir les prix.',
+    'dist.showPrices': 'Mes clients voient les prix',
+    'dist.showPrices.sub': 'Si activé, tes sous-clients voient les prix finaux (achat + marge). Sinon aucun prix.',
+    'dist.example': 'Exemple',
+    'dist.example.flp': 'Prix FLP',
+    'dist.example.mine': 'Ton achat',
+    'dist.example.customer': 'Prix client',
+    'dist.inviteLink': 'Lien d’invitation pour nouveaux clients',
+    'dist.inviteLink.sub': 'Toute personne qui s’inscrit via ce lien sera automatiquement liée à toi.',
+    'dist.inviteLink.copy': 'Copier le lien',
+    'dist.inviteLink.copied': 'Lien copié dans le presse-papier',
+    'price.purchase': 'Prix d’achat',
+    'price.endprice': 'Prix',
+    'price.shop': 'En boutique',
+    'price.distEK': 'Ton prix',
     'detail.by': 'de',
     'detail.condition': 'État',
     'detail.function': 'Fonction',
@@ -6916,6 +7089,71 @@ function renderCustomerSettings() {
       </div>
     </div>
 
+    ${isDistributor() ? (() => {
+      const disc = Number(u.distributorDiscount || 0) || 0;
+      const marg = Number(u.distributorMargin   || 0) || 0;
+      const showPrices = !!u.distributorShowPrices;
+      const inviteLink = getDistributorInviteLink();
+      return `
+      <!-- DISTRIBUTOR-EINSTELLUNGEN -->
+      <div style="padding:18px;background:linear-gradient(135deg,#FFF8E1 0%,#FFF1B0 100%);border:1px solid #F5C95B;border-radius:var(--r-tile);box-shadow:0 6px 20px rgba(122,84,0,.12)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <div style="width:32px;height:32px;border-radius:var(--r-md);background:#7A5400;color:#FFF8E1;display:flex;align-items:center;justify-content:center">${svg('badge-check', 16, 2.4)}</div>
+          <div>
+            <div style="font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:#5A3F00">${t('dist.title')}</div>
+            <div style="font-size:11px;color:#7A5400;line-height:1.3;margin-top:1px">${t('dist.sub')}</div>
+          </div>
+        </div>
+
+        <!-- Mein Rabatt (read-only) -->
+        <div style="margin-top:14px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em">${t('dist.myDiscount')}</div>
+            <div style="font-size:11.5px;color:#5A3F00;margin-top:3px;line-height:1.4">${t('dist.myDiscount.sub')}</div>
+          </div>
+          <div style="font-family:var(--f-mono);font-size:24px;font-weight:700;color:#5A3F00;letter-spacing:.02em;flex-shrink:0">${disc.toFixed(disc % 1 === 0 ? 0 : 1)} %</div>
+        </div>
+
+        <!-- Marge (editierbar) -->
+        <div class="field" style="margin-top:12px">
+          <label class="field__label" style="color:#5A3F00">${t('dist.margin')}</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input class="field__input" type="number" min="0" max="500" step="0.5" data-action="distributor-margin-input" value="${marg}" placeholder="0" style="flex:1;font-family:var(--f-mono);text-align:right;background:#FFFCEF;border-color:rgba(122,84,0,.2)">
+            <span style="font-size:14px;font-weight:700;color:#5A3F00">%</span>
+          </div>
+          <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.margin.sub')}</div>
+        </div>
+
+        <!-- Toggle: meine Kunden sehen Preise -->
+        <label style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);cursor:pointer">
+          <input type="checkbox" data-action="distributor-toggle-show-prices" ${showPrices ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:#5A3F00">${t('dist.showPrices')}</div>
+            <div style="font-size:11px;color:#7A5400;margin-top:2px;line-height:1.4">${t('dist.showPrices.sub')}</div>
+          </div>
+        </label>
+
+        <!-- Preis-Beispiel -->
+        <div style="margin-top:12px;padding:12px 14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md);font-size:11.5px;line-height:1.6;color:#5A3F00;font-family:var(--f-mono)">
+          <div style="font-family:var(--f-display);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${t('dist.example')}</div>
+          <div style="display:flex;justify-content:space-between"><span>${t('dist.example.flp')}</span><span style="font-weight:600">100,00 €</span></div>
+          <div style="display:flex;justify-content:space-between"><span>${t('dist.example.mine')} (–${disc.toFixed(disc % 1 === 0 ? 0 : 1)} %)</span><span style="font-weight:700;color:#0A6B2C">${(100 * (1 - disc/100)).toFixed(2)} €</span></div>
+          <div style="display:flex;justify-content:space-between"><span>${t('dist.example.customer')} (+${marg.toFixed(marg % 1 === 0 ? 0 : 1)} %)</span><span style="font-weight:700">${(100 * (1 - disc/100) * (1 + marg/100)).toFixed(2)} €</span></div>
+        </div>
+
+        <!-- Invite-Link -->
+        <div style="margin-top:14px;padding:14px;background:#FFFCEF;border:1px solid rgba(122,84,0,.15);border-radius:var(--r-md)">
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${t('dist.inviteLink')}</div>
+          <div style="font-size:11.5px;color:#5A3F00;line-height:1.4;margin-bottom:10px">${t('dist.inviteLink.sub')}</div>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input type="text" readonly value="${inviteLink.replace(/"/g,'&quot;')}" id="distInviteLinkInput" style="flex:1;padding:9px 12px;font-family:var(--f-mono);font-size:11.5px;background:#fff;border:1px solid rgba(122,84,0,.2);border-radius:8px;color:#5A3F00;outline:none;overflow:hidden;text-overflow:ellipsis">
+            <button data-action="copy-distributor-link" style="padding:9px 14px;background:#7A5400;color:#FFF8E1;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('copy', 12, 2.5)} ${t('dist.inviteLink.copy')}</button>
+          </div>
+        </div>
+      </div>
+      `;
+    })() : ''}
+
     <!-- MEIN PROFIL -->
     <div style="padding:16px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
       <div style="font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--c-ink);margin-bottom:2px">${t('cset.profile.title')}</div>
@@ -7758,14 +7996,31 @@ function renderDetail() {
           </div>` : ''}
       </div>`;
     })() : ''}
-    ${(it.inShop && it.vp != null && !it.sold) ? `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#E6F4EA;border:1px solid #8FD4A6;border-radius:var(--r-tile);gap:10px">
-        <div style="display:flex;align-items:center;gap:8px;color:#0A6B2C">
-          ${svg('boxes', 16, 2.4)}
-          <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Im Webshop</span>
+    ${(() => {
+      // Effektiver Preis je nach Rolle: Admin/User = VP (nur wenn inShop), Distributor = EK (immer wenn vp), Sub-Customer = Endpreis (nur wenn inShop + showPrices freigegeben)
+      if (it.vp == null || it.sold) return '';
+      const ep = effectivePriceForUser(it);
+      if (!ep.visible || ep.value == null) return '';
+      // inShop-Gate für alle Rollen außer Distributor (der sieht EK immer)
+      if (!isDistributor() && !it.inShop) return '';
+      const isDist = ep.isDistributorPrice;
+      const isMark = ep.isMarkedUp;
+      const bg     = isDist ? '#FFF8E1' : '#E6F4EA';
+      const border = isDist ? '#F5C95B' : '#8FD4A6';
+      const text   = isDist ? '#5A3F00' : '#0A6B2C';
+      const icon   = isDist ? 'badge-check' : 'boxes';
+      const label  = isDist ? t('price.distEK') : (isMark ? t('price.endprice') : t('price.shop'));
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${bg};border:1px solid ${border};border-radius:var(--r-tile);gap:10px">
+          <div style="display:flex;align-items:center;gap:8px;color:${text}">
+            ${svg(icon, 16, 2.4)}
+            <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</span>
+            ${isDist && ep.discount ? `<span style="font-size:10px;font-weight:600;background:#fff;color:${text};padding:2px 7px;border-radius:6px;letter-spacing:.02em">−${Number(ep.discount).toFixed(ep.discount % 1 === 0 ? 0 : 1)} %</span>` : ''}
+          </div>
+          <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:${text};letter-spacing:.02em">${formatVp(ep.value)}</div>
         </div>
-        <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:#0A6B2C;letter-spacing:.02em">${formatVp(it.vp)}</div>
-      </div>` : ''}
+      `;
+    })()}
     ${(it.owner || '').trim() ? `
       <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(135deg,#fff 0%,#FFEDD5 100%);border:1px solid #FDBA74;border-radius:var(--r-tile)">
         <div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center">${svg('user', 16, 2.4)}</div>
@@ -9433,11 +9688,16 @@ function renderUsers() {
             </div>
             <div class="field">
               <label class="field__label">Rolle</label>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <button class="picker-tile" data-action="user-set-role" data-role="user" style="${d.role !== 'admin' ? 'background:var(--c-blue-soft);border-color:var(--c-blue);border-width:1.5px' : ''}">
-                  <span style="color:${d.role !== 'admin' ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex">${svg('user', 18, 2.4)}</span>
-                  <span class="picker-tile__label" style="color:${d.role !== 'admin' ? 'var(--c-blue-deep)' : 'var(--c-ink-soft)'}">User</span>
-                  <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Standard</span>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <button class="picker-tile" data-action="user-set-role" data-role="user" style="${d.role === 'user' ? 'background:var(--c-blue-soft);border-color:var(--c-blue);border-width:1.5px' : ''}">
+                  <span style="color:${d.role === 'user' ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex">${svg('user', 18, 2.4)}</span>
+                  <span class="picker-tile__label" style="color:${d.role === 'user' ? 'var(--c-blue-deep)' : 'var(--c-ink-soft)'}">User</span>
+                  <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Intern</span>
+                </button>
+                <button class="picker-tile" data-action="user-set-role" data-role="customer" style="${d.role === 'customer' ? 'background:var(--c-blue-soft);border-color:var(--c-blue);border-width:1.5px' : ''}">
+                  <span style="color:${d.role === 'customer' ? 'var(--c-blue)' : 'var(--c-ink-mute)'};display:flex">${svg('boxes', 18, 2.4)}</span>
+                  <span class="picker-tile__label" style="color:${d.role === 'customer' ? 'var(--c-blue-deep)' : 'var(--c-ink-soft)'}">Kunde</span>
+                  <span style="font-size:10px;font-weight:500;color:var(--c-ink-mute);margin-top:-2px">Externer Zugang</span>
                 </button>
                 <button class="picker-tile" data-action="user-set-role" data-role="admin" ${isMyself ? 'disabled' : ''} style="${d.role === 'admin' ? 'background:#FFF1B0;border-color:#7A5400;border-width:1.5px' : ''}${isMyself ? ';opacity:.5;cursor:not-allowed' : ''}">
                   <span style="color:${d.role === 'admin' ? '#7A5400' : 'var(--c-ink-mute)'};display:flex">${svg('shield', 18, 2.4)}</span>
@@ -9447,6 +9707,27 @@ function renderUsers() {
               </div>
               ${isMyself ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px">Du kannst deine eigene Admin-Rolle nicht entfernen.</div>` : ''}
             </div>
+            ${d.role === 'customer' ? `
+              <div class="field" style="padding:14px;background:var(--c-blue-soft);border:1px solid var(--c-blue);border-radius:var(--r-md);display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.querySelector('[data-action=user-toggle-distributor]').click()">
+                  <input type="checkbox" data-action="user-toggle-distributor" ${d.isDistributor ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer">
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:var(--c-blue-deep)">Ist Distributor</div>
+                    <div style="font-size:11px;color:var(--c-ink-mute)">Darf Preise sehen + eigene Sub-Kunden via Invite-Link verwalten</div>
+                  </div>
+                </div>
+                ${d.isDistributor ? `
+                  <div class="field" style="margin:0">
+                    <label class="field__label">Distributor-Rabatt auf FLP-Preis</label>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <input class="field__input" type="number" min="0" max="100" step="0.5" data-action="user-distributor-discount-input" value="${Number(d.distributorDiscount || 0)}" placeholder="0" style="flex:1;font-family:var(--f-mono);text-align:right">
+                      <span style="font-size:14px;font-weight:700;color:var(--c-ink-soft)">%</span>
+                    </div>
+                    <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Der Distributor sieht Preise als VP × (1 − Rabatt). Beispiel: VP 100 €, Rabatt 30 % → 70 € EK</div>
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
             <div class="field">
               <label class="field__label">Status</label>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -10931,6 +11212,13 @@ function renderRegister() {
       <span>Nach der Registrierung bekommst du sofort einen persönlichen Zugangs-Code angezeigt. Damit kannst du Artikel per Foto suchen und Anfragen stellen.</span>
     </div>
 
+    ${state.signupDistributorId ? `
+      <div style="margin-top:12px;padding:11px 14px;background:#FFF8E1;border:1px solid #F5C95B;border-radius:var(--r-md);font-size:12px;color:#5A3F00;display:flex;align-items:flex-start;gap:10px">
+        <span style="flex-shrink:0;margin-top:2px">${svg('badge-check', 13, 2.5)}</span>
+        <span><strong>Distributor-Einladung erkannt.</strong> Du wirst automatisch mit deinem FLP-Vertriebspartner verknüpft.</span>
+      </div>
+    ` : ''}
+
     ${state.registerError ? `<div class="login-error" style="margin-top:14px">${svg('alert-triangle', 13, 2.5)}<span>${state.registerError}</span></div>` : ''}
 
     <button id="registerSubmitBtn" data-action="register-submit" class="login-btn" style="margin-top:18px;width:100%;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);opacity:${(valid && !pending) ? '1' : '.55'};cursor:${pending ? 'default' : 'pointer'}" ${pending ? 'disabled' : ''}>
@@ -11532,6 +11820,14 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    case 'user-toggle-distributor': {
+      if (!state.userDraft) break;
+      state.userDraft.isDistributor = !state.userDraft.isDistributor;
+      if (!state.userDraft.isDistributor) state.userDraft.distributorDiscount = 0;
+      render();
+      break;
+    }
+    case 'user-distributor-discount-input': /* input event */ break;
     case 'user-save': {
       if (!isAdmin() || !state.userDraft) break;
       const d = state.userDraft;
@@ -11754,6 +12050,12 @@ document.addEventListener('click', (e) => {
           if ((d.phone || '').trim()) newUserFields.phone = (d.phone || '').trim();
           if ((d.company || '').trim()) newUserFields.company_name = (d.company || '').trim();
           if (adminTenant) newUserFields.tenant_key = adminTenant;
+          // Distributor-Verknüpfung: kommt aus ?dist= URL-Param (detectDistributorParam beim Init)
+          if (state.signupDistributorId) {
+            // Nur akzeptieren wenn der Distributor wirklich existiert UND is_distributor ist
+            const pd = existing.find(u => u._recordId === state.signupDistributorId && u.isDistributor);
+            if (pd) newUserFields.parent_distributor_id = pd._recordId;
+          }
 
           // Schritt 4: Mit Customer-Register-Token schreiben
           const writeRes = await fetch(
@@ -11788,6 +12090,9 @@ document.addEventListener('click', (e) => {
           };
           state.registerPending = false;
           state.view = 'registerSuccess';
+          // Distributor-Signup-Marker entfernen (verbraucht)
+          state.signupDistributorId = '';
+          try { localStorage.removeItem('flp_signup_dist'); } catch(e) {}
           render();
         } catch (e) {
           state.registerPending = false;
@@ -12555,6 +12860,31 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
+    case 'distributor-toggle-show-prices': {
+      const u = APP_KEYS.user;
+      if (!u || !isDistributor()) break;
+      u.distributorShowPrices = !u.distributorShowPrices;
+      persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
+        .catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+      render();
+      break;
+    }
+    case 'distributor-margin-input': /* input event */ break;
+    case 'copy-distributor-link': {
+      const link = getDistributorInviteLink();
+      if (!link) break;
+      const onOk = () => showToast(t('dist.inviteLink.copied') || 'Link kopiert', 'success', 2200);
+      const fallback = () => {
+        const inp = document.getElementById('distInviteLinkInput');
+        if (inp) { inp.select(); try { document.execCommand('copy'); onOk(); } catch(e2) {} }
+      };
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(link).then(onOk).catch(fallback);
+      } else {
+        fallback();
+      }
+      break;
+    }
     case 'customer-set-recipient': {
       const u = APP_KEYS.user;
       if (!u) break;
@@ -13304,6 +13634,18 @@ document.addEventListener('input', (e) => {
       persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
     }, 600);
   }
+  else if (a === 'distributor-margin-input') {
+    const u = APP_KEYS.user;
+    if (!u || !isDistributor()) return;
+    u.distributorMargin = Number(t.value) || 0;
+    if (window.__cMarginTimer) clearTimeout(window.__cMarginTimer);
+    window.__cMarginTimer = setTimeout(() => {
+      persistUser(u).then(() => {
+        // Beispiel-Vorschau live updaten ohne kompletten Re-Render? Einfach: full render
+        render();
+      }).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+    }, 600);
+  }
   else if (a === 'customer-set-profile-input') {
     const u = APP_KEYS.user;
     if (!u) return;
@@ -13346,6 +13688,9 @@ document.addEventListener('input', (e) => {
   else if (a === 'return-loc-input') { if (state.returnDraft) state.returnDraft.loc = t.value; }
   else if (a === 'user-name-input') { if (state.userDraft) state.userDraft.name = t.value; }
   else if (a === 'user-key-input')  { if (state.userDraft) state.userDraft.apiKey = t.value; }
+  else if (a === 'user-distributor-discount-input') {
+    if (state.userDraft) state.userDraft.distributorDiscount = Number(t.value) || 0;
+  }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
     if (!Array.isArray(state.editForm.specs)) state.editForm.specs = [];
@@ -13609,6 +13954,17 @@ async function init() {
   state.deviceMode = detectDeviceMode();
   // Sprache initial bestimmen (localStorage \u2192 navigator.language \u2192 'de')
   state.lang = detectInitialLang();
+  // Distributor-Invite-Link: ?dist=<recordId> aus URL \u00fcbernehmen (\u00fcberlebt Reload via localStorage)
+  try {
+    const url = new URL(location.href);
+    const distParam = url.searchParams.get('dist');
+    if (distParam && /^rec[A-Za-z0-9]{14,}$/.test(distParam)) {
+      state.signupDistributorId = distParam;
+      try { localStorage.setItem('flp_signup_dist', distParam); } catch(e) {}
+    } else {
+      try { state.signupDistributorId = localStorage.getItem('flp_signup_dist') || ''; } catch(e) {}
+    }
+  } catch(e) {}
   // Erst rendern (zeigt Boot-Spinner), dann Auto-Login probieren
   render();
   const ok = await tryAutoLogin();
