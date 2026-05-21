@@ -1096,7 +1096,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.87';
+const APP_VERSION = 'v1.88';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -10914,6 +10914,82 @@ function renderUsers() {
               </div>
               ${isMyself ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px">Du kannst dich nicht selbst deaktivieren.</div>` : ''}
             </div>
+
+            <!-- Kontaktdaten — editierbar (alle Stammdaten, die der User selbst eintragen kann) -->
+            <div class="field" style="padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);margin:0;display:flex;flex-direction:column;gap:10px">
+              <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">${svg('user', 10, 2.6)} Kontaktdaten</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="field" style="margin:0">
+                  <label class="field__label">Vorname</label>
+                  <input class="field__input" data-action="user-contact-input" data-key="firstName" value="${(d.firstName || '').replace(/"/g, '&quot;')}" placeholder="Vorname" autocomplete="off">
+                </div>
+                <div class="field" style="margin:0">
+                  <label class="field__label">Nachname</label>
+                  <input class="field__input" data-action="user-contact-input" data-key="lastName" value="${(d.lastName || '').replace(/"/g, '&quot;')}" placeholder="Nachname" autocomplete="off">
+                </div>
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Email (persönlich)</label>
+                <input class="field__input" type="email" data-action="user-contact-input" data-key="email" value="${(d.email || '').replace(/"/g, '&quot;')}" placeholder="max@firma.de" autocomplete="off" inputmode="email">
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Telefon / Mobil</label>
+                <input class="field__input" type="tel" data-action="user-contact-input" data-key="phone" value="${(d.phone || '').replace(/"/g, '&quot;')}" placeholder="+49 …" autocomplete="off" inputmode="tel">
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Firma</label>
+                <input class="field__input" data-action="user-contact-input" data-key="companyName" value="${(d.companyName || '').replace(/"/g, '&quot;')}" placeholder="Firma GmbH" autocomplete="off">
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Firmen-Email <span style="color:var(--c-ink-mute);font-weight:500">(separate Sammeladresse, falls vorhanden)</span></label>
+                <input class="field__input" type="email" data-action="user-contact-input" data-key="firmEmail" value="${(d.firmEmail || '').replace(/"/g, '&quot;')}" placeholder="bestellung@firma.de" autocomplete="off" inputmode="email">
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Straße + Nr.</label>
+                <input class="field__input" data-action="user-contact-input" data-key="firmStreet" value="${(d.firmStreet || '').replace(/"/g, '&quot;')}" placeholder="Musterstr. 5" autocomplete="off">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px">
+                <div class="field" style="margin:0">
+                  <label class="field__label">PLZ</label>
+                  <input class="field__input" data-action="user-contact-input" data-key="firmZip" value="${(d.firmZip || '').replace(/"/g, '&quot;')}" placeholder="70176" autocomplete="off" inputmode="numeric">
+                </div>
+                <div class="field" style="margin:0">
+                  <label class="field__label">Ort</label>
+                  <input class="field__input" data-action="user-contact-input" data-key="firmCity" value="${(d.firmCity || '').replace(/"/g, '&quot;')}" placeholder="Stuttgart" autocomplete="off">
+                </div>
+              </div>
+              <div class="field" style="margin:0">
+                <label class="field__label">Land</label>
+                <input class="field__input" data-action="user-contact-input" data-key="firmCountry" value="${(d.firmCountry || '').replace(/"/g, '&quot;')}" placeholder="Deutschland" autocomplete="off">
+              </div>
+
+              <!-- Read-only Meta-Infos -->
+              ${(() => {
+                const meta = [];
+                if (d.lang) meta.push(['Sprache', { de:'Deutsch', en:'English', es:'Español', nl:'Nederlands', fr:'Français' }[d.lang] || d.lang]);
+                if (Array.isArray(d.employees) && d.employees.length) meta.push(['Mitarbeiter', d.employees.length + ' angelegt']);
+                if (d.parentDistributorId) {
+                  const pd = (state.users || []).find(x => x._recordId === d.parentDistributorId);
+                  meta.push(['Über Distributor', pd ? (pd.companyName || pd.name || pd.email || '—') : '—']);
+                }
+                if (d.created) {
+                  try { meta.push(['Erstellt', new Date(d.created).toLocaleDateString('de-DE') + ' ' + new Date(d.created).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})]); } catch(e) {}
+                }
+                if (d._recordId) meta.push(['Record-ID', d._recordId]);
+                if (!meta.length) return '';
+                return `
+                <div style="padding:10px 0 0;border-top:1px solid var(--c-divider);display:flex;flex-direction:column;gap:5px;font-size:11px">
+                  ${meta.map(([k,v]) => `
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                      <span style="color:var(--c-ink-mute);font-weight:500;flex-shrink:0">${k}</span>
+                      <span style="color:var(--c-ink);font-weight:600;text-align:right;word-break:break-all;font-family:${k === 'Record-ID' ? 'var(--f-mono);font-size:10px' : 'inherit'}">${String(v).replace(/</g,'&lt;')}</span>
+                    </div>
+                  `).join('')}
+                </div>
+                `;
+              })()}
+            </div>
+
             ${d.role !== 'admin' ? `
               <div class="field" style="padding:12px 14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);margin:0">
                 <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
@@ -13196,6 +13272,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'user-distributor-discount-input': /* input event */ break;
+    case 'user-contact-input': /* input event */ break;
     case 'user-save': {
       if (!isAdmin() || !state.userDraft) break;
       const d = state.userDraft;
@@ -15327,6 +15404,10 @@ document.addEventListener('input', (e) => {
   else if (a === 'return-loc-input') { if (state.returnDraft) state.returnDraft.loc = t.value; }
   else if (a === 'user-name-input') { if (state.userDraft) state.userDraft.name = t.value; }
   else if (a === 'user-key-input')  { if (state.userDraft) state.userDraft.apiKey = t.value; }
+  else if (a === 'user-contact-input') {
+    // Admin editiert Kontaktdaten direkt im User-Editor (firstName/lastName/email/phone/companyName/firmEmail/firm*)
+    if (state.userDraft && t.dataset.key) state.userDraft[t.dataset.key] = t.value;
+  }
   else if (a === 'user-distributor-discount-input') {
     if (state.userDraft) state.userDraft.distributorDiscount = Number(t.value) || 0;
   }
