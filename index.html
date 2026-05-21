@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.78';
+const APP_VERSION = 'v1.79';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2998,6 +2998,9 @@ const I18N = {
     'dist.customers.pricesOff': 'Preise aus',
     'dist.customers.shareWa': 'WhatsApp',
     'dist.customers.copyMsg': 'Text kopieren',
+    'dist.customers.lock': 'Sperren',
+    'dist.customers.unlock': 'Entsperren',
+    'dist.customers.lockedBadge': 'Gesperrt',
     'dist.example': 'Beispiel',
     'dist.example.flp': 'FLP-VP',
     'dist.example.mine': 'Dein EK',
@@ -3203,6 +3206,9 @@ const I18N = {
     'dist.customers.pricesOff': 'Prices off',
     'dist.customers.shareWa': 'WhatsApp',
     'dist.customers.copyMsg': 'Copy text',
+    'dist.customers.lock': 'Block',
+    'dist.customers.unlock': 'Unblock',
+    'dist.customers.lockedBadge': 'Blocked',
     'dist.example': 'Example',
     'dist.example.flp': 'FLP price',
     'dist.example.mine': 'Your purchase price',
@@ -3403,6 +3409,9 @@ const I18N = {
     'dist.customers.pricesOff': 'Precios no',
     'dist.customers.shareWa': 'WhatsApp',
     'dist.customers.copyMsg': 'Copiar texto',
+    'dist.customers.lock': 'Bloquear',
+    'dist.customers.unlock': 'Desbloquear',
+    'dist.customers.lockedBadge': 'Bloqueado',
     'dist.example': 'Ejemplo',
     'dist.example.flp': 'Precio FLP',
     'dist.example.mine': 'Tu compra',
@@ -3603,6 +3612,9 @@ const I18N = {
     'dist.customers.pricesOff': 'Prijzen uit',
     'dist.customers.shareWa': 'WhatsApp',
     'dist.customers.copyMsg': 'Tekst kopiëren',
+    'dist.customers.lock': 'Blokkeren',
+    'dist.customers.unlock': 'Deblokkeren',
+    'dist.customers.lockedBadge': 'Geblokkeerd',
     'dist.example': 'Voorbeeld',
     'dist.example.flp': 'FLP-prijs',
     'dist.example.mine': 'Jouw inkoop',
@@ -3803,6 +3815,9 @@ const I18N = {
     'dist.customers.pricesOff': 'Prix désactivés',
     'dist.customers.shareWa': 'WhatsApp',
     'dist.customers.copyMsg': 'Copier texte',
+    'dist.customers.lock': 'Bloquer',
+    'dist.customers.unlock': 'Débloquer',
+    'dist.customers.lockedBadge': 'Bloqué',
     'dist.example': 'Exemple',
     'dist.example.flp': 'Prix FLP',
     'dist.example.mine': 'Ton achat',
@@ -7591,24 +7606,28 @@ function renderCustomerSettings() {
                   const checked = !!sc.showPrices;
                   const updating = state.distSubUpdatingId === sc._recordId;
                   const hasKey = !!sc.apiKey;
+                  const isLocked = (sc.status || '').toLowerCase() !== 'aktiv';
                   return `
-                  <div style="background:#fff;border:1px solid rgba(122,84,0,.15);border-radius:8px;overflow:hidden;${updating ? 'opacity:.6' : ''}">
-                    <div style="padding:10px 12px;display:flex;align-items:flex-start;gap:10px">
+                  <div style="background:${isLocked ? '#FAF6F0' : '#fff'};border:1px solid ${isLocked ? '#D4A574' : 'rgba(122,84,0,.15)'};border-radius:8px;overflow:hidden;${updating ? 'opacity:.6' : ''}${isLocked ? ';position:relative' : ''}">
+                    ${isLocked ? `<div style="position:absolute;top:8px;right:10px;font-size:9px;font-weight:700;color:#7A2E0E;background:#FCD9C7;border:1px solid #F5A582;padding:2px 7px;border-radius:6px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:3px">${svg('shield', 9, 2.6)} ${t('dist.customers.lockedBadge')}</div>` : ''}
+                    <div style="padding:10px 12px;display:flex;align-items:flex-start;gap:10px${isLocked ? ';opacity:.7;padding-top:14px' : ''}">
                       <div style="flex:1;min-width:0">
-                        <div style="font-size:12.5px;font-weight:600;color:#5A3F00">${fullName.replace(/</g,'&lt;')}</div>
+                        <div style="font-size:12.5px;font-weight:600;color:#5A3F00;${isLocked ? 'text-decoration:line-through;text-decoration-color:rgba(122,46,14,.45)' : ''}">${fullName.replace(/</g,'&lt;')}</div>
                         ${sc.companyName ? `<div style="font-size:10.5px;color:#7A5400;margin-top:1px">${sc.companyName.replace(/</g,'&lt;')}</div>` : ''}
                         ${sc.email ? `<div style="font-size:10.5px;color:#7A5400;opacity:.85;margin-top:1px">${sc.email.replace(/</g,'&lt;')}</div>` : ''}
                         ${sc.phone ? `<div style="font-size:10.5px;color:#7A5400;opacity:.75;margin-top:1px;font-family:var(--f-mono)">${sc.phone.replace(/</g,'&lt;')}</div>` : ''}
                         ${hasKey ? `<div style="font-size:10px;color:#7A5400;opacity:.7;margin-top:4px;font-family:var(--f-mono);word-break:break-all">${svg('key', 8, 2.6)} ${sc.apiKey.slice(0, 14)}${sc.apiKey.length > 14 ? '…' : ''}</div>` : ''}
                       </div>
-                      <!-- Preise-Toggle (rechts) -->
-                      <label style="display:flex;align-items:center;gap:6px;cursor:${updating?'wait':'pointer'};flex-shrink:0;padding:4px 8px;background:#FFFCEF;border-radius:6px;border:1px solid rgba(122,84,0,.1)">
-                        <input type="checkbox" data-action="distributor-toggle-customer-prices" data-rid="${sc._recordId}" ${checked ? 'checked' : ''} ${updating ? 'disabled' : ''} style="width:14px;height:14px;cursor:${updating?'wait':'pointer'};flex-shrink:0">
-                        ${updating ? `<div class="spinner spinner--sm" style="border-color:rgba(122,84,0,.2);border-top-color:#7A5400;width:12px;height:12px;border-width:2px"></div>` : `<span style="font-size:9.5px;font-weight:700;color:${checked?'#0A6B2C':'#7A5400'};text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">${checked ? t('dist.customers.pricesOn') : t('dist.customers.pricesOff')}</span>`}
-                      </label>
+                      ${!isLocked ? `
+                        <!-- Preise-Toggle (rechts) -->
+                        <label style="display:flex;align-items:center;gap:6px;cursor:${updating?'wait':'pointer'};flex-shrink:0;padding:4px 8px;background:#FFFCEF;border-radius:6px;border:1px solid rgba(122,84,0,.1)">
+                          <input type="checkbox" data-action="distributor-toggle-customer-prices" data-rid="${sc._recordId}" ${checked ? 'checked' : ''} ${updating ? 'disabled' : ''} style="width:14px;height:14px;cursor:${updating?'wait':'pointer'};flex-shrink:0">
+                          ${updating ? `<div class="spinner spinner--sm" style="border-color:rgba(122,84,0,.2);border-top-color:#7A5400;width:12px;height:12px;border-width:2px"></div>` : `<span style="font-size:9.5px;font-weight:700;color:${checked?'#0A6B2C':'#7A5400'};text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">${checked ? t('dist.customers.pricesOn') : t('dist.customers.pricesOff')}</span>`}
+                        </label>
+                      ` : ''}
                     </div>
-                    ${hasKey ? `
-                      <div style="display:flex;border-top:1px solid rgba(122,84,0,.1)">
+                    <div style="display:flex;border-top:1px solid ${isLocked ? '#D4A574' : 'rgba(122,84,0,.1)'}">
+                      ${hasKey && !isLocked ? `
                         <button data-action="dist-customer-share-wa" data-rid="${sc._recordId}" style="flex:1;padding:9px 10px;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;color:#fff;background:#25D366;border:0;cursor:pointer" title="Code per WhatsApp teilen">
                           ${svg('message-circle', 11, 2.5)} ${t('dist.customers.shareWa')}
                         </button>
@@ -7618,8 +7637,11 @@ function renderCustomerSettings() {
                         <button data-action="dist-customer-copy-code" data-rid="${sc._recordId}" style="flex:none;padding:9px 12px;display:inline-flex;align-items:center;justify-content:center;color:#7A5400;background:#FFFCEF;border:0;border-left:1px solid rgba(122,84,0,.1);cursor:pointer" title="Nur Code kopieren">
                           ${svg('key', 11, 2.5)}
                         </button>
-                      </div>
-                    ` : ''}
+                      ` : ''}
+                      <button data-action="dist-customer-toggle-active" data-rid="${sc._recordId}" ${updating ? 'disabled' : ''} style="${hasKey && !isLocked ? 'flex:none;padding:9px 12px' : 'flex:1;padding:9px 12px'};display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;color:${isLocked ? '#0A6B2C' : '#9A2A1A'};background:${isLocked ? '#E6F4EA' : '#FBEBE8'};border:0;${hasKey && !isLocked ? 'border-left:1px solid rgba(122,84,0,.1);' : ''}cursor:${updating ? 'wait' : 'pointer'}" title="${isLocked ? t('dist.customers.unlock') : t('dist.customers.lock')}">
+                        ${svg(isLocked ? 'check' : 'shield', 11, 2.5)} ${isLocked ? t('dist.customers.unlock') : t('dist.customers.lock')}
+                      </button>
+                    </div>
                   </div>
                   `;
                 }).join('')}
@@ -10287,6 +10309,11 @@ function renderUsers() {
                   <button data-action="user-copy-key" data-rid="${u._recordId}" style="flex:none;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;color:var(--c-ink-soft);background:var(--c-surface-alt);border-left:1px solid var(--c-divider);cursor:pointer" title="Nur Schlüssel kopieren">
                     ${svg('copy', 13, 2.4)}
                   </button>
+                  ${!me ? `
+                    <button data-action="user-toggle-active" data-rid="${u._recordId}" style="flex:none;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;gap:5px;color:${isInactive ? '#0A6B2C' : '#9A2A1A'};background:${isInactive ? '#E6F4EA' : '#FBEBE8'};border-left:1px solid var(--c-divider);cursor:pointer;font-size:11.5px;font-weight:600" title="${isInactive ? 'User wieder entsperren (Login freigeben)' : 'User sperren (Login deaktivieren)'}">
+                      ${svg(isInactive ? 'check' : 'shield', 13, 2.4)} ${isInactive ? 'Entsperren' : 'Sperren'}
+                    </button>
+                  ` : ''}
                 </div>
               </div>
             `;
@@ -12719,6 +12746,34 @@ document.addEventListener('click', (e) => {
       });
       break;
     }
+    case 'user-toggle-active': {
+      // Admin: schnelles Sperren/Entsperren eines beliebigen Users (außer sich selbst)
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u) break;
+      if (APP_KEYS.user?._recordId === rid) {
+        showToast('Du kannst dich nicht selbst sperren', 'info', 2400);
+        break;
+      }
+      const wasActive = (u.status || '').toLowerCase() === 'aktiv';
+      const newStatus = wasActive ? 'inaktiv' : 'aktiv';
+      const displayName = u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'dieser User';
+      const confirmMsg = wasActive
+        ? `${displayName} sperren? Der User kann sich danach nicht mehr einloggen, bis du ihn wieder entsperrst.`
+        : `${displayName} wieder entsperren?`;
+      if (!confirm(confirmMsg)) break;
+      setLoading(true, wasActive ? 'User wird gesperrt …' : 'User wird entsperrt …');
+      airUpdate(TBL_USERS, rid, { status: newStatus })
+        .then(() => {
+          state.users = (state.users || []).map(x => x._recordId === rid ? { ...x, status: newStatus } : x);
+          showToast(wasActive ? 'User gesperrt — Login deaktiviert' : 'User entsperrt — Login wieder aktiv', 'success', 2400);
+          render();
+        })
+        .catch(err => showToast('Sperren fehlgeschlagen: ' + (err.message || ''), 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
     case 'go-pending-returns': {
       // Aus Home-Tile: zum Dashboard, nach Render zum Pending-Returns-Block scrollen
       state._scrollToPendingReturns = true;
@@ -13742,6 +13797,39 @@ document.addEventListener('click', (e) => {
         if (ok) showToast('Code kopiert', 'success', 1800);
         else showToast('Kopieren fehlgeschlagen', 'error', 2400);
       });
+      break;
+    }
+    case 'dist-customer-toggle-active': {
+      // Distributor sperrt/entsperrt einen seiner Sub-Kunden — Login wird damit unterbunden.
+      // Sicherheits-Check: Sub-Kunde muss in state.distSubCustomers sein (= parent_distributor_id passt zu uns)
+      if (!isDistributor()) break;
+      const rid = btn.dataset.rid;
+      const sc = (state.distSubCustomers || []).find(x => x._recordId === rid);
+      if (!sc) { showToast('Sub-Kunde nicht gefunden', 'error', 2400); break; }
+      if (sc.parentDistributorId !== APP_KEYS.user?._recordId) {
+        showToast('Dieser User gehört nicht zu deinen Kunden', 'error', 3000);
+        break;
+      }
+      const wasActive = (sc.status || '').toLowerCase() === 'aktiv';
+      const newStatus = wasActive ? 'inaktiv' : 'aktiv';
+      const confirmMsg = wasActive
+        ? `${[sc.firstName, sc.lastName].filter(Boolean).join(' ') || sc.email} sperren? Der Kunde kann sich danach nicht mehr einloggen, bis du ihn wieder entsperrst.`
+        : `${[sc.firstName, sc.lastName].filter(Boolean).join(' ') || sc.email} wieder entsperren?`;
+      if (!confirm(confirmMsg)) break;
+      state.distSubUpdatingId = rid;
+      render();
+      airUpdate(TBL_USERS, rid, { status: newStatus })
+        .then(() => {
+          sc.status = newStatus;
+          state.distSubUpdatingId = null;
+          showToast(wasActive ? 'Kunde gesperrt — Login deaktiviert' : 'Kunde entsperrt — Login wieder aktiv', 'success', 2400);
+          render();
+        })
+        .catch(e => {
+          state.distSubUpdatingId = null;
+          showToast('Aktualisieren fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+          render();
+        });
       break;
     }
     case 'distributor-toggle-customer-prices': {
