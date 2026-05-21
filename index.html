@@ -1030,56 +1030,53 @@ body.is-flyer-view .version-badge{display:none !important}
 .flyer-toolbar__btn{padding:9px 14px;background:var(--c-blue);color:#fff;border:0;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;box-shadow:var(--elev-blue)}
 .flyer-toolbar__btn--ghost{background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);box-shadow:var(--elev-1)}
 
-/* Das A4-Papier-Element */
-.flyer{width:210mm;min-height:297mm;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,29,55,.18);overflow:hidden;color:#0F1830;display:flex;flex-direction:column;position:relative}
-/* Page-Break-Strategie: einzelne Karten/Phones nicht in der Mitte trennen,
-   Mockup-Sektion startet auf Seite 2. Gilt im Print, auf Screen unauffällig. */
+/* Das A4-Papier-Element — exakt 1 Seite (height statt min-height, sonst läuft Inhalt über) */
+.flyer{width:210mm;height:297mm;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,29,55,.18);overflow:hidden;color:#0F1830;display:flex;flex-direction:column;position:relative}
 .flyer__step,.flyer__perk,.flyer__mock-card{break-inside:avoid;page-break-inside:avoid}
-.flyer__page-break{break-before:page;page-break-before:always;height:0}
-.flyer__header{padding:14mm 14mm 8mm;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;position:relative;overflow:hidden}
-.flyer__header::after{content:'';position:absolute;right:-40px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.15) 0%,transparent 70%);pointer-events:none}
-.flyer__brand{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#0F1830;padding:6px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-weight:700;font-size:14px;letter-spacing:-.01em}
-.flyer__brand-sq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#3F4855;color:#fff;font-family:var(--f-mono);font-size:11px;font-weight:800}
+.flyer__header{padding:10mm 14mm 6mm;background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;position:relative;overflow:hidden}
+.flyer__header::after{content:'';position:absolute;right:-40px;top:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.15) 0%,transparent 70%);pointer-events:none}
+.flyer__brand{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#0F1830;padding:5px 9px;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-weight:700;font-size:13px;letter-spacing:-.01em}
+.flyer__brand-sq{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;background:#3F4855;color:#fff;font-family:var(--f-mono);font-size:10px;font-weight:800}
 .flyer__brand-sq--blue{background:#2456E5}
-.flyer__hero-title{font-size:36px;font-weight:800;letter-spacing:-.025em;line-height:1.05;margin:16px 0 8px;position:relative;z-index:1}
-.flyer__hero-sub{font-size:15px;font-weight:500;line-height:1.5;opacity:.92;max-width:140mm;position:relative;z-index:1}
-.flyer__body{flex:1;padding:12mm 14mm}
-.flyer__h2{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px;color:#0F1830;display:flex;align-items:center;gap:8px}
-.flyer__h2::before{content:'';width:5px;height:22px;background:#2456E5;border-radius:3px}
-.flyer__steps{display:grid;grid-template-columns:repeat(4,1fr);gap:7mm;margin-bottom:10mm}
-.flyer__step{background:#F4F7FC;border:1px solid #DCE5F1;border-radius:14px;padding:14px;position:relative}
-.flyer__step-num{position:absolute;top:-10px;left:14px;width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;font-family:var(--f-mono);box-shadow:0 4px 10px rgba(0,0,0,.15)}
-.flyer__step-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:10px;margin-top:5px}
-.flyer__step-title{font-size:13px;font-weight:700;letter-spacing:-.005em;line-height:1.25;margin-bottom:5px}
-.flyer__step-sub{font-size:11px;font-weight:500;color:#5B6577;line-height:1.45}
-.flyer__perks{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;margin-bottom:10mm}
-.flyer__perk{background:#FFF8E1;border:1px solid #F5C95B;border-radius:12px;padding:12px 14px}
-.flyer__perk-title{font-size:13px;font-weight:700;color:#5A3F00;display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.flyer__perk-sub{font-size:11px;font-weight:500;color:#7A5400;line-height:1.45}
-.flyer__cta{background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;padding:6mm 8mm;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 8px 24px rgba(16,185,129,.25)}
+.flyer__hero-title{font-size:30px;font-weight:800;letter-spacing:-.025em;line-height:1.05;margin:10px 0 6px;position:relative;z-index:1}
+.flyer__hero-sub{font-size:12.5px;font-weight:500;line-height:1.45;opacity:.92;max-width:150mm;position:relative;z-index:1}
+.flyer__body{flex:1;padding:8mm 14mm 4mm}
+.flyer__h2{font-size:16px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px;color:#0F1830;display:flex;align-items:center;gap:7px}
+.flyer__h2::before{content:'';width:4px;height:18px;background:#2456E5;border-radius:3px}
+.flyer__steps{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm;margin-bottom:6mm}
+.flyer__step{background:#F4F7FC;border:1px solid #DCE5F1;border-radius:11px;padding:10px 11px;position:relative}
+.flyer__step-num{position:absolute;top:-9px;left:11px;width:22px;height:22px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;font-family:var(--f-mono);box-shadow:0 3px 8px rgba(0,0,0,.15)}
+.flyer__step-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:7px;margin-top:4px}
+.flyer__step-title{font-size:11.5px;font-weight:700;letter-spacing:-.005em;line-height:1.2;margin-bottom:3px}
+.flyer__step-sub{font-size:9.5px;font-weight:500;color:#5B6577;line-height:1.4}
+.flyer__perks{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;margin-bottom:6mm}
+.flyer__perk{background:#FFF8E1;border:1px solid #F5C95B;border-radius:10px;padding:9px 11px}
+.flyer__perk-title{font-size:11.5px;font-weight:700;color:#5A3F00;display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.flyer__perk-sub{font-size:9.5px;font-weight:500;color:#7A5400;line-height:1.4}
+.flyer__cta{background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;padding:5mm 7mm;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 6px 18px rgba(16,185,129,.25);margin-bottom:5mm}
 .flyer__cta-text{flex:1;min-width:0}
-.flyer__cta-title{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-bottom:4px}
-.flyer__cta-sub{font-size:13px;font-weight:500;opacity:.92;line-height:1.4}
-.flyer__cta-link{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:#fff;color:#0A6B2C;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none}
-.flyer__qr{width:34mm;height:34mm;background:#fff;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.flyer__cta-title{font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-bottom:3px}
+.flyer__cta-sub{font-size:11.5px;font-weight:500;opacity:.92;line-height:1.35}
+.flyer__cta-link{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;background:#fff;color:#0A6B2C;border-radius:999px;font-size:11.5px;font-weight:700;text-decoration:none;margin-top:6px}
+.flyer__qr{width:26mm;height:26mm;background:#fff;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .flyer__qr svg{width:100%;height:100%;display:block}
-.flyer__phone{background:linear-gradient(180deg,#0F1830 0%,#1A2440 100%);border-radius:24px;padding:6px;width:54mm;margin:0 auto 4mm;box-shadow:0 14px 36px rgba(0,0,0,.25);position:relative}
-.flyer__phone-screen{background:#F4F7FC;border-radius:18px;overflow:hidden;aspect-ratio:9/19}
-.flyer__phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:36px;height:5px;background:#000;border-radius:3px;z-index:2}
-.flyer__phone-shot{padding:18px 10px 10px;height:100%;display:flex;flex-direction:column;gap:8px;background:linear-gradient(180deg,#E9F0FB 0%,#DDE7F0 100%)}
-.flyer__mock-header{display:flex;align-items:center;gap:5px;padding:0 4px}
-.flyer__mock-brand{font-size:9px;font-weight:700;color:#0F1830}
-.flyer__mock-cta{background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;border-radius:12px;padding:10px;text-align:center;font-size:9px;font-weight:700;letter-spacing:-.005em;line-height:1.2;box-shadow:0 4px 10px rgba(36,86,229,.3)}
-.flyer__mock-cta-camera{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);margin:0 auto 4px;display:flex;align-items:center;justify-content:center}
-.flyer__mock-search{background:#fff;border-radius:10px;padding:6px 8px;font-size:8px;color:#94A3B8;display:flex;align-items:center;gap:4px}
-.flyer__mock-item{background:#fff;border-radius:8px;padding:6px;display:flex;gap:5px;align-items:center}
-.flyer__mock-item-photo{width:20px;height:20px;border-radius:4px;background:linear-gradient(135deg,#94A3B8,#64748B);flex-shrink:0}
+.flyer__phone{background:linear-gradient(180deg,#0F1830 0%,#1A2440 100%);border-radius:18px;padding:5px;width:42mm;margin:0 auto 3mm;box-shadow:0 10px 24px rgba(0,0,0,.22);position:relative}
+.flyer__phone-screen{background:#F4F7FC;border-radius:13px;overflow:hidden;min-height:60mm}
+.flyer__phone-notch{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:28px;height:4px;background:#000;border-radius:3px;z-index:2}
+.flyer__phone-shot{padding:13px 7px 7px;min-height:60mm;display:flex;flex-direction:column;gap:5px;background:linear-gradient(180deg,#E9F0FB 0%,#DDE7F0 100%)}
+.flyer__mock-header{display:flex;align-items:center;gap:4px;padding:0 2px}
+.flyer__mock-brand{font-size:8px;font-weight:700;color:#0F1830}
+.flyer__mock-cta{background:linear-gradient(135deg,#2456E5 0%,#1740B8 100%);color:#fff;border-radius:9px;padding:7px;text-align:center;font-size:8px;font-weight:700;letter-spacing:-.005em;line-height:1.2;box-shadow:0 3px 8px rgba(36,86,229,.3)}
+.flyer__mock-cta-camera{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);margin:0 auto 3px;display:flex;align-items:center;justify-content:center}
+.flyer__mock-search{background:#fff;border-radius:8px;padding:4px 6px;font-size:7px;color:#94A3B8;display:flex;align-items:center;gap:3px}
+.flyer__mock-item{background:#fff;border-radius:6px;padding:4px;display:flex;gap:4px;align-items:center}
+.flyer__mock-item-photo{width:16px;height:16px;border-radius:3px;background:linear-gradient(135deg,#94A3B8,#64748B);flex-shrink:0}
 .flyer__mock-item-text{flex:1;min-width:0}
-.flyer__mock-item-title{font-size:7px;font-weight:700;color:#0F1830;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.flyer__mock-item-sub{font-size:6.5px;color:#94A3B8;margin-top:1px}
-.flyer__mock-item-price{font-family:var(--f-mono);font-size:7.5px;font-weight:800;color:#0A6B2C;background:#E6F4EA;padding:1px 4px;border-radius:4px;flex-shrink:0}
-.flyer__footer{margin-top:auto;padding:6mm 14mm 10mm;background:#0F1830;color:#94A3B8;font-size:10.5px;line-height:1.5;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.flyer__footer-brand{color:#fff;font-weight:700;font-size:11.5px}
+.flyer__mock-item-title{font-size:6px;font-weight:700;color:#0F1830;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flyer__mock-item-sub{font-size:5.5px;color:#94A3B8;margin-top:1px}
+.flyer__mock-item-price{font-family:var(--f-mono);font-size:6.5px;font-weight:800;color:#0A6B2C;background:#E6F4EA;padding:1px 3px;border-radius:3px;flex-shrink:0}
+.flyer__footer{margin-top:auto;padding:4mm 14mm 6mm;background:#0F1830;color:#94A3B8;font-size:9.5px;line-height:1.5;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.flyer__footer-brand{color:#fff;font-weight:700;font-size:11px}
 
 @page { size: A4; margin: 0; }
 @media print {
@@ -1093,11 +1090,7 @@ body.is-flyer-view .version-badge{display:none !important}
   .phone__inner { all: unset !important; display: block !important; height: auto !important; }
   #app { display: block !important; height: auto !important; }
   .flyer-screen { padding: 0 !important; background: #fff !important; gap: 0 !important; min-height: auto !important; display: block !important; }
-  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; min-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: visible !important; display: block !important; }
-  /* Mockup-Sektion soll auf neuer Seite starten (saubere 2-Seiten-Aufteilung) */
-  .flyer__mock-section { break-before: page; page-break-before: always; }
-  /* Hero-Header + Steps + Perks bleiben oben auf Seite 1 */
-  .flyer__header, .flyer__steps-section { break-after: auto; }
+  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; height: 297mm !important; min-height: 0 !important; max-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
   /* Einzelne Karten/Phones NICHT in der Mitte trennen */
   .flyer__step, .flyer__perk, .flyer__mock-card, .flyer__cta { break-inside: avoid; page-break-inside: avoid; }
   /* Hintergründe behalten beim Drucken (Browser-Default ist sonst "weiß", was Farben killt) */
@@ -1126,7 +1119,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.94';
+const APP_VERSION = 'v1.95';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
