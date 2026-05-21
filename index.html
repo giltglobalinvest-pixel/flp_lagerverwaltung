@@ -167,6 +167,13 @@ body.mode-tablet .user-bar__user::after{
 .user-bar__role{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.18);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;line-height:1.4}
 .user-bar__role--admin{background:#FFD45C;color:#3A2400}
 .user-bar__role--customer{background:#A78BFA;color:#1A0B47}
+.user-bar__role--distributor{background:#F5C95B;color:#3A2400}
+.user-bar__perm{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.12);font-size:9px;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0;line-height:1.4;display:inline-flex;align-items:center;gap:3px}
+.user-bar__perm--on{background:rgba(46,170,93,.85);color:#fff}
+.user-bar__perm--off{background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.65)}
+.user-bar__perm--info{background:rgba(36,86,229,.6);color:#fff}
+.user-bar__perm--warn{background:rgba(245,158,11,.9);color:#3A2400}
+.user-bar__sep{opacity:.35;font-size:9px;flex-shrink:0}
 
 /* ============================================================
    Customer-Home: bewusst „spürbarer" Look statt Power-User-UI
@@ -1009,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.74';
+const APP_VERSION = 'v1.75';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11777,7 +11784,7 @@ const screens = { home: renderHome, listen: renderListen, results: renderResults
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
 
-// Aktualisiert die persistente Top-Statusleiste mit Name, Rolle, Version.
+// Aktualisiert die persistente Top-Statusleiste mit Name, Rolle, Berechtigungen, Version.
 // Wird bei jedem Render aufgerufen — versteckt sich automatisch wenn User nicht eingeloggt.
 function updateUserBar() {
   const bar = document.getElementById('userBar');
@@ -11792,8 +11799,40 @@ function updateUserBar() {
   const name = u.name || 'User';
   const admin = isAdmin();
   const customer = isCustomer();
-  const roleLabel = admin ? 'Admin' : (customer ? 'Kunde' : 'User');
-  const roleClass = admin ? 'user-bar__role--admin' : (customer ? 'user-bar__role--customer' : '');
+  const dist = isDistributor();
+  const sub  = isUnderDistributor();
+  const pd   = APP_KEYS.parentDistributor;
+  // Rolle (Haupt-Pill)
+  let roleLabel, roleClass;
+  if (admin)       { roleLabel = 'Admin';       roleClass = 'user-bar__role--admin'; }
+  else if (dist)   { roleLabel = 'Distributor'; roleClass = 'user-bar__role--distributor'; }
+  else if (customer){ roleLabel = 'Kunde';      roleClass = 'user-bar__role--customer'; }
+  else             { roleLabel = 'User';        roleClass = ''; }
+
+  // Berechtigungs-/Kontext-Pills (kompakt, max. 2 Stück)
+  const perms = [];
+  if (admin) {
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Voller Schreibzugriff auf alle Daten">${svg('shield', 9, 2.6)} Voller Zugriff</span>`);
+  } else if (dist) {
+    const disc = Number(u.distributorDiscount || 0) || 0;
+    const marg = Number(u.distributorMargin   || 0) || 0;
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Dein Rabatt von FLP auf VP">${svg('badge-check', 9, 2.6)} EK −${disc.toFixed(disc % 1 === 0 ? 0 : 1)}%</span>`);
+    if (marg > 0) perms.push(`<span class="user-bar__perm" title="Aufschlag für deine Sub-Kunden">+${marg.toFixed(marg % 1 === 0 ? 0 : 1)}%</span>`);
+  } else if (sub) {
+    const distName = pd ? (pd.companyName || pd.name || '—') : '—';
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Du bist Sub-Kunde dieses Distributors">${svg('badge-check', 9, 2.6)} via ${String(distName).replace(/</g,'&lt;').slice(0, 20)}</span>`);
+    if (u.showPrices) {
+      perms.push(`<span class="user-bar__perm user-bar__perm--on" title="Dein Distributor hat dir Preise freigegeben">${svg('eye', 9, 2.6)} Preise</span>`);
+    } else {
+      perms.push(`<span class="user-bar__perm user-bar__perm--off" title="Dein Distributor hat dir noch keine Preise freigegeben">${svg('eye', 9, 2.6)} —</span>`);
+    }
+  } else if (customer) {
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="Direkter FLP-Kunde">${svg('boxes', 9, 2.6)} FLP-Direkt</span>`);
+  } else {
+    // Internal user
+    perms.push(`<span class="user-bar__perm" title="Interner Mitarbeiter">${svg('user', 9, 2.6)} Intern</span>`);
+  }
+
   bar.classList.add('user-bar--shown');
   document.body.classList.add('has-user-bar');
   const reloading = !!state.reloadingAll;
@@ -11803,6 +11842,8 @@ function updateUserBar() {
       ${svg('user', 11, 2.4)}
       <span class="user-bar__name">${String(name).replace(/</g, '&lt;')}</span>
       <span class="user-bar__role ${roleClass}">${roleLabel}</span>
+      ${perms.length ? `<span class="user-bar__sep">·</span>` : ''}
+      ${perms.join('')}
     </div>
     <button class="user-bar__reload" data-action="toggle-device-mode" title="${tablet ? 'Auf Mobil-Modus umschalten' : 'Auf iPad-Modus umschalten (kein Anlegen)'}">
       ${svg(tablet ? 'tablet' : 'smartphone', 11, 2.4)}
