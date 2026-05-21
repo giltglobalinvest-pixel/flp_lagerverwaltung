@@ -1003,13 +1003,22 @@ body.mode-tablet .bottom-bar>*{flex:1}
 }
 
 /* Flyer-View: Phone-Container komplett aufbrechen damit Browser-Scroll wieder greift.
-   body wird von display:flex auf display:block umgestellt, damit das HTML-Element scrollt. */
-html.flyer-active{height:auto;overflow:auto}
-body.is-flyer-view{display:block !important;align-items:initial;justify-content:initial;padding:0;background:#E9F0FB;overflow:visible;height:auto;min-height:100vh}
-body.is-flyer-view .phone{max-width:none;width:100%;min-height:auto;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none;background:#E9F0FB;overflow:visible;height:auto;position:static}
-body.is-flyer-view .phone__inner{height:auto;min-height:auto;overflow:visible;display:block}
-body.is-flyer-view #app{height:auto;overflow:visible;display:block}
-body.is-flyer-view .version-badge{display:none}
+   ACHTUNG: Die Mobile + Desktop Media-Queries setzen html,body auf position:fixed + overflow:hidden
+   (App-Shell-Trick). Im Flyer-Modus müssen wir das komplett aufheben, sonst kein Scroll. */
+html.flyer-active,
+html.flyer-active body.is-flyer-view{
+  position:static !important;
+  top:auto !important;left:auto !important;right:auto !important;bottom:auto !important;
+  width:auto !important;
+  height:auto !important;
+  overflow:auto !important;
+  overscroll-behavior:auto !important;
+}
+body.is-flyer-view{display:block !important;align-items:initial !important;justify-content:initial !important;padding:0 !important;background:#E9F0FB !important;min-height:100vh !important}
+body.is-flyer-view .phone{max-width:none !important;width:100% !important;min-height:auto !important;aspect-ratio:auto !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;background:#E9F0FB !important;overflow:visible !important;height:auto !important;position:static !important}
+body.is-flyer-view .phone__inner{height:auto !important;min-height:auto !important;overflow:visible !important;display:block !important}
+body.is-flyer-view #app{height:auto !important;overflow:visible !important;display:block !important}
+body.is-flyer-view .version-badge{display:none !important}
 
 /* ============================================================
    FLYER — A4-Print-optimierter Kunden-Flyer (1 Seite)
@@ -1105,7 +1114,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.91';
+const APP_VERSION = 'v1.92';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
