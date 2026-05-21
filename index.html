@@ -1016,7 +1016,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.76';
+const APP_VERSION = 'v1.77';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1953,7 +1953,13 @@ async function loginWithUserKey(userKey) {
   const userData = await userRes.json();
   if (!userData.records || !userData.records.length) throw new Error('Ung\u00fcltiger Key');
   // recordToUser \u2192 mappt Airtable-Snake-Case-Felder auf camelCase (firstName, companyName, firmStreet, employees, \u2026)
-  APP_KEYS.user = recordToUser(userData.records[0]);
+  const _candidate = recordToUser(userData.records[0]);
+  // Sub-Customer (Kunde eines Distributors) d\u00fcrfen sich NICHT direkt einloggen.
+  // Der Distributor verwaltet sie, der Login-Code ist nur ein interner Identifier.
+  if (_candidate.parentDistributorId) {
+    throw new Error('Dieser Zugang l\u00e4uft \u00fcber deinen Distributor. Bitte wende dich direkt an ihn \u2014 du selbst kannst dich nicht in die App einloggen.');
+  }
+  APP_KEYS.user = _candidate;
   // Falls User eine gespeicherte Sprache hat \u2192 \u00fcbernehmen
   if (APP_KEYS.user.lang && I18N[APP_KEYS.user.lang]) {
     state.lang = APP_KEYS.user.lang;
@@ -10026,6 +10032,73 @@ function renderIntegrations() {
 </div>`;
 }
 
+// Tabellarische Kunden-Ansicht — zeigt Stammdaten kompakt nebeneinander.
+// Wird nur in den Filtern "Kunden" und "Sub-Kunden" aktiv.
+function renderCustomerTable(rows, userKind, distName, isMe) {
+  // Hilfsfunktionen
+  const esc = s => String(s || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const fullName = u => [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || '—';
+  return `
+  <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);overflow:hidden;box-shadow:var(--elev-1)">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:880px">
+        <thead>
+          <tr style="background:var(--c-bg-soft);border-bottom:1px solid var(--c-border)">
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Name / Firma</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Typ</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Email</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Telefon</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Adresse</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Distributor</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Preise</th>
+            <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Status</th>
+            <th style="text-align:right;padding:10px 12px;font-size:10px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((u, i) => {
+            const kind = userKind(u);
+            const addr = [u.firmStreet, [u.firmZip, u.firmCity].filter(Boolean).join(' '), u.firmCountry].filter(Boolean).join(', ');
+            const typeLabel = kind === 'distributor' ? 'Distributor' : kind === 'subcustomer' ? 'Sub-Kunde' : 'Kunde';
+            const typeBg = kind === 'distributor' ? '#FFF8E1' : kind === 'subcustomer' ? '#EDE9FE' : '#DBEAFE';
+            const typeFg = kind === 'distributor' ? '#5A3F00' : kind === 'subcustomer' ? '#5B21B6' : '#1740B8';
+            const typeBorder = kind === 'distributor' ? '#F5C95B' : kind === 'subcustomer' ? '#A78BFA' : '#93C5FD';
+            const rowBg = i % 2 === 0 ? 'transparent' : 'var(--c-bg-soft)';
+            const inactive = u.status !== 'aktiv';
+            // Preis-Anzeige je nach Typ
+            let priceCell = '—';
+            if (kind === 'distributor') {
+              const disc = Number(u.distributorDiscount || 0) || 0;
+              priceCell = u.showPrices ? `<span style="color:#0A6B2C;font-weight:600">EK −${disc.toFixed(disc % 1 === 0 ? 0 : 1)}%</span>` : `<span style="color:var(--c-ink-mute)">gesperrt</span>`;
+            } else if (kind === 'subcustomer') {
+              priceCell = u.showPrices ? `<span style="color:#0A6B2C;font-weight:600">freigegeben</span>` : `<span style="color:var(--c-ink-mute)">aus</span>`;
+            }
+            return `
+              <tr style="border-bottom:1px solid var(--c-divider);background:${rowBg};${inactive?'opacity:.55;':''}cursor:pointer" data-action="user-edit" data-rid="${u._recordId}">
+                <td style="padding:10px 12px;vertical-align:top">
+                  <div style="font-weight:600;font-size:12.5px;color:var(--c-ink)">${esc(fullName(u))}${isMe(u) ? ' <span style="font-size:9px;background:var(--c-surface-alt);color:var(--c-ink-mute);padding:1px 5px;border-radius:6px;margin-left:3px">Du</span>' : ''}</div>
+                  ${u.companyName ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px">${esc(u.companyName)}</div>` : ''}
+                </td>
+                <td style="padding:10px 12px;vertical-align:top"><span style="display:inline-flex;align-items:center;padding:2px 7px;border-radius:6px;background:${typeBg};color:${typeFg};border:1px solid ${typeBorder};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${typeLabel}</span></td>
+                <td style="padding:10px 12px;vertical-align:top;color:var(--c-ink-soft);font-size:11.5px;word-break:break-all">${esc(u.email) || '—'}</td>
+                <td style="padding:10px 12px;vertical-align:top;color:var(--c-ink-soft);font-size:11.5px;font-family:var(--f-mono);white-space:nowrap">${esc(u.phone) || '—'}</td>
+                <td style="padding:10px 12px;vertical-align:top;color:var(--c-ink-soft);font-size:11px;line-height:1.4;max-width:200px">${esc(addr) || '—'}</td>
+                <td style="padding:10px 12px;vertical-align:top">
+                  ${kind === 'subcustomer' ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;background:#EDE9FE;color:#5B21B6;border:1px solid #A78BFA;font-size:10.5px;font-weight:600">${svg('badge-check', 9, 2.6)} ${esc(distName(u.parentDistributorId)).slice(0, 24)}</span>` : '—'}
+                </td>
+                <td style="padding:10px 12px;vertical-align:top;font-size:11px">${priceCell}</td>
+                <td style="padding:10px 12px;vertical-align:top;font-size:11px">${inactive ? '<span style="color:var(--c-red);font-weight:600">Inaktiv</span>' : '<span style="color:#0A6B2C;font-weight:600">Aktiv</span>'}${kind === 'subcustomer' ? `<div style="font-size:9.5px;color:#854D0E;font-weight:600;margin-top:3px">${svg('shield', 8, 2.6)} Kein Login</div>` : ''}</td>
+                <td style="padding:10px 12px;vertical-align:top;text-align:right;color:var(--c-ink-subtle)">${svg('chevron-right', 13, 2.5)}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
 function renderUsers() {
   if (!isAdmin()) {
     return `
@@ -10044,8 +10117,38 @@ function renderUsers() {
   const loading = !!state.usersLoading;
   const error = state.usersError;
   const isMe = (u) => APP_KEYS.user && u._recordId === APP_KEYS.user._recordId;
-  const adminCount = users.filter(u => u.role === 'admin').length;
-  const activeCount = users.filter(u => u.status === 'aktiv').length;
+  // Klassifizierung
+  const userKind = (u) => {
+    if (u.role === 'admin') return 'admin';
+    if (u.role !== 'customer') return 'staff';
+    if (u.isDistributor) return 'distributor';
+    if (u.parentDistributorId) return 'subcustomer';
+    return 'directcustomer';
+  };
+  // Lookup: recordId → distributor user (für „via XYZ"-Label)
+  const distMap = new Map();
+  for (const u of users) if (u.isDistributor) distMap.set(u._recordId, u);
+  const distName = (rid) => {
+    const d = distMap.get(rid);
+    return d ? (d.companyName || d.name || d.email || '—') : '— unbekannt —';
+  };
+
+  const adminCount   = users.filter(u => userKind(u) === 'admin').length;
+  const staffCount   = users.filter(u => userKind(u) === 'staff').length;
+  const distCount    = users.filter(u => userKind(u) === 'distributor').length;
+  const subCount     = users.filter(u => userKind(u) === 'subcustomer').length;
+  const customerCount= users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer').length;
+  const activeCount  = users.filter(u => u.status === 'aktiv').length;
+
+  // Filter-State: 'all' | 'staff' | 'customers' | 'distributors' | 'subcustomers'
+  const filter = state.usersFilter || 'all';
+  let filtered = users;
+  if (filter === 'staff')        filtered = users.filter(u => userKind(u) === 'admin' || userKind(u) === 'staff');
+  else if (filter === 'customers')   filtered = users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer' || userKind(u) === 'distributor');
+  else if (filter === 'distributors')filtered = users.filter(u => userKind(u) === 'distributor');
+  else if (filter === 'subcustomers')filtered = users.filter(u => userKind(u) === 'subcustomer');
+
+  const showTable = (filter === 'customers' || filter === 'subcustomers');
 
   return `
 <div class="screen">
@@ -10055,7 +10158,20 @@ function renderUsers() {
   <div class="scroll" style="padding-bottom:24px">
     <div style="padding:0 20px 4px">
       <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">User</h1>
-      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${users.length} ${users.length === 1 ? 'User' : 'User'} · ${adminCount} Admin · ${activeCount} aktiv</p>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${users.length} gesamt · ${adminCount + staffCount} intern · ${customerCount} Kunden${distCount ? ' (davon '+distCount+' Distributoren)' : ''} · ${activeCount} aktiv</p>
+    </div>
+
+    <!-- Filter-Tabs -->
+    <div style="padding:12px 20px 0;display:flex;gap:6px;flex-wrap:wrap">
+      ${[
+        ['all',          'Alle',           users.length],
+        ['staff',        'Intern',         adminCount + staffCount],
+        ['customers',    'Kunden',         customerCount],
+        ['distributors', 'Distributoren',  distCount],
+        ['subcustomers', 'Sub-Kunden',     subCount],
+      ].map(([k, label, n]) => `
+        <button data-action="users-filter" data-filter="${k}" style="padding:6px 10px;font-size:11.5px;font-weight:600;border-radius:var(--r-pill);background:${filter===k?'var(--c-ink)':'var(--c-surface)'};color:${filter===k?'#fff':'var(--c-ink-soft)'};border:1px solid ${filter===k?'var(--c-ink)':'var(--c-border)'};display:inline-flex;align-items:center;gap:5px;cursor:pointer">${label} <span style="opacity:.65;font-size:10px;font-variant-numeric:tabular-nums">${n}</span></button>
+      `).join('')}
     </div>
 
     <div style="padding:14px 20px 0">
@@ -10074,41 +10190,66 @@ function renderUsers() {
           <div style="font-size:11.5px;color:var(--c-ink-mute);margin-bottom:10px">${String(error).replace(/</g, '&lt;')}</div>
           <button data-action="user-reload" style="padding:7px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:11.5px;font-weight:600">Erneut versuchen</button>
         </div>
-      ` : users.length === 0 ? `
+      ` : filtered.length === 0 ? `
         <div class="tile" style="padding:28px;text-align:center">
-          <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Noch keine User</div>
-          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Lege oben einen neuen User an.</div>
+          <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Keine Einträge in dieser Ansicht</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Wähle einen anderen Filter oder lege oben einen neuen User an.</div>
         </div>
-      ` : `
+      ` : showTable ? renderCustomerTable(filtered, userKind, distName, isMe) : `
         <div style="display:flex;flex-direction:column;gap:8px">
-          ${users.map(u => {
+          ${filtered.map(u => {
             const me = isMe(u);
-            const isAdminUser = u.role === 'admin';
+            const kind = userKind(u);
             const isInactive = u.status !== 'aktiv';
-            const initial = (u.name || '?').trim().charAt(0).toUpperCase();
+            const isLocked = kind === 'subcustomer'; // Sub-Customer kann sich nicht direkt einloggen
+            const initial = (u.name || u.firstName || '?').trim().charAt(0).toUpperCase();
+            // Avatar-Farbe je nach Typ
+            const avBg = kind === 'admin' ? '#FFD45C' : kind === 'distributor' ? '#F5C95B' : kind === 'subcustomer' ? '#DDD6FE' : kind === 'directcustomer' ? '#BFDBFE' : 'var(--c-blue-soft)';
+            const avFg = kind === 'admin' ? '#3A2400' : kind === 'distributor' ? '#3A2400' : kind === 'subcustomer' ? '#5B21B6' : kind === 'directcustomer' ? '#1740B8' : 'var(--c-blue-deep)';
+            // Links-Rand-Markierung
+            const borderLeft = kind === 'subcustomer' ? 'border-left:4px solid #A78BFA' : kind === 'distributor' ? 'border-left:4px solid #F5C95B' : '';
+            // Type-Pill
+            const typePill = (() => {
+              if (kind === 'admin')          return `<span class="pill pill--amber" style="font-size:9px">Admin</span>`;
+              if (kind === 'staff')          return `<span class="pill pill--neutral" style="font-size:9px">Intern</span>`;
+              if (kind === 'distributor')    return `<span class="pill" style="font-size:9px;background:#FFF8E1;color:#5A3F00;border:1px solid #F5C95B">Distributor</span>`;
+              if (kind === 'subcustomer')    return `<span class="pill" style="font-size:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #A78BFA">Sub-Kunde</span>`;
+              return `<span class="pill" style="font-size:9px;background:#DBEAFE;color:#1740B8;border:1px solid #93C5FD">Kunde</span>`;
+            })();
             return `
-              <div class="tile" style="padding:0;overflow:hidden;${isInactive ? 'opacity:.65' : ''}">
+              <div class="tile" style="padding:0;overflow:hidden;${isInactive ? 'opacity:.65;' : ''}${borderLeft}">
                 <button data-action="user-edit" data-rid="${u._recordId}" style="display:flex;align-items:center;gap:12px;padding:14px;width:100%;text-align:left;cursor:pointer">
-                  <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:${isAdminUser ? '#FFD45C' : 'var(--c-blue-soft)'};color:${isAdminUser ? '#3A2400' : 'var(--c-blue-deep)'};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">${initial}</div>
+                  <div style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:${avBg};color:${avFg};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">${initial}</div>
                   <div style="flex:1;min-width:0">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                       <span style="font-size:14px;font-weight:600;letter-spacing:-.005em">${(u.name || '— Ohne Name —').replace(/</g, '&lt;')}</span>
                       ${me ? `<span class="pill pill--neutral" style="font-size:9px">Du</span>` : ''}
-                      <span class="pill ${isAdminUser ? 'pill--amber' : 'pill--neutral'}" style="font-size:9px">${isAdminUser ? 'Admin' : 'User'}</span>
+                      ${typePill}
+                      ${isLocked ? `<span class="pill" style="font-size:9px;background:#FEF3C7;color:#854D0E;border:1px solid #FACC15">${svg('shield', 8, 2.6)} Kein Direkt-Login</span>` : ''}
                       ${isInactive ? `<span class="pill" style="font-size:9px;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,.3)">inaktiv</span>` : ''}
                     </div>
+                    ${kind === 'subcustomer' ? `
+                      <div style="font-size:10.5px;font-weight:600;color:#5B21B6;margin-top:4px;display:inline-flex;align-items:center;gap:4px">${svg('badge-check', 9, 2.6)} via ${distName(u.parentDistributorId).replace(/</g,'&lt;')}</div>
+                    ` : ''}
+                    ${u.companyName ? `<div style="font-size:11px;color:var(--c-ink-soft);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.companyName.replace(/</g,'&lt;')}</div>` : ''}
                     <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.apiKey ? svg('key', 9, 2.5) + ' ' + u.apiKey.slice(0, 14) + (u.apiKey.length > 14 ? '…' : '') : '— kein Schlüssel —'}</div>
                   </div>
                   <span style="color:var(--c-ink-subtle);display:flex;flex-shrink:0">${svg('chevron-right', 14, 2.5)}</span>
                 </button>
-                <div style="display:flex;border-top:1px solid var(--c-divider)">
-                  <button data-action="user-copy-wa" data-rid="${u._recordId}" style="flex:1;padding:11px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:#0A6B2C;background:#E6F4EA;cursor:pointer" title="Einladungstext für WhatsApp kopieren">
-                    ${svg('message-circle', 13, 2.4)} WhatsApp-Text kopieren
-                  </button>
-                  <button data-action="user-copy-key" data-rid="${u._recordId}" style="flex:none;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;color:var(--c-ink-soft);background:var(--c-surface-alt);border-left:1px solid var(--c-divider);cursor:pointer" title="Nur Schlüssel kopieren">
-                    ${svg('copy', 13, 2.4)}
-                  </button>
-                </div>
+                ${!isLocked ? `
+                  <div style="display:flex;border-top:1px solid var(--c-divider)">
+                    <button data-action="user-copy-wa" data-rid="${u._recordId}" style="flex:1;padding:11px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:#0A6B2C;background:#E6F4EA;cursor:pointer" title="Einladungstext für WhatsApp kopieren">
+                      ${svg('message-circle', 13, 2.4)} WhatsApp-Text kopieren
+                    </button>
+                    <button data-action="user-copy-key" data-rid="${u._recordId}" style="flex:none;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;color:var(--c-ink-soft);background:var(--c-surface-alt);border-left:1px solid var(--c-divider);cursor:pointer" title="Nur Schlüssel kopieren">
+                      ${svg('copy', 13, 2.4)}
+                    </button>
+                  </div>
+                ` : `
+                  <div style="padding:9px 14px;background:#FFFCEF;border-top:1px solid #FACC15;font-size:10.5px;color:#854D0E;display:flex;align-items:center;gap:6px">
+                    ${svg('shield', 11, 2.6)} <span>Sub-Kunde: nur via Distributor zugänglich, kein eigener Login</span>
+                  </div>
+                `}
               </div>
             `;
           }).join('')}
@@ -11738,9 +11879,48 @@ function renderRegister() {
 }
 
 // Erfolgsscreen direkt nach der Registrierung — zeigt den Zugangs-Code groß an
+// Sonderfall: Wenn der Customer über einen Distributor-Invite-Link kam (parent_distributor_id),
+// wird KEIN Login-Code angezeigt — der Distributor verwaltet ihn, kein Direkt-Zugang.
 function renderRegisterSuccess() {
   const u = state.registerCreatedUser;
   if (!u) return renderLogin();
+  const isSubCustomer = !!u.parentDistributorId;
+  if (isSubCustomer) {
+    // Sub-Customer-Variante: Kein Code, nur Bestätigung
+    const distName = state.signupDistributor ? (state.signupDistributor.companyName || state.signupDistributor.name || 'deinem Distributor') : 'deinem Distributor';
+    return `
+<div class="login-screen">
+  <div class="login-card" style="max-width:540px;padding:36px 28px;text-align:center">
+    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#F5C95B 0%,#D97706 100%);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 12px 32px rgba(217,119,6,.35)">
+      ${svg('badge-check', 32, 3)}
+    </div>
+    <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0">Vielen Dank, ${(u.firstName || '').replace(/</g, '&lt;')}!</h1>
+    <p style="font-size:13px;font-weight:500;color:var(--c-ink-mute);margin:10px 0 22px;line-height:1.5">Deine Anfrage wurde an <strong style="color:var(--c-ink)">${String(distName).replace(/</g,'&lt;')}</strong> übermittelt. Dein Vertriebspartner meldet sich bei dir und nimmt die weitere Betreuung in die Hand.</p>
+
+    <div style="padding:16px 18px;background:#FFF8E1;border:1px solid #F5C95B;border-radius:14px;text-align:left;font-size:12.5px;line-height:1.55;color:#5A3F00;margin-bottom:18px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <span style="flex-shrink:0;color:#7A5400;margin-top:2px">${svg('info', 14, 2.5)}</span>
+        <div>
+          <strong>Wichtig:</strong> Du hast über diesen Weg <strong>keinen direkten Zugang</strong> zur App. Deine Anfragen und Bestellungen laufen ausschließlich über deinen Vertriebspartner. Er gibt dir bei Bedarf Einblick in Preise und Verfügbarkeit.
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:12px 14px;background:var(--c-bg-soft);border-radius:var(--r-md);font-size:11.5px;color:var(--c-ink-soft);text-align:left;margin-bottom:18px">
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Deine Daten</div>
+      <div>${[u.firstName, u.lastName].filter(Boolean).join(' ').replace(/</g,'&lt;')}</div>
+      ${u.email ? `<div>${u.email.replace(/</g,'&lt;')}</div>` : ''}
+      ${u.phone ? `<div>${u.phone.replace(/</g,'&lt;')}</div>` : ''}
+      ${u.companyName ? `<div style="margin-top:4px;font-weight:600;color:var(--c-ink)">${u.companyName.replace(/</g,'&lt;')}</div>` : ''}
+    </div>
+
+    <button data-action="go-landing" class="login-btn" style="width:100%;background:var(--c-ink);color:#fff">
+      ${svg('check', 14, 2.5)} Verstanden
+    </button>
+  </div>
+</div>`;
+  }
+  // Standard-Variante: Customer ohne Distributor → Code anzeigen
   return `
 <div class="login-screen">
   <div class="login-card" style="max-width:540px;padding:36px 28px;text-align:center">
@@ -12315,6 +12495,11 @@ document.addEventListener('click', (e) => {
         .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
       break;
     }
+    case 'users-filter': {
+      state.usersFilter = btn.dataset.filter || 'all';
+      render();
+      break;
+    }
     case 'user-add': {
       if (!isAdmin()) break;
       state.userDraft = {
@@ -12669,10 +12854,13 @@ document.addEventListener('click', (e) => {
             status: 'aktiv',
             apiKey,
             tenantKey: adminTenant,
+            // Sub-Customer-Flag mit übernehmen, damit renderRegisterSuccess die andere Variante zeigt
+            parentDistributorId: newUserFields.parent_distributor_id || '',
           };
           state.registerPending = false;
           state.view = 'registerSuccess';
-          // Distributor-Signup-Marker entfernen (verbraucht)
+          // Distributor-Signup-Marker entfernen (verbraucht).
+          // HINWEIS: state.signupDistributor (Profil mit Logo/Name) bleibt erhalten — wird auf Success-Screen noch angezeigt.
           state.signupDistributorId = '';
           try { localStorage.removeItem('flp_signup_dist'); } catch(e) {}
           render();
