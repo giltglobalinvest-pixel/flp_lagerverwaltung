@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.72';
+const APP_VERSION = 'v1.73';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -5628,21 +5628,53 @@ const trackerChip = (it, opts = {}) => {
 
 const itemCard = (it, opts = {}) => {
   const owner = (it.owner || '').trim();
+  // Customer-Variante: keine internen Felder (ID, Tracker, Lagerort, Owner, Sold-Stamp),
+  // daf\u00fcr Preis-Chip falls f\u00fcr den User sichtbar
+  const cust = isCustomer();
+  // Lokalisierte Pills: nutzen condLabel/funcLabel statt c.short (DE-only) wenn vorhanden
+  const condP = (() => {
+    const c = CONDITION[it.cond]; if (!c) return '';
+    const lbl = cust && typeof condLabel === 'function' ? condLabel(it.cond) : c.short;
+    return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${lbl}</span>`;
+  })();
+  const funcP = (() => {
+    const c = FUNCTION_STATUS[it.func]; if (!c) return '';
+    const lbl = cust && typeof funcLabel === 'function' ? funcLabel(it.func) : c.short;
+    return `<span class="pill" style="background:${c.bg};color:${c.fg}">${svg(c.icon, 10, 2.5)}${lbl}</span>`;
+  })();
+  // Preis-Chip f\u00fcr Customer (Distributor sieht EK, Sub-Customer sieht End-Preis falls freigegeben)
+  let priceChip = '';
+  if (cust && it.vp != null && !it.sold) {
+    const ep = (typeof effectivePriceForUser === 'function') ? effectivePriceForUser(it) : { visible: false };
+    if (ep.visible && ep.value != null && (isDistributor() || it.inShop)) {
+      const isDist = ep.isDistributorPrice;
+      const bg = isDist ? '#FFF8E1' : '#E6F4EA';
+      const fg = isDist ? '#5A3F00' : '#0A6B2C';
+      const border = isDist ? '#F5C95B' : '#8FD4A6';
+      priceChip = `<span class="pill" style="background:${bg};color:${fg};border:1px solid ${border};font-family:var(--f-mono);font-weight:700">${formatVp(ep.value)}</span>`;
+    }
+  }
   return `
-<button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${owner ? 'border-left:3px solid #FB923C' : ''}">
+<button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${(owner && !cust) ? 'border-left:3px solid #FB923C' : ''}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
-    ${it.photoUrl ? `<img src="${photoSrc(it, 'large')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
-    <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
-    ${it.sold ? `<span class="sold-stamp">Verkauft</span>` : ''}
+    ${it.photoUrl ? `<img src="${photoSrc(it, 'large')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${(it.sold && !cust) ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
+    ${!cust ? `<span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>` : ''}
+    ${(it.sold && !cust) ? `<span class="sold-stamp">Verkauft</span>` : ''}
   </div>
   <div class="item-card__body">
-    <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}${owner ? `<span class="price-chip price-chip--sm" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Besitzer: ${owner.replace(/"/g, '&quot;')}">${svg('user', 9, 2.6)} ${owner}</span>` : ''}</div>
-    <h3 class="item-card__name">${it.title}</h3>
-    <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
-    <div class="item-card__row" style="margin-top:8px">${condPill(it.cond)}${funcPill(it.func)}</div>
-    <div class="item-card__divider">
-      <span class="item-card__loc">${svg('map-pin', 11, 2.4)} ${it.loc || '\u2014'}</span>
-    </div>
+    ${cust ? `
+      <h3 class="item-card__name" style="margin-top:2px">${it.title}</h3>
+      <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
+      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${condP}${funcP}${priceChip}</div>
+    ` : `
+      <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}${owner ? `<span class="price-chip price-chip--sm" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Besitzer: ${owner.replace(/"/g, '&quot;')}">${svg('user', 9, 2.6)} ${owner}</span>` : ''}</div>
+      <h3 class="item-card__name">${it.title}</h3>
+      <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
+      <div class="item-card__row" style="margin-top:8px">${condP}${funcP}</div>
+      <div class="item-card__divider">
+        <span class="item-card__loc">${svg('map-pin', 11, 2.4)} ${it.loc || '\u2014'}</span>
+      </div>
+    `}
   </div>
 </button>`;
 };
@@ -7042,13 +7074,17 @@ function renderCustomerHomeMain() {
   const coCount = companies.length;
   const standalone = isStandalone();
   const showInstall = !standalone && !isInstallBannerDismissed();
-  // Stöbern: zufällige Artikel aus aktivem Bestand (nicht verkauft, mit Foto)
-  const browseSample = (() => {
-    const pool = (inventory || []).filter(it => !it.sold && it.photoUrl);
-    if (pool.length === 0) return (inventory || []).filter(it => !it.sold).slice(0, 6);
-    // Stabiler "Random" pro Session: erste 6 nach hash der item.id
-    const sorted = [...pool].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-    return sorted.slice(0, 6);
+  // Stöbern: vollständige Liste, Kategorie-gruppiert (wie Bestand).
+  // Filter: nicht-verkauft. Für reguläre Kunden zusätzlich: nur Webshop-Artikel.
+  // Distributoren sehen alles im Bestand (preise inkl.).
+  const browseAll = (() => {
+    let pool = (inventory || []).filter(it => !it.sold);
+    if (isRegularCustomer()) pool = pool.filter(it => it.inShop);
+    // Sortierung: zuerst mit Foto, dann nach Title
+    return pool.sort((a, b) => {
+      if (!!a.photoUrl !== !!b.photoUrl) return a.photoUrl ? -1 : 1;
+      return (a.title || '').localeCompare(b.title || '');
+    });
   })();
 
   return `
@@ -7155,28 +7191,30 @@ function renderCustomerHomeMain() {
       })()}
     </div>
 
-    <!-- STÖBERN -->
-    ${browseSample.length > 0 ? `
-      <div style="margin-top:28px">
-        <div class="section-head" style="margin-bottom:10px">
-          <h2 class="section-head__title">${svg('eye', 13, 2.5)} Stöbern</h2>
-          <span style="font-size:11px;color:var(--c-ink-mute);font-weight:500">Beispiele aus ${activeCo?.name || 'dem Lager'}</span>
+    <!-- STÖBERN — Kategorie-gruppierte Liste wie im Bestand -->
+    ${browseAll.length > 0 ? (() => {
+      // Nach Kategorie gruppieren (alphabetisch)
+      const byCat = {};
+      for (const it of browseAll) {
+        const k = it.cat || '—';
+        (byCat[k] = byCat[k] || []).push(it);
+      }
+      const cats = Object.keys(byCat).sort((a, b) => a.localeCompare(b));
+      return `
+      <div style="margin-top:24px">
+        <div class="section-head" style="margin-bottom:6px">
+          <h2 class="section-head__title">${svg('eye', 13, 2.5)} ${t('home.browse.title') || 'Stöbern'}</h2>
+          <span style="font-size:11px;color:var(--c-ink-mute);font-weight:500">${browseAll.length} ${browseAll.length === 1 ? 'Artikel' : 'Artikel'} · ${activeCo?.name || ''}</span>
         </div>
-        <div class="browse-grid">
-          ${browseSample.map(it => `
-            <button data-action="select-item" data-id="${it.id}" class="browse-card">
-              <div class="browse-card__photo" style="${it.photoUrl ? `background-image:url('${photoSrc(it, 'large')}')` : ''}">
-                ${!it.photoUrl ? `<div style="color:rgba(255,255,255,.6);display:flex">${svg('package', 28, 2)}</div>` : ''}
-              </div>
-              <div class="browse-card__body">
-                <div class="browse-card__title">${it.title}</div>
-                <div class="browse-card__sub">${it.maker || it.cat || '—'}</div>
-              </div>
-            </button>
-          `).join('')}
-        </div>
+        ${cats.map(cat => `
+          <div style="margin-top:18px">
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.07em;padding:0 4px;margin-bottom:8px">${cat}</div>
+            <div class="item-list">${byCat[cat].map(it => itemCard(it)).join('')}</div>
+          </div>
+        `).join('')}
       </div>
-    ` : ''}
+      `;
+    })() : ''}
 
     <!-- HILFE -->
     <div style="margin-top:24px;padding:18px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
