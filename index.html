@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.63';
+const APP_VERSION = 'v1.64';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -12467,9 +12467,18 @@ document.addEventListener('click', (e) => {
       if (!u) break;
       if (!Array.isArray(u.employees)) u.employees = [];
       const newId = 'emp_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      const newEmp = { id: newId, firstName: '', lastName: '', email: '', phone: '', role: '' };
+      // Direkt in die Liste pushen, damit das Render die Edit-Form anzeigt
+      u.employees.push(newEmp);
       state.empEditingId = newId;
-      state.empDraft = { id: newId, firstName: '', lastName: '', email: '', phone: '', role: '' };
+      state.empDraft = { ...newEmp };
+      state.empIsNew = true; // damit Cancel den frisch angelegten wieder entfernt
       render();
+      // Nach Re-Render: ersten Input fokussieren
+      setTimeout(() => {
+        const inp = document.querySelector('[data-action="customer-emp-input"][data-key="firstName"]');
+        if (inp) inp.focus();
+      }, 30);
       break;
     }
     case 'customer-emp-edit': {
@@ -12478,12 +12487,21 @@ document.addEventListener('click', (e) => {
       if (!emp) break;
       state.empEditingId = id;
       state.empDraft = { ...emp };
+      state.empIsNew = false;
       render();
       break;
     }
     case 'customer-emp-cancel': {
+      // Wenn gerade ein NEUER, noch nicht gespeicherter Mitarbeiter editiert wurde → wieder entfernen
+      if (state.empIsNew) {
+        const u = APP_KEYS.user;
+        if (u && Array.isArray(u.employees) && state.empEditingId) {
+          u.employees = u.employees.filter(e => e.id !== state.empEditingId);
+        }
+      }
       state.empEditingId = '';
       state.empDraft = null;
+      state.empIsNew = false;
       render();
       break;
     }
@@ -12516,6 +12534,7 @@ document.addEventListener('click', (e) => {
       else u.employees.push(cleaned);
       state.empEditingId = '';
       state.empDraft = null;
+      state.empIsNew = false;
       state.cSetError = '';
       persistUser(u).then(() => { state.cSetSavedFlash = true; render(); setTimeout(() => { state.cSetSavedFlash = false; render(); }, 1800); })
         .catch(e => { state.cSetError = (t('cset.saveError') || 'Speichern fehlgeschlagen') + ': ' + (e?.message || ''); render(); });
