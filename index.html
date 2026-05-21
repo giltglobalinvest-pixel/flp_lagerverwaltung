@@ -1096,7 +1096,7 @@ body.is-flyer-view .version-badge{display:none}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.86';
+const APP_VERSION = 'v1.87';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2819,6 +2819,97 @@ async function loadUsers() {
     if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
     return (a.name || '').localeCompare(b.name || '');
   });
+}
+
+// ============================================================
+// USER-DATENEXPORT (Admin-only)
+// Erzeugt eine vollständige CSV mit allen Kontaktdaten + Settings + Distributor-Verknüpfung.
+// ============================================================
+function _csvEscape(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  // Quote wenn enthält: Komma, Quote, Newline, Semikolon → in Quotes, interne Quotes verdoppeln
+  if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function buildUsersCsv(users) {
+  // Map: recordId → Distributor-User, für "via XYZ"-Auflösung
+  const distById = new Map();
+  for (const u of users) if (u.isDistributor) distById.set(u._recordId, u);
+  const distName = rid => {
+    const d = distById.get(rid);
+    return d ? (d.companyName || d.name || d.email || '') : '';
+  };
+  const userType = u => {
+    if (u.role === 'admin') return 'Admin';
+    if (u.role !== 'customer') return 'User (intern)';
+    if (u.isDistributor) return 'Distributor';
+    if (u.parentDistributorId) return 'Sub-Customer';
+    return 'Kunde (FLP-Direkt)';
+  };
+  const cols = [
+    ['Typ',                userType],
+    ['Rolle',              u => u.role || ''],
+    ['Status',             u => u.status || ''],
+    ['Name',               u => u.name || ''],
+    ['Vorname',            u => u.firstName || ''],
+    ['Nachname',           u => u.lastName || ''],
+    ['Email (persönlich)', u => u.email || ''],
+    ['Firmen-Email',       u => u.firmEmail || ''],
+    ['Telefon',            u => u.phone || ''],
+    ['Firma',              u => u.companyName || ''],
+    ['Straße',             u => u.firmStreet || ''],
+    ['PLZ',                u => u.firmZip || ''],
+    ['Ort',                u => u.firmCity || ''],
+    ['Land',               u => u.firmCountry || ''],
+    ['Sprache',            u => u.lang || ''],
+    ['Distributor',        u => u.isDistributor ? 'JA' : ''],
+    ['Distributor-Rabatt %',   u => u.isDistributor ? String(u.distributorDiscount || 0) : ''],
+    ['Distributor-Marge %',    u => u.isDistributor ? String(u.distributorMargin || 0) : ''],
+    ['Distributor-Inquiry-Email', u => u.isDistributor ? (u.distributorInquiryEmail || '') : ''],
+    ['Über Distributor',   u => u.parentDistributorId ? distName(u.parentDistributorId) : ''],
+    ['Sieht Preise',       u => u.showPrices ? 'JA' : ''],
+    ['Mitarbeiter (Anzahl)', u => Array.isArray(u.employees) ? String(u.employees.length) : '0'],
+    ['Mitarbeiter (JSON)', u => Array.isArray(u.employees) && u.employees.length ? JSON.stringify(u.employees) : ''],
+    ['Quote-Recipient-ID', u => u.quoteRecipientId || ''],
+    ['Tenant-Key',         u => u.tenantKey || ''],
+    ['API-Key (Login)',    u => u.apiKey || ''],
+    ['Erstellt',           u => u.created || ''],
+    ['Record-ID',          u => u._recordId || ''],
+  ];
+  const header = cols.map(c => _csvEscape(c[0])).join(',');
+  const rows = users.map(u => cols.map(c => _csvEscape(c[1](u))).join(','));
+  // UTF-8 BOM für Excel-Kompatibilität (sonst sehen Umlaute kaputt aus in Excel)
+  return '﻿' + [header, ...rows].join('\r\n');
+}
+function downloadUsersCsv(users) {
+  const csv = buildUsersCsv(users);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'flp-stockmanager-users-' + date + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+}
+function downloadUsersJson(users) {
+  const json = JSON.stringify(users.map(u => {
+    const copy = { ...u };
+    // Logo-Attachments wegfiltern (groß + nicht hilfreich im Export)
+    delete copy.distributorLogo;
+    return copy;
+  }), null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'flp-stockmanager-users-' + date + '.json';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
 }
 
 async function persistUser(u) {
@@ -10647,8 +10738,10 @@ function renderUsers() {
     </div>
 
     <div style="padding:14px 20px 0;display:flex;gap:8px;flex-wrap:wrap">
-      <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="flex:1;min-width:170px;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
-      <button data-action="go-flyer" style="flex:0 0 auto;padding:13px 16px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Kunden-Flyer öffnen + drucken">${svg('file-text', 14, 2.5)} Flyer</button>
+      <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="flex:1;min-width:160px;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
+      <button data-action="export-users-csv" style="flex:0 0 auto;padding:13px 14px;background:#0A6B2C;color:#fff;border:0;border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Alle User-Daten als CSV (Excel) herunterladen">${svg('cloud-download', 14, 2.5)} CSV-Export</button>
+      <button data-action="export-users-json" style="flex:0 0 auto;padding:13px 12px;background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;box-shadow:var(--elev-1)" title="Alle User-Daten als JSON-Datei">${svg('file-text', 12, 2.4)} JSON</button>
+      <button data-action="go-flyer" style="flex:0 0 auto;padding:13px 14px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Kunden-Flyer öffnen + drucken">${svg('printer', 14, 2.5)} Flyer</button>
     </div>
 
     <div style="padding:14px 20px 0">
@@ -12984,6 +13077,30 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'go-flyer': go('flyer'); break;
+    case 'export-users-csv': {
+      if (!isAdmin()) break;
+      const users = state.users || [];
+      if (users.length === 0) { showToast('Keine User zum Exportieren', 'info', 2400); break; }
+      try {
+        downloadUsersCsv(users);
+        showToast(`${users.length} User als CSV exportiert`, 'success', 2400);
+      } catch (e) {
+        showToast('Export fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+      }
+      break;
+    }
+    case 'export-users-json': {
+      if (!isAdmin()) break;
+      const users = state.users || [];
+      if (users.length === 0) { showToast('Keine User zum Exportieren', 'info', 2400); break; }
+      try {
+        downloadUsersJson(users);
+        showToast(`${users.length} User als JSON exportiert`, 'success', 2400);
+      } catch (e) {
+        showToast('Export fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+      }
+      break;
+    }
     case 'user-add': {
       if (!isAdmin()) break;
       state.userDraft = {
