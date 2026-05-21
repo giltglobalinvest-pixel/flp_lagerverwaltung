@@ -1114,7 +1114,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.92';
+const APP_VERSION = 'v1.93';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3208,6 +3208,41 @@ const I18N = {
     'home.browse.subFrom': 'Beispiele aus {name}',
     'home.help.title': 'Nichts passendes gefunden?',
     'home.help.sub': 'Schreib uns direkt — wir melden uns schnell zurück.',
+    // FLYER (Druck-Material für Kunden, separat lokalisierbar)
+    'flyer.toolbar.title': 'Kundenflyer',
+    'flyer.toolbar.back': 'Zurück',
+    'flyer.toolbar.print': 'Drucken / PDF speichern',
+    'flyer.hero.title': 'Such dein Ersatzteil<br>per Foto.',
+    'flyer.hero.sub': 'Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom Typenschild — wir prüfen sofort, ob das passende Ersatzteil bei FLP Lift Parts auf Lager ist und melden uns mit Preis und Verfügbarkeit zurück. Kostenlos, ohne Tippen.',
+    'flyer.steps.title': 'So einfach geht’s',
+    'flyer.steps.1.title': 'Foto vom Typenschild',
+    'flyer.steps.1.sub': 'Handy aufs Schild halten. Das war’s. Keine Tipparbeit.',
+    'flyer.steps.2.title': 'KI erkennt das Teil',
+    'flyer.steps.2.sub': 'Hersteller, Modell, Code — alles automatisch ausgelesen.',
+    'flyer.steps.3.title': 'Treffer im Lager',
+    'flyer.steps.3.sub': 'Du siehst sofort ob wir es haben, mit Foto und Details.',
+    'flyer.steps.4.title': 'Anfrage oder Bestellung',
+    'flyer.steps.4.sub': 'Mit einem Tap landet alles bei FLP — Antwort kommt direkt.',
+    'flyer.why.title': 'Warum FLP Stockmanager?',
+    'flyer.why.1.title': 'Kostenlos',
+    'flyer.why.1.sub': 'Suchen, Anfragen, Bestellen — alles ohne versteckte Kosten.',
+    'flyer.why.2.title': 'Kein Tippen',
+    'flyer.why.2.sub': 'Foto reicht. Unsere KI erkennt Hersteller und Modell automatisch.',
+    'flyer.why.3.title': 'Direkt zum Profi',
+    'flyer.why.3.sub': 'Antworten kommen vom FLP-Team oder deinem Distributor — schnell.',
+    'flyer.mock.title': 'So sieht das in der App aus',
+    'flyer.mock.1.label': 'Foto-Suche',
+    'flyer.mock.1.cta': 'Foto vom Typenschild',
+    'flyer.mock.1.search': 'Oder Modellname tippen …',
+    'flyer.mock.2.label': 'Trefferliste',
+    'flyer.mock.2.headerLabel': 'Treffer',
+    'flyer.mock.3.label': 'Bestellung per Email',
+    'flyer.mock.3.headerLabel': 'Detail',
+    'flyer.mock.3.inquiry': 'Anfrage',
+    'flyer.mock.3.order': 'Bestellen',
+    'flyer.cta.title': 'Jetzt kostenlos starten',
+    'flyer.cta.sub': 'In 2 Minuten registriert. Scan den Code oder besuche uns online:',
+    'flyer.footer.tagline': 'Aufzug-Ersatzteile · Hersteller-übergreifend',
     'home.helpButton': 'Hilfe anzeigen',
     'home.installBanner.dismiss': 'Hinweis ausblenden',
     'home.itemsCount': '{n} Artikel',
@@ -3455,6 +3490,40 @@ const I18N = {
     'home.browse.subFrom': 'Examples from {name}',
     'home.help.title': 'Nothing matches?',
     'home.help.sub': 'Write to us directly — we’ll get back to you quickly.',
+    'flyer.toolbar.title': 'Customer flyer',
+    'flyer.toolbar.back': 'Back',
+    'flyer.toolbar.print': 'Print / Save as PDF',
+    'flyer.hero.title': 'Find your spare part<br>by photo.',
+    'flyer.hero.sub': 'Broken frequency converter? Drive at the end of its life? Take a photo of the type plate — we’ll check straight away whether the matching spare part is in stock at FLP Lift Parts and get back to you with price and availability. Free, no typing.',
+    'flyer.steps.title': 'How it works',
+    'flyer.steps.1.title': 'Photo of the type plate',
+    'flyer.steps.1.sub': 'Hold your phone up to the plate. That’s it. No typing.',
+    'flyer.steps.2.title': 'AI identifies the part',
+    'flyer.steps.2.sub': 'Manufacturer, model, code — all read automatically.',
+    'flyer.steps.3.title': 'Match in stock',
+    'flyer.steps.3.sub': 'You see right away if we have it, with photo and details.',
+    'flyer.steps.4.title': 'Inquiry or order',
+    'flyer.steps.4.sub': 'One tap and everything lands at FLP — quick reply.',
+    'flyer.why.title': 'Why FLP Stockmanager?',
+    'flyer.why.1.title': 'Free',
+    'flyer.why.1.sub': 'Search, inquire, order — no hidden costs.',
+    'flyer.why.2.title': 'No typing',
+    'flyer.why.2.sub': 'A photo is enough. Our AI detects manufacturer and model automatically.',
+    'flyer.why.3.title': 'Straight to the experts',
+    'flyer.why.3.sub': 'Replies come from the FLP team or your distributor — fast.',
+    'flyer.mock.title': 'This is what it looks like in the app',
+    'flyer.mock.1.label': 'Photo search',
+    'flyer.mock.1.cta': 'Photo of the type plate',
+    'flyer.mock.1.search': 'Or type model name …',
+    'flyer.mock.2.label': 'Matches',
+    'flyer.mock.2.headerLabel': 'Matches',
+    'flyer.mock.3.label': 'Order by email',
+    'flyer.mock.3.headerLabel': 'Detail',
+    'flyer.mock.3.inquiry': 'Inquiry',
+    'flyer.mock.3.order': 'Order',
+    'flyer.cta.title': 'Start now, free of charge',
+    'flyer.cta.sub': 'Registered in 2 minutes. Scan the code or visit us online:',
+    'flyer.footer.tagline': 'Lift spare parts · Manufacturer-independent',
     'home.helpButton': 'Show help',
     'home.installBanner.dismiss': 'Hide notice',
     'home.itemsCount': '{n} items',
@@ -3692,6 +3761,40 @@ const I18N = {
     'home.browse.subFrom': 'Ejemplos de {name}',
     'home.help.title': '¿No encuentras nada?',
     'home.help.sub': 'Escríbenos directamente — te respondemos rápido.',
+    'flyer.toolbar.title': 'Folleto para clientes',
+    'flyer.toolbar.back': 'Atrás',
+    'flyer.toolbar.print': 'Imprimir / Guardar PDF',
+    'flyer.hero.title': 'Encuentra tu repuesto<br>con una foto.',
+    'flyer.hero.sub': '¿Convertidor de frecuencia averiado? ¿Accionamiento al final? Haz una foto de la placa de características — comprobamos al instante si el repuesto correcto está en stock en FLP Lift Parts y te respondemos con precio y disponibilidad. Gratis, sin escribir nada.',
+    'flyer.steps.title': 'Así de fácil',
+    'flyer.steps.1.title': 'Foto de la placa',
+    'flyer.steps.1.sub': 'Apunta el móvil a la placa. Ya está. Sin escribir.',
+    'flyer.steps.2.title': 'La IA reconoce la pieza',
+    'flyer.steps.2.sub': 'Fabricante, modelo, código — todo leído automáticamente.',
+    'flyer.steps.3.title': 'Coincidencia en stock',
+    'flyer.steps.3.sub': 'Ves de inmediato si lo tenemos, con foto y detalles.',
+    'flyer.steps.4.title': 'Consulta o pedido',
+    'flyer.steps.4.sub': 'Con un toque llega todo a FLP — respuesta directa.',
+    'flyer.why.title': '¿Por qué FLP Stockmanager?',
+    'flyer.why.1.title': 'Gratis',
+    'flyer.why.1.sub': 'Buscar, consultar, pedir — sin costes ocultos.',
+    'flyer.why.2.title': 'Sin escribir',
+    'flyer.why.2.sub': 'Una foto basta. Nuestra IA reconoce fabricante y modelo automáticamente.',
+    'flyer.why.3.title': 'Directo al profesional',
+    'flyer.why.3.sub': 'Las respuestas llegan del equipo FLP o de tu distribuidor — rápido.',
+    'flyer.mock.title': 'Así se ve en la app',
+    'flyer.mock.1.label': 'Búsqueda por foto',
+    'flyer.mock.1.cta': 'Foto de la placa',
+    'flyer.mock.1.search': 'O escribe el modelo …',
+    'flyer.mock.2.label': 'Resultados',
+    'flyer.mock.2.headerLabel': 'Resultados',
+    'flyer.mock.3.label': 'Pedido por email',
+    'flyer.mock.3.headerLabel': 'Detalle',
+    'flyer.mock.3.inquiry': 'Consulta',
+    'flyer.mock.3.order': 'Pedir',
+    'flyer.cta.title': 'Empieza gratis ahora',
+    'flyer.cta.sub': 'Registrado en 2 minutos. Escanea el código o visítanos online:',
+    'flyer.footer.tagline': 'Repuestos de ascensor · Independiente de fabricante',
     'home.helpButton': 'Mostrar ayuda',
     'home.installBanner.dismiss': 'Ocultar aviso',
     'home.itemsCount': '{n} artículos',
@@ -3929,6 +4032,40 @@ const I18N = {
     'home.browse.subFrom': 'Voorbeelden uit {name}',
     'home.help.title': 'Niets gevonden?',
     'home.help.sub': 'Stuur ons direct een bericht — we reageren snel.',
+    'flyer.toolbar.title': 'Klantenflyer',
+    'flyer.toolbar.back': 'Terug',
+    'flyer.toolbar.print': 'Afdrukken / Opslaan als PDF',
+    'flyer.hero.title': 'Vind je onderdeel<br>met een foto.',
+    'flyer.hero.sub': 'Frequentieregelaar kapot? Aandrijving aan het eind? Maak een foto van het typeplaatje — wij controleren meteen of het juiste onderdeel op voorraad is bij FLP Lift Parts en melden ons terug met prijs en beschikbaarheid. Gratis, zonder typen.',
+    'flyer.steps.title': 'Zo werkt het',
+    'flyer.steps.1.title': 'Foto van het typeplaatje',
+    'flyer.steps.1.sub': 'Houd je telefoon op het plaatje. Klaar. Geen getyp.',
+    'flyer.steps.2.title': 'AI herkent het onderdeel',
+    'flyer.steps.2.sub': 'Fabrikant, model, code — alles automatisch uitgelezen.',
+    'flyer.steps.3.title': 'Treffer op voorraad',
+    'flyer.steps.3.sub': 'Je ziet meteen of we het hebben, met foto en details.',
+    'flyer.steps.4.title': 'Aanvraag of bestelling',
+    'flyer.steps.4.sub': 'Eén tik en alles komt bij FLP — snelle reactie.',
+    'flyer.why.title': 'Waarom FLP Stockmanager?',
+    'flyer.why.1.title': 'Gratis',
+    'flyer.why.1.sub': 'Zoeken, aanvragen, bestellen — zonder verborgen kosten.',
+    'flyer.why.2.title': 'Geen getyp',
+    'flyer.why.2.sub': 'Een foto is genoeg. Onze AI herkent fabrikant en model automatisch.',
+    'flyer.why.3.title': 'Direct naar de profs',
+    'flyer.why.3.sub': 'Antwoorden komen van het FLP-team of je distributeur — snel.',
+    'flyer.mock.title': 'Zo ziet het er uit in de app',
+    'flyer.mock.1.label': 'Foto-zoeken',
+    'flyer.mock.1.cta': 'Foto van het typeplaatje',
+    'flyer.mock.1.search': 'Of typ de modelnaam …',
+    'flyer.mock.2.label': 'Treffers',
+    'flyer.mock.2.headerLabel': 'Treffers',
+    'flyer.mock.3.label': 'Bestelling per email',
+    'flyer.mock.3.headerLabel': 'Detail',
+    'flyer.mock.3.inquiry': 'Aanvraag',
+    'flyer.mock.3.order': 'Bestellen',
+    'flyer.cta.title': 'Start nu gratis',
+    'flyer.cta.sub': 'In 2 minuten geregistreerd. Scan de code of bezoek ons online:',
+    'flyer.footer.tagline': 'Lift-onderdelen · Fabrikant-onafhankelijk',
     'home.helpButton': 'Help tonen',
     'home.installBanner.dismiss': 'Melding verbergen',
     'home.itemsCount': '{n} artikelen',
@@ -4166,6 +4303,40 @@ const I18N = {
     'home.browse.subFrom': 'Exemples de {name}',
     'home.help.title': 'Rien ne convient ?',
     'home.help.sub': 'Écris-nous directement — nous répondons vite.',
+    'flyer.toolbar.title': 'Flyer client',
+    'flyer.toolbar.back': 'Retour',
+    'flyer.toolbar.print': 'Imprimer / Enregistrer en PDF',
+    'flyer.hero.title': 'Trouve ta pièce<br>en une photo.',
+    'flyer.hero.sub': 'Convertisseur de fréquence en panne ? Entraînement en fin de vie ? Prends une photo de la plaque signalétique — nous vérifions immédiatement si la pièce correspondante est en stock chez FLP Lift Parts et te répondons avec le prix et la disponibilité. Gratuit, sans saisie.',
+    'flyer.steps.title': 'Comment ça marche',
+    'flyer.steps.1.title': 'Photo de la plaque',
+    'flyer.steps.1.sub': 'Pointe ton téléphone sur la plaque. C’est tout.',
+    'flyer.steps.2.title': 'L’IA identifie la pièce',
+    'flyer.steps.2.sub': 'Fabricant, modèle, code — tout lu automatiquement.',
+    'flyer.steps.3.title': 'Trouvé en stock',
+    'flyer.steps.3.sub': 'Tu vois tout de suite si on l’a, avec photo et détails.',
+    'flyer.steps.4.title': 'Demande ou commande',
+    'flyer.steps.4.sub': 'Un appui et tout arrive chez FLP — réponse rapide.',
+    'flyer.why.title': 'Pourquoi FLP Stockmanager ?',
+    'flyer.why.1.title': 'Gratuit',
+    'flyer.why.1.sub': 'Recherche, demande, commande — sans coûts cachés.',
+    'flyer.why.2.title': 'Pas de saisie',
+    'flyer.why.2.sub': 'Une photo suffit. Notre IA reconnaît fabricant et modèle automatiquement.',
+    'flyer.why.3.title': 'Direct aux pros',
+    'flyer.why.3.sub': 'Les réponses viennent de l’équipe FLP ou de ton distributeur — vite.',
+    'flyer.mock.title': 'Voilà à quoi ça ressemble dans l’app',
+    'flyer.mock.1.label': 'Recherche par photo',
+    'flyer.mock.1.cta': 'Photo de la plaque',
+    'flyer.mock.1.search': 'Ou tape le nom du modèle …',
+    'flyer.mock.2.label': 'Résultats',
+    'flyer.mock.2.headerLabel': 'Résultats',
+    'flyer.mock.3.label': 'Commande par email',
+    'flyer.mock.3.headerLabel': 'Détail',
+    'flyer.mock.3.inquiry': 'Demande',
+    'flyer.mock.3.order': 'Commander',
+    'flyer.cta.title': 'Commence gratuitement',
+    'flyer.cta.sub': 'Inscrit en 2 minutes. Scanne le code ou visite-nous en ligne :',
+    'flyer.footer.tagline': 'Pièces d’ascenseur · Multi-fabricants',
     'home.helpButton': 'Afficher l’aide',
     'home.installBanner.dismiss': 'Masquer l’avis',
     'home.itemsCount': '{n} articles',
@@ -10337,9 +10508,22 @@ function renderItemList() {
 // Admin-Integrationen: val.town-Proxy für Freshdesk-Tickets einrichten / aktualisieren
 // ============================================================
 // FLYER — Kundenflyer (1 Seite A4) zum Drucken / Als PDF speichern
+// Eigener Sprach-Picker damit Admin Flyer in beliebiger Sprache drucken kann,
+// unabhängig von seiner Admin-UI-Sprache. state.flyerLang überschreibt state.lang
+// nur für die Flyer-Renderung.
 // ============================================================
 function renderFlyer() {
   const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
+  // Lokaler t-Helper, der die Flyer-Lang priorisiert
+  const flyerLang = state.flyerLang || state.lang || 'en';
+  const tF = (key, params) => {
+    const dict = I18N[flyerLang] || I18N.de;
+    let str = (key in dict) ? dict[key] : (I18N.de[key] || key);
+    if (params) Object.keys(params).forEach(k => {
+      str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+    });
+    return str;
+  };
   // QR-Code als SVG via QR Server API… aber wir wollen offline → einfacher: kein QR im Print,
   // stattdessen URL groß. Wenn QR gewünscht: über externe URL einbetten.
   const qrSvg = `
@@ -10371,10 +10555,16 @@ function renderFlyer() {
   return `
 <div class="flyer-screen">
   <div class="flyer-toolbar">
-    <h1>${svg('file-text', 18, 2.4)} Kundenflyer</h1>
+    <h1>${svg('file-text', 18, 2.4)} ${tF('flyer.toolbar.title')}</h1>
     <div class="flyer-toolbar__btns">
-      <button class="flyer-toolbar__btn flyer-toolbar__btn--ghost" data-action="go-home">${svg('arrow-left', 13, 2.4)} Zurück</button>
-      <button class="flyer-toolbar__btn" onclick="window.print()">${svg('printer', 13, 2.4)} Drucken / PDF speichern</button>
+      <!-- Sprach-Picker für den Flyer (unabhängig von Admin-UI-Sprache) -->
+      <div style="display:inline-flex;gap:2px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-pill);padding:2px;box-shadow:var(--elev-1)">
+        ${I18N_LANGS.map(L => `
+          <button data-action="flyer-set-lang" data-code="${L.code}" title="${L.label}" style="padding:5px 9px;background:${flyerLang===L.code?'var(--c-ink)':'transparent'};color:${flyerLang===L.code?'#fff':'var(--c-ink-soft)'};border:0;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px">${L.flag} ${L.code.toUpperCase()}</button>
+        `).join('')}
+      </div>
+      <button class="flyer-toolbar__btn flyer-toolbar__btn--ghost" data-action="go-home">${svg('arrow-left', 13, 2.4)} ${tF('flyer.toolbar.back')}</button>
+      <button class="flyer-toolbar__btn" onclick="window.print()">${svg('printer', 13, 2.4)} ${tF('flyer.toolbar.print')}</button>
     </div>
   </div>
 
@@ -10385,54 +10575,50 @@ function renderFlyer() {
         <span class="flyer__brand-sq">F</span><span class="flyer__brand-sq flyer__brand-sq--blue">L</span><span class="flyer__brand-sq flyer__brand-sq--blue">P</span>
         <span>Stockmanager</span>
       </div>
-      <h1 class="flyer__hero-title">Such dein Ersatzteil<br>per Foto.</h1>
-      <p class="flyer__hero-sub">
-        Defekter Frequenzumrichter? Antrieb am Ende? Mach ein Foto vom Typenschild —
-        wir prüfen sofort, ob das passende Ersatzteil bei FLP Lift Parts auf Lager ist
-        und melden uns mit Preis und Verfügbarkeit zurück. Kostenlos, ohne Tippen.
-      </p>
+      <h1 class="flyer__hero-title">${tF('flyer.hero.title')}</h1>
+      <p class="flyer__hero-sub">${tF('flyer.hero.sub')}</p>
     </div>
 
     <!-- BODY -->
     <div class="flyer__body">
-      <h2 class="flyer__h2">So einfach geht’s</h2>
+      <h2 class="flyer__h2">${tF('flyer.steps.title')}</h2>
       <div class="flyer__steps">
         ${[
-          { n: 1, icon: 'camera',         color: '#2456E5', title: 'Foto vom Typenschild', sub: 'Handy aufs Schild halten. Das war’s. Keine Tipparbeit.' },
-          { n: 2, icon: 'scan-text',      color: '#7C3AED', title: 'KI erkennt das Teil',  sub: 'Hersteller, Modell, Code — alles automatisch ausgelesen.' },
-          { n: 3, icon: 'boxes',          color: '#0F766E', title: 'Treffer im Lager',     sub: 'Du siehst sofort ob wir es haben, mit Foto und Details.' },
-          { n: 4, icon: 'message-circle', color: '#D97706', title: 'Anfrage oder Bestellung', sub: 'Mit einem Tap landet alles bei FLP — Antwort kommt direkt.' },
+          { n: 1, icon: 'camera',         color: '#2456E5' },
+          { n: 2, icon: 'scan-text',      color: '#7C3AED' },
+          { n: 3, icon: 'boxes',          color: '#0F766E' },
+          { n: 4, icon: 'message-circle', color: '#D97706' },
         ].map(s => `
           <div class="flyer__step">
             <div class="flyer__step-num" style="background:${s.color}">${s.n}</div>
             <div class="flyer__step-icon" style="background:${s.color}">${svg(s.icon, 22, 2.4)}</div>
-            <div class="flyer__step-title">${s.title}</div>
-            <div class="flyer__step-sub">${s.sub}</div>
+            <div class="flyer__step-title">${tF('flyer.steps.' + s.n + '.title')}</div>
+            <div class="flyer__step-sub">${tF('flyer.steps.' + s.n + '.sub')}</div>
           </div>
         `).join('')}
       </div>
 
-      <h2 class="flyer__h2">Warum FLP Stockmanager?</h2>
+      <h2 class="flyer__h2">${tF('flyer.why.title')}</h2>
       <div class="flyer__perks">
         <div class="flyer__perk">
-          <div class="flyer__perk-title">${svg('sparkles', 13, 2.5)} Kostenlos</div>
-          <div class="flyer__perk-sub">Suchen, Anfragen, Bestellen — alles ohne versteckte Kosten.</div>
+          <div class="flyer__perk-title">${svg('sparkles', 13, 2.5)} ${tF('flyer.why.1.title')}</div>
+          <div class="flyer__perk-sub">${tF('flyer.why.1.sub')}</div>
         </div>
         <div class="flyer__perk">
-          <div class="flyer__perk-title">${svg('camera', 13, 2.5)} Kein Tippen</div>
-          <div class="flyer__perk-sub">Foto reicht. Unsere KI erkennt Hersteller und Modell automatisch.</div>
+          <div class="flyer__perk-title">${svg('camera', 13, 2.5)} ${tF('flyer.why.2.title')}</div>
+          <div class="flyer__perk-sub">${tF('flyer.why.2.sub')}</div>
         </div>
         <div class="flyer__perk">
-          <div class="flyer__perk-title">${svg('message-circle', 13, 2.5)} Direkt zum Profi</div>
-          <div class="flyer__perk-sub">Antworten kommen vom FLP-Team oder deinem Distributor — schnell.</div>
+          <div class="flyer__perk-title">${svg('message-circle', 13, 2.5)} ${tF('flyer.why.3.title')}</div>
+          <div class="flyer__perk-sub">${tF('flyer.why.3.sub')}</div>
         </div>
       </div>
 
       <!-- Mini-Mockup als visuelles Beispiel -->
-      <h2 class="flyer__h2">So sieht das in der App aus</h2>
+      <h2 class="flyer__h2">${tF('flyer.mock.title')}</h2>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;align-items:start">
         ${[
-          { title: 'Foto-Suche', content: `
+          { title: tF('flyer.mock.1.label'), content: `
             <div class="flyer__mock-header">
               <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
               <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
@@ -10441,32 +10627,32 @@ function renderFlyer() {
             </div>
             <div class="flyer__mock-cta">
               <div class="flyer__mock-cta-camera">${svg('camera', 18, 2.2)}</div>
-              Foto vom Typenschild
+              ${tF('flyer.mock.1.cta')}
             </div>
-            <div class="flyer__mock-search">${svg('search', 9, 2.4)} <span>Oder Modellname tippen …</span></div>
+            <div class="flyer__mock-search">${svg('search', 9, 2.4)} <span>${tF('flyer.mock.1.search')}</span></div>
           ` },
-          { title: 'Trefferliste', content: `
+          { title: tF('flyer.mock.2.label'), content: `
             <div class="flyer__mock-header">
               <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
               <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
               <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">P</span>
-              <span class="flyer__mock-brand">Treffer</span>
+              <span class="flyer__mock-brand">${tF('flyer.mock.2.headerLabel')}</span>
             </div>
             <div class="flyer__mock-item"><div class="flyer__mock-item-photo"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">VVVF-Inverter CPI 32 AU</div><div class="flyer__mock-item-sub">ThyssenKrupp</div></div><div class="flyer__mock-item-price">82 €</div></div>
             <div class="flyer__mock-item"><div class="flyer__mock-item-photo" style="background:linear-gradient(135deg,#7C3AED,#5B21B6)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">ZAdyn4C Frequenzumrichter</div><div class="flyer__mock-item-sub">Ziehl-Abegg</div></div><div class="flyer__mock-item-price">1.840 €</div></div>
             <div class="flyer__mock-item"><div class="flyer__mock-item-photo" style="background:linear-gradient(135deg,#0F766E,#065F46)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">CPI 15C Synchron</div><div class="flyer__mock-item-sub">ThyssenKrupp</div></div><div class="flyer__mock-item-price">650 €</div></div>
           ` },
-          { title: 'Bestellung per Email', content: `
+          { title: tF('flyer.mock.3.label'), content: `
             <div class="flyer__mock-header">
               <span class="flyer__brand-sq" style="width:14px;height:14px;font-size:8px">F</span>
               <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">L</span>
               <span class="flyer__brand-sq flyer__brand-sq--blue" style="width:14px;height:14px;font-size:8px">P</span>
-              <span class="flyer__mock-brand">Detail</span>
+              <span class="flyer__mock-brand">${tF('flyer.mock.3.headerLabel')}</span>
             </div>
             <div class="flyer__mock-item" style="padding:8px"><div class="flyer__mock-item-photo" style="width:34px;height:34px;border-radius:5px;background:linear-gradient(135deg,#1740B8,#0F1830)"></div><div class="flyer__mock-item-text"><div class="flyer__mock-item-title">VVVF-Inverter CPI 32 AU</div><div class="flyer__mock-item-sub">ThyssenKrupp · Frequenzumrichter</div></div></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:auto">
-              <div style="background:#2456E5;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">Anfrage</div>
-              <div style="background:#10B981;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">Bestellen</div>
+              <div style="background:#2456E5;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">${tF('flyer.mock.3.inquiry')}</div>
+              <div style="background:#10B981;color:#fff;border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:700">${tF('flyer.mock.3.order')}</div>
             </div>
           ` },
         ].map(m => `
@@ -10487,8 +10673,8 @@ function renderFlyer() {
     <div style="padding:0 14mm 8mm">
       <div class="flyer__cta">
         <div class="flyer__cta-text">
-          <div class="flyer__cta-title">Jetzt kostenlos starten</div>
-          <div class="flyer__cta-sub">In 2 Minuten registriert. Scan den Code oder besuche uns online:</div>
+          <div class="flyer__cta-title">${tF('flyer.cta.title')}</div>
+          <div class="flyer__cta-sub">${tF('flyer.cta.sub')}</div>
           <a class="flyer__cta-link" href="${appUrl}" style="margin-top:8px">${svg('arrow-right', 13, 2.5)} ${appUrl.replace(/^https?:\/\//, '')}</a>
         </div>
         <div class="flyer__qr">${qrSvg}</div>
@@ -10499,7 +10685,7 @@ function renderFlyer() {
     <div class="flyer__footer">
       <div>
         <div class="flyer__footer-brand">FLP Lift Parts GmbH</div>
-        <div>Aufzug-Ersatzteile · Hersteller-übergreifend</div>
+        <div>${tF('flyer.footer.tagline')}</div>
       </div>
       <div style="text-align:right">
         <div>service@flp-shop.com</div>
@@ -13309,6 +13495,15 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'go-flyer': go('flyer'); break;
+    case 'flyer-set-lang': {
+      // Setzt nur die Flyer-Sprache, ohne die Admin-UI-Sprache zu ändern
+      const code = btn.dataset.code;
+      if (code && I18N[code]) {
+        state.flyerLang = code;
+        render();
+      }
+      break;
+    }
     case 'export-users-csv': {
       if (!isAdmin()) break;
       const users = state.users || [];
