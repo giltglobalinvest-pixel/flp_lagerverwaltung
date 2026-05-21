@@ -1009,7 +1009,7 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.65';
+const APP_VERSION = 'v1.66';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9709,13 +9709,13 @@ function renderUsers() {
             </div>
             ${d.role === 'customer' ? `
               <div class="field" style="padding:14px;background:var(--c-blue-soft);border:1px solid var(--c-blue);border-radius:var(--r-md);display:flex;flex-direction:column;gap:12px">
-                <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.querySelector('[data-action=user-toggle-distributor]').click()">
-                  <input type="checkbox" data-action="user-toggle-distributor" ${d.isDistributor ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+                  <input type="checkbox" data-action="user-toggle-distributor" ${d.isDistributor ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
                   <div style="flex:1">
                     <div style="font-size:13px;font-weight:600;color:var(--c-blue-deep)">Ist Distributor</div>
                     <div style="font-size:11px;color:var(--c-ink-mute)">Darf Preise sehen + eigene Sub-Kunden via Invite-Link verwalten</div>
                   </div>
-                </div>
+                </label>
                 ${d.isDistributor ? `
                   <div class="field" style="margin:0">
                     <label class="field__label">Distributor-Rabatt auf FLP-Preis</label>
