@@ -1135,7 +1135,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.05';
+const APP_VERSION = 'v2.06';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -8266,28 +8266,25 @@ function renderDownloadsSheet() {
         ` : DOWNLOAD_CATEGORIES.map(cat => {
           let items = byCat[cat] || [];
           if (items.length === 0) return '';
-          // Prospekte: Tabs pro Firma. Andere Kategorien: alle items zeigen.
+          // Firmen-Tabs für alle Kategorien (sofern mind. 1 Item einer Firma zugeordnet ist)
           let tabsHtml = '';
-          if (cat === 'prospekte') {
-            // Welche Firmen haben Prospekte? (inkl. „alle Firmen"-Einträge mit company='')
-            const companyIds = Array.from(new Set(items.map(d => d.company).filter(Boolean)));
-            const companies = (state.companies || []).filter(c => companyIds.includes(c.id));
-            if (companies.length > 0) {
-              const activeTab = state.downloadsCompanyTab || 'all';
-              tabsHtml = `
-                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;padding:0 2px">
-                  <button data-action="dl-set-company-tab" data-cid="all" style="padding:6px 11px;background:${activeTab==='all'?'var(--c-ink)':'var(--c-surface)'};color:${activeTab==='all'?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab==='all'?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer">🌐 ${t('downloads.company.all')}</button>
-                  ${companies.map(c => `
-                    <button data-action="dl-set-company-tab" data-cid="${c.id}" style="padding:6px 11px;background:${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-surface)'};color:${activeTab===c.id?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
-                      <span style="width:7px;height:7px;border-radius:50%;background:${activeTab===c.id?'#fff':(c.color||'#94A3B8')}"></span>${(c.name || '').replace(/</g,'&lt;')}
-                    </button>
-                  `).join('')}
-                </div>
-              `;
-              if (activeTab !== 'all') {
-                // Filter: nur Items mit dieser company, plus Items ohne company-Tag (= alle Firmen)
-                items = items.filter(d => d.company === activeTab || !d.company);
-              }
+          const companyIds = Array.from(new Set(items.map(d => d.company).filter(Boolean)));
+          const companies = (state.companies || []).filter(c => companyIds.includes(c.id));
+          if (companies.length > 0) {
+            const activeTab = state.downloadsCompanyTab || 'all';
+            tabsHtml = `
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;padding:0 2px">
+                <button data-action="dl-set-company-tab" data-cid="all" style="padding:6px 11px;background:${activeTab==='all'?'var(--c-ink)':'var(--c-surface)'};color:${activeTab==='all'?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab==='all'?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer">🌐 ${t('downloads.company.all')}</button>
+                ${companies.map(c => `
+                  <button data-action="dl-set-company-tab" data-cid="${c.id}" style="padding:6px 11px;background:${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-surface)'};color:${activeTab===c.id?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+                    <span style="width:7px;height:7px;border-radius:50%;background:${activeTab===c.id?'#fff':(c.color||'#94A3B8')}"></span>${(c.name || '').replace(/</g,'&lt;')}
+                  </button>
+                `).join('')}
+              </div>
+            `;
+            if (activeTab !== 'all') {
+              // Filter: nur Items mit dieser company, plus Items ohne company-Tag (= alle Firmen)
+              items = items.filter(d => d.company === activeTab || !d.company);
             }
           }
           if (items.length === 0 && !tabsHtml) return '';
@@ -10931,26 +10928,24 @@ function renderDownloadsAdmin() {
           ${DOWNLOAD_CATEGORIES.map(cat => {
             let items = all.filter(d => d.category === cat);
             if (items.length === 0) return '';
-            // Prospekte: Company-Tabs auch im Admin
+            // Firmen-Tabs für alle Kategorien (sofern mind. 1 Item einer Firma zugeordnet ist)
             let adminTabsHtml = '';
-            if (cat === 'prospekte') {
-              const companyIds = Array.from(new Set(items.map(d => d.company).filter(Boolean)));
-              const companies = (state.companies || []).filter(c => companyIds.includes(c.id));
-              if (companies.length > 0) {
-                const activeTab = state.downloadsCompanyTab || 'all';
-                adminTabsHtml = `
-                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px">
-                    <button data-action="dl-set-company-tab" data-cid="all" style="padding:5px 10px;background:${activeTab==='all'?'var(--c-ink)':'var(--c-surface)'};color:${activeTab==='all'?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab==='all'?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer">🌐 Alle</button>
-                    ${companies.map(c => `
-                      <button data-action="dl-set-company-tab" data-cid="${c.id}" style="padding:5px 10px;background:${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-surface)'};color:${activeTab===c.id?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
-                        <span style="width:7px;height:7px;border-radius:50%;background:${activeTab===c.id?'#fff':(c.color||'#94A3B8')}"></span>${(c.name || '').replace(/</g,'&lt;')}
-                      </button>
-                    `).join('')}
-                  </div>
-                `;
-                if (activeTab !== 'all') {
-                  items = items.filter(d => d.company === activeTab || !d.company);
-                }
+            const companyIds = Array.from(new Set(items.map(d => d.company).filter(Boolean)));
+            const companies = (state.companies || []).filter(c => companyIds.includes(c.id));
+            if (companies.length > 0) {
+              const activeTab = state.downloadsCompanyTab || 'all';
+              adminTabsHtml = `
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px">
+                  <button data-action="dl-set-company-tab" data-cid="all" style="padding:5px 10px;background:${activeTab==='all'?'var(--c-ink)':'var(--c-surface)'};color:${activeTab==='all'?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab==='all'?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer">🌐 Alle</button>
+                  ${companies.map(c => `
+                    <button data-action="dl-set-company-tab" data-cid="${c.id}" style="padding:5px 10px;background:${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-surface)'};color:${activeTab===c.id?'#fff':'var(--c-ink-soft)'};border:1px solid ${activeTab===c.id?(c.color||'var(--c-ink)'):'var(--c-border)'};border-radius:var(--r-pill);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+                      <span style="width:7px;height:7px;border-radius:50%;background:${activeTab===c.id?'#fff':(c.color||'#94A3B8')}"></span>${(c.name || '').replace(/</g,'&lt;')}
+                    </button>
+                  `).join('')}
+                </div>
+              `;
+              if (activeTab !== 'all') {
+                items = items.filter(d => d.company === activeTab || !d.company);
               }
             }
             const companyById = id => (state.companies || []).find(c => c.id === id);
@@ -10972,8 +10967,8 @@ function renderDownloadsAdmin() {
                         <div style="flex:1;min-width:0">
                           <div style="font-size:12.5px;font-weight:600;color:var(--c-ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                             ${(d.title || (f && f.filename) || '— ohne Titel —').replace(/</g,'&lt;')}
-                            ${cat === 'prospekte' && co ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:1.5px 7px;background:${co.color || '#94A3B8'}1A;color:${co.color || '#475569'};border-radius:var(--r-pill);font-size:10px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:${co.color || '#94A3B8'}"></span>${(co.name || '').replace(/</g,'&lt;')}</span>` : ''}
-                            ${cat === 'prospekte' && !d.company ? `<span style="padding:1.5px 7px;background:var(--c-surface-alt);color:var(--c-ink-mute);border-radius:var(--r-pill);font-size:10px;font-weight:600">🌐 Alle</span>` : ''}
+                            ${co ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:1.5px 7px;background:${co.color || '#94A3B8'}1A;color:${co.color || '#475569'};border-radius:var(--r-pill);font-size:10px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:${co.color || '#94A3B8'}"></span>${(co.name || '').replace(/</g,'&lt;')}</span>` : ''}
+                            ${!d.company ? `<span style="padding:1.5px 7px;background:var(--c-surface-alt);color:var(--c-ink-mute);border-radius:var(--r-pill);font-size:10px;font-weight:600">🌐 Alle</span>` : ''}
                           </div>
                           <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px;font-family:var(--f-mono)">${d.lang ? d.lang.toUpperCase() : 'ALLE'} · ${f ? (f.filename || '?') : '— keine Datei —'} · #${d.sortOrder}</div>
                         </div>
@@ -11046,9 +11041,8 @@ function renderDownloadEditSheet(d) {
           </div>
           <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">„Alle" = Sprachunabhängig (z.B. PDFs ohne Text). Sonst nur Kunden mit gewählter App-Sprache sehen die Datei.</div>
         </div>
-        ${d.category === 'prospekte' ? `
         <div class="field">
-          <label class="field__label">Firma <span style="color:var(--c-ink-mute);font-weight:500">(nur für Prospekte)</span></label>
+          <label class="field__label">Firma</label>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <button data-action="dl-set-company" data-cid="" style="padding:7px 12px;background:${!d.company?'var(--c-ink)':'var(--c-surface)'};color:${!d.company?'#fff':'var(--c-ink-soft)'};border:1px solid ${!d.company?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">🌐 Alle Firmen</button>
             ${(state.companies || []).map(c => `
@@ -11057,9 +11051,8 @@ function renderDownloadEditSheet(d) {
               </button>
             `).join('')}
           </div>
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">Kunden sehen Tabs pro Firma im Prospekte-Bereich. „Alle Firmen" = überall sichtbar.</div>
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">Kunden sehen pro Kategorie Tabs zum Filtern nach Firma. „Alle Firmen" = überall sichtbar.</div>
         </div>
-        ` : ''}
         <div class="field">
           <label class="field__label">Sortierung <span style="color:var(--c-ink-mute);font-weight:500">(kleine Zahl = oben)</span></label>
           <input class="field__input" type="number" min="0" max="999" step="1" data-action="dl-input" data-key="sortOrder" value="${d.sortOrder || 0}" style="font-family:var(--f-mono);max-width:120px">
@@ -14131,7 +14124,7 @@ document.addEventListener('click', (e) => {
         description: (d.description || '').trim(),
         category: d.category,
         lang: d.lang || '',
-        company: (d.category === 'prospekte') ? (d.company || '') : '',
+        company: d.company || '',
         sort_order: String(d.sortOrder || 0),
         active: '1',
         created: d.created || nowIso(),
