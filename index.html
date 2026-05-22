@@ -1135,7 +1135,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.01';
+const APP_VERSION = 'v2.02';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1356,6 +1356,29 @@ async function uploadFileToRecord(table, recordId, attachmentField, file) {
   return await res.json();
 }
 
+// Generische Datei-Upload-Funktion ohne Image-Processing — für Downloads (PDF, Word, etc.)
+async function uploadRawFileToRecord(table, recordId, attachmentField, file) {
+  if (!APP_KEYS.airtableWriteKey) throw new Error('Bitte einloggen');
+  if (file.size > 50 * 1024 * 1024) throw new Error('Datei zu groß (max. 50 MB)');
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const url = 'https://content.airtable.com/v0/' + AIR_BASE() + '/' + recordId + '/' + attachmentField + '/uploadAttachment';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + APP_KEYS.airtableWriteKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType: file.type || 'application/octet-stream', file: base64, filename: file.name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Upload fehlgeschlagen: ' + (err.error?.message || res.status));
+  }
+  return await res.json();
+}
+
 // Logo-Verarbeitung: anders als bei Item-Fotos — KEIN Crop, KEIN JPEG-Convert.
 // Behält Transparenz (PNG bleibt PNG, SVG/GIF werden unverändert hochgeladen).
 // Nur Skalierung auf max. 512px längste Kante damit Uploads schlank bleiben.
@@ -1426,6 +1449,74 @@ async function uploadLogoToRecord(table, recordId, attachmentField, file) {
     throw new Error('Upload fehlgeschlagen: ' + (err.error?.message || res.status));
   }
   return await res.json();
+}
+
+// ============================================================
+// DOWNLOADS — Prospekte, Handlungsempfehlungen, Verkaufshilfen, Zertifikate
+// Globale Ressourcen, vom Admin verwaltet. Lazy-Load: Liste wird nur beim
+// ersten Modal-Open geholt, Datei-Inhalt erst beim Klick (Airtable-CDN-URL).
+// ============================================================
+const DOWNLOAD_CATEGORIES = ['prospekte','empfehlungen','verkaufshilfen','zertifikate'];
+
+function recordToDownload(rec) {
+  const f = rec.fields || {};
+  return {
+    _recordId: rec.id,
+    title: f.title || '',
+    description: f.description || '',
+    category: f.category || 'prospekte',
+    lang: f.lang || '',
+    file: Array.isArray(f.file) ? f.file : [],
+    sortOrder: Number(f.sort_order || 0) || 0,
+    active: String(f.active || '').trim() === '1',
+    created: f.created || '',
+  };
+}
+
+async function loadDownloads() {
+  if (state.downloadsLoading) return state.downloads || [];
+  state.downloadsLoading = true;
+  try {
+    // Public-Read über AIRTABLE_READ_KEY (gleiche Auth wie Public-Companies)
+    const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+    const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_DOWNLOADS + '?pageSize=100', { headers });
+    if (!r.ok) { state.downloads = []; state.downloadsLoading = false; return []; }
+    const data = await r.json();
+    const list = (data.records || []).map(recordToDownload).filter(d => d.active).sort((a, b) => {
+      // 1. Kategorie nach DOWNLOAD_CATEGORIES-Reihenfolge
+      const ai = DOWNLOAD_CATEGORIES.indexOf(a.category);
+      const bi = DOWNLOAD_CATEGORIES.indexOf(b.category);
+      if (ai !== bi) return ai - bi;
+      // 2. sort_order aufsteigend
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      // 3. Titel alphabetisch
+      return (a.title || '').localeCompare(b.title || '');
+    });
+    state.downloads = list;
+    state.downloadsLoading = false;
+    return list;
+  } catch (e) {
+    state.downloadsLoading = false;
+    state.downloads = [];
+    return [];
+  }
+}
+
+// Filtert Downloads für den aktuellen User (basierend auf Sprache).
+// Items mit lang='' werden IMMER angezeigt (= sprachunabhängig).
+function filteredDownloadsForUser() {
+  const lang = state.lang || 'de';
+  return (state.downloads || []).filter(d => !d.lang || d.lang === lang);
+}
+
+async function createDownloadRecord(fields) {
+  return await airWrite(TBL_DOWNLOADS, fields);
+}
+async function updateDownloadRecord(recordId, fields) {
+  return await airUpdate(TBL_DOWNLOADS, recordId, fields);
+}
+async function deleteDownloadRecord(recordId) {
+  return await airDelete(TBL_DOWNLOADS, recordId);
 }
 
 // Distributor-Logo Upload: vom Distributor selbst in seinen Settings
@@ -2597,14 +2688,31 @@ const HALL_FIELDS = [
   { name: 'api_key', type: 'singleLineText' },
 ];
 
+// Downloads-Tabelle: Prospekte, Handlungsempfehlungen, Verkaufshilfen, Zertifikate
+// Pro Sprache eine Datei (z.B. "Prospekt 2026 DE" + "Prospekt 2026 EN").
+// Globale Ressourcen — keine Tenant-Trennung.
+const TBL_DOWNLOADS = 'Downloads';
+const DOWNLOAD_FIELDS = [
+  { name: 'title',       type: 'singleLineText' },
+  { name: 'description', type: 'multilineText' },
+  { name: 'category',    type: 'singleLineText' },  // prospekte | empfehlungen | verkaufshilfen | zertifikate
+  { name: 'lang',        type: 'singleLineText' },  // de | en | es | nl | fr | '' (= alle Sprachen)
+  { name: 'file',        type: 'multipleAttachments' },
+  { name: 'sort_order',  type: 'singleLineText' },  // Nummer als String
+  { name: 'active',      type: 'singleLineText' },  // '1' = sichtbar, leer = versteckt
+  { name: 'created',     type: 'singleLineText' },
+];
+
 async function ensureAllTables() {
   await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureTable(TBL_ITEMS, ITEM_FIELDS);
   await ensureTable(TBL_HALLS, HALL_FIELDS);
+  await ensureTable(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
   // Nachträglich fehlende Felder ergänzen (Migration alter Tabellen)
   await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
   await ensureFieldsExist(TBL_HALLS, HALL_FIELDS);
+  await ensureFieldsExist(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
   // User-Tabelle existiert bereits — nur Felder ggf. nachpflegen (für Customer-Registrierung)
   await ensureFieldsExist(TBL_USERS, USER_FIELDS);
 }
@@ -3234,6 +3342,14 @@ const I18N = {
     'home.browse.subFrom': 'Beispiele aus {name}',
     'home.help.title': 'Nichts passendes gefunden?',
     'home.help.sub': 'Schreib uns direkt — wir melden uns schnell zurück.',
+    // Downloads-Bereich (Prospekte, Empfehlungen, Verkaufshilfen, Zertifikate)
+    'downloads.title': 'Downloads',
+    'downloads.loading': 'Lade Downloads …',
+    'downloads.empty': 'Aktuell keine Downloads verfügbar.',
+    'downloads.cat.prospekte': 'Prospekte',
+    'downloads.cat.empfehlungen': 'Handlungsempfehlungen',
+    'downloads.cat.verkaufshilfen': 'Verkaufshilfen',
+    'downloads.cat.zertifikate': 'Zertifikate',
     // WhatsApp-Einladungstexte (lokalisiert nach Empfänger-Sprache)
     'wa.greeting': 'Hallo {name}',
     'wa.greetingNoName': 'Hallo',
@@ -3525,6 +3641,13 @@ const I18N = {
     'home.browse.subFrom': 'Examples from {name}',
     'home.help.title': 'Nothing matches?',
     'home.help.sub': 'Write to us directly — we’ll get back to you quickly.',
+    'downloads.title': 'Downloads',
+    'downloads.loading': 'Loading downloads …',
+    'downloads.empty': 'No downloads available right now.',
+    'downloads.cat.prospekte': 'Brochures',
+    'downloads.cat.empfehlungen': 'Recommendations',
+    'downloads.cat.verkaufshilfen': 'Sales aids',
+    'downloads.cat.zertifikate': 'Certificates',
     'wa.greeting': 'Hi {name}',
     'wa.greetingNoName': 'Hi',
     'wa.userInvite.intro': 'your access to the {app} app by FLP Lift Parts is ready:',
@@ -3804,6 +3927,13 @@ const I18N = {
     'home.browse.subFrom': 'Ejemplos de {name}',
     'home.help.title': '¿No encuentras nada?',
     'home.help.sub': 'Escríbenos directamente — te respondemos rápido.',
+    'downloads.title': 'Descargas',
+    'downloads.loading': 'Cargando descargas …',
+    'downloads.empty': 'Sin descargas disponibles por ahora.',
+    'downloads.cat.prospekte': 'Folletos',
+    'downloads.cat.empfehlungen': 'Recomendaciones',
+    'downloads.cat.verkaufshilfen': 'Ayudas de venta',
+    'downloads.cat.zertifikate': 'Certificados',
     'wa.greeting': 'Hola {name}',
     'wa.greetingNoName': 'Hola',
     'wa.userInvite.intro': 'tu acceso a la app {app} de FLP Lift Parts está listo:',
@@ -4083,6 +4213,13 @@ const I18N = {
     'home.browse.subFrom': 'Voorbeelden uit {name}',
     'home.help.title': 'Niets gevonden?',
     'home.help.sub': 'Stuur ons direct een bericht — we reageren snel.',
+    'downloads.title': 'Downloads',
+    'downloads.loading': 'Downloads laden …',
+    'downloads.empty': 'Geen downloads beschikbaar op dit moment.',
+    'downloads.cat.prospekte': 'Brochures',
+    'downloads.cat.empfehlungen': 'Aanbevelingen',
+    'downloads.cat.verkaufshilfen': 'Verkoophulpmiddelen',
+    'downloads.cat.zertifikate': 'Certificaten',
     'wa.greeting': 'Hoi {name}',
     'wa.greetingNoName': 'Hoi',
     'wa.userInvite.intro': 'je toegang tot de {app}-app van FLP Lift Parts staat klaar:',
@@ -4362,6 +4499,13 @@ const I18N = {
     'home.browse.subFrom': 'Exemples de {name}',
     'home.help.title': 'Rien ne convient ?',
     'home.help.sub': 'Écris-nous directement — nous répondons vite.',
+    'downloads.title': 'Téléchargements',
+    'downloads.loading': 'Chargement des téléchargements …',
+    'downloads.empty': 'Aucun téléchargement disponible pour le moment.',
+    'downloads.cat.prospekte': 'Brochures',
+    'downloads.cat.empfehlungen': 'Recommandations',
+    'downloads.cat.verkaufshilfen': 'Aides à la vente',
+    'downloads.cat.zertifikate': 'Certificats',
     'wa.greeting': 'Salut {name}',
     'wa.greetingNoName': 'Salut',
     'wa.userInvite.intro': 'ton accès à l’app {app} de FLP Lift Parts est prêt :',
@@ -7921,6 +8065,7 @@ function renderCustomerHomeMain() {
     <button class="logout-btn" data-action="logout" title="${t('nav.logout') || 'Abmelden'}">${svg('log-out', 16, 2.4)}</button>
     ${renderCoBrandedHeader('Stock Manager')}
     <div style="display:flex;gap:4px;align-items:center">
+      <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
       <button class="icon-btn" data-action="show-onboard-again" title="${t('home.helpButton')}">${svg('info', 16, 2.4)}</button>
     </div>
@@ -8058,7 +8203,95 @@ function renderCustomerHomeMain() {
   </div>
 
   ${state.installHelpOpen ? renderInstallHelpSheet() : ''}
+  ${state.downloadsOpen ? renderDownloadsSheet() : ''}
 </div>`;
+}
+
+// Downloads-Modal: Prospekte / Empfehlungen / Verkaufshilfen / Zertifikate
+// Lazy-Load: state.downloads bleibt null bis das Sheet zum ersten Mal geöffnet wird,
+// dann wird loadDownloads() ausgelöst.
+function renderDownloadsSheet() {
+  // Beim ersten Render anstoßen (kein Reload bei jedem Sheet-Open)
+  if (state.downloads === undefined && !state.downloadsLoading) {
+    setTimeout(() => loadDownloads().then(() => render()), 0);
+    state.downloads = null; // markieren als "loading initiated"
+  }
+  const all = filteredDownloadsForUser();
+  const loading = state.downloadsLoading || state.downloads == null;
+  // Gruppieren nach Kategorie
+  const byCat = {};
+  for (const d of all) {
+    (byCat[d.category] = byCat[d.category] || []).push(d);
+  }
+  const catIcon = c => ({
+    prospekte: 'file-text',
+    empfehlungen: 'list-checks',
+    verkaufshilfen: 'sparkles',
+    zertifikate: 'badge-check',
+  })[c] || 'file-text';
+  const catColor = c => ({
+    prospekte: '#2456E5',
+    empfehlungen: '#7C3AED',
+    verkaufshilfen: '#D97706',
+    zertifikate: '#0A6B2C',
+  })[c] || '#2456E5';
+  const fmtSize = bytes => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+  };
+  return `
+    <div class="sheet-backdrop" data-action="close-downloads"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column;max-width:560px;width:100%">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <span>${svg('file-text', 16, 2.4)} ${t('downloads.title')}</span>
+        <button data-action="close-downloads" class="icon-btn" style="background:transparent">${svg('x', 14, 2.5)}</button>
+      </div>
+      <div class="js-scroll" style="padding:8px 16px 16px;overflow-y:auto;flex:1;min-height:0" data-scroll-key="downloads">
+        ${loading ? `
+          <div style="display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--c-ink-mute)"><div class="spinner spinner--sm"></div> ${t('downloads.loading')}</div>
+        ` : all.length === 0 ? `
+          <div style="padding:24px;text-align:center;color:var(--c-ink-mute);font-size:12.5px;line-height:1.5">
+            <div style="width:48px;height:48px;border-radius:50%;background:var(--c-surface-alt);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--c-ink-subtle)">${svg('file-text', 22, 2)}</div>
+            ${t('downloads.empty')}
+          </div>
+        ` : DOWNLOAD_CATEGORIES.map(cat => {
+          const items = byCat[cat] || [];
+          if (items.length === 0) return '';
+          return `
+            <div style="margin-top:14px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">
+                <div style="width:24px;height:24px;border-radius:7px;background:${catColor(cat)};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(catIcon(cat), 13, 2.4)}</div>
+                <div style="font-size:13.5px;font-weight:700;color:var(--c-ink);letter-spacing:-.005em">${t('downloads.cat.' + cat)}</div>
+                <span style="font-size:10.5px;color:var(--c-ink-mute);font-weight:500">${items.length}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                ${items.map(d => {
+                  const f = d.file[0];
+                  if (!f || !f.url) return '';
+                  const fileName = f.filename || (d.title + '.pdf');
+                  const size = fmtSize(f.size);
+                  return `
+                    <a href="${f.url}" target="_blank" rel="noopener" download="${fileName.replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);text-decoration:none;color:inherit;cursor:pointer;box-shadow:var(--elev-1);transition:transform .1s,box-shadow .1s" onmouseover="this.style.borderColor='${catColor(cat)}'" onmouseout="this.style.borderColor='var(--c-border)'">
+                      <div style="width:34px;height:34px;border-radius:8px;background:${catColor(cat)}1A;color:${catColor(cat)};display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('file-text', 16, 2.4)}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:600;color:var(--c-ink);line-height:1.3">${(d.title || fileName).replace(/</g,'&lt;')}</div>
+                        ${d.description ? `<div style="font-size:11px;color:var(--c-ink-mute);margin-top:2px;line-height:1.4">${d.description.replace(/</g,'&lt;')}</div>` : ''}
+                        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono)">${size ? size + ' · ' : ''}${(f.type || '').replace('application/','').toUpperCase() || 'PDF'}${d.lang ? ' · ' + d.lang.toUpperCase() : ''}</div>
+                      </div>
+                      <span style="color:var(--c-ink-subtle);display:flex;flex-shrink:0">${svg('cloud-download', 16, 2.4)}</span>
+                    </a>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function renderInstallHelpSheet() {
@@ -10603,6 +10836,181 @@ function renderItemList() {
 // unabhängig von seiner Admin-UI-Sprache. state.flyerLang überschreibt state.lang
 // nur für die Flyer-Renderung.
 // ============================================================
+// ============================================================
+// DOWNLOADS-ADMIN — Verwaltung der Prospekte/Empfehlungen/Verkaufshilfen/Zertifikate
+// ============================================================
+function renderDownloadsAdmin() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">Downloads</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="display:flex;align-items:center;justify-content:center;padding:40px;text-align:center;flex-direction:column;gap:14px">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('alert-triangle', 28, 2.2)}</div>
+    <div><div style="font-size:14px;font-weight:600">Nur für Admins</div></div>
+  </div>
+</div>`;
+  }
+  // Lazy-load auch hier
+  if (state.downloads === undefined && !state.downloadsLoading) {
+    setTimeout(() => loadDownloads().then(() => render()), 0);
+    state.downloads = null;
+  }
+  const all = state.downloads || [];
+  const loading = state.downloadsLoading || state.downloads == null;
+  const draft = state.downloadDraft;
+  const catLabel = c => ({
+    prospekte: 'Prospekte',
+    empfehlungen: 'Handlungsempfehlungen',
+    verkaufshilfen: 'Verkaufshilfen',
+    zertifikate: 'Zertifikate',
+  })[c] || c;
+  const catColor = c => ({
+    prospekte: '#2456E5', empfehlungen: '#7C3AED', verkaufshilfen: '#D97706', zertifikate: '#0A6B2C',
+  })[c] || '#2456E5';
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-users'),
+    `<div class="pill pill--ink">${svg('file-text', 11, 2.5)} Downloads-Verwaltung</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    <div style="padding:0 20px 4px">
+      <h1 style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0">Downloads</h1>
+      <p style="font-size:12.5px;color:var(--c-ink-mute);margin:6px 0 0;line-height:1.5">Prospekte, Handlungsempfehlungen, Verkaufshilfen und Zertifikate. Pro Sprache eine Datei (z.B. DE + EN parallel). Customer sehen nur Dateien in ihrer Sprache.</p>
+    </div>
+
+    <div style="padding:14px 20px 0">
+      <button data-action="downloads-add" class="action-bar__btn action-bar__btn--primary" style="width:100%;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen Download hinzufügen</button>
+    </div>
+
+    <div style="padding:14px 20px 0">
+      ${loading ? `
+        <div class="tile" style="padding:28px;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div style="font-size:12.5px;color:var(--c-ink-mute)">Wird geladen …</div></div>
+      ` : all.length === 0 ? `
+        <div class="tile" style="padding:28px;text-align:center">
+          <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Noch keine Downloads</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Lade oben den ersten Download hoch.</div>
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${DOWNLOAD_CATEGORIES.map(cat => {
+            const items = all.filter(d => d.category === cat);
+            if (items.length === 0) return '';
+            return `
+              <div class="tile" style="padding:14px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                  <div style="width:22px;height:22px;border-radius:6px;background:${catColor(cat)};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(({prospekte:'file-text',empfehlungen:'list-checks',verkaufshilfen:'sparkles',zertifikate:'badge-check'})[cat] || 'file-text', 12, 2.4)}</div>
+                  <div style="font-size:13.5px;font-weight:700">${catLabel(cat)}</div>
+                  <span style="font-size:10.5px;color:var(--c-ink-mute);font-weight:500">${items.length}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  ${items.map(d => {
+                    const f = d.file[0];
+                    return `
+                      <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:8px">
+                        <div style="width:30px;height:30px;border-radius:6px;background:${catColor(cat)}1A;color:${catColor(cat)};display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('file-text', 13, 2.4)}</div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12.5px;font-weight:600;color:var(--c-ink)">${(d.title || (f && f.filename) || '— ohne Titel —').replace(/</g,'&lt;')}</div>
+                          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px;font-family:var(--f-mono)">${d.lang ? d.lang.toUpperCase() : 'ALLE'} · ${f ? (f.filename || '?') : '— keine Datei —'} · #${d.sortOrder}</div>
+                        </div>
+                        <button data-action="downloads-edit" data-rid="${d._recordId}" title="Bearbeiten" style="padding:6px;background:transparent;color:var(--c-ink-mute);border:0;cursor:pointer">${svg('pencil', 13, 2.4)}</button>
+                        <button data-action="downloads-delete" data-rid="${d._recordId}" title="Löschen" style="padding:6px;background:transparent;color:var(--c-red);border:0;cursor:pointer">${svg('trash', 13, 2.4)}</button>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  </div>
+
+  <!-- Upload/Edit-Sheet -->
+  ${draft ? renderDownloadEditSheet(draft) : ''}
+</div>`;
+}
+
+function renderDownloadEditSheet(d) {
+  const isNew = !d._recordId;
+  const hasFile = !!(d.file && d.file[0]);
+  const uploading = !!state.downloadUploading;
+  return `
+    <div class="sheet-backdrop" data-action="downloads-cancel"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column;max-width:540px;width:100%">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">${isNew ? 'Neuen Download hinzufügen' : 'Download bearbeiten'}</div>
+      <div class="js-scroll" style="padding:12px 16px 16px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:12px">
+        <div class="field">
+          <label class="field__label">Titel *</label>
+          <input class="field__input" data-action="dl-input" data-key="title" value="${(d.title || '').replace(/"/g,'&quot;')}" placeholder="z.B. Frequenzumrichter-Katalog 2026" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="field__label">Beschreibung <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
+          <textarea class="field__input" data-action="dl-input" data-key="description" rows="2" placeholder="Kurze Beschreibung — wird unter dem Titel angezeigt" style="resize:vertical;min-height:50px;font-family:var(--f-display)">${(d.description || '').replace(/</g,'&lt;')}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label">Kategorie *</label>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+            ${[
+              ['prospekte', 'Prospekte', 'file-text', '#2456E5'],
+              ['empfehlungen', 'Handlungsempfehlungen', 'list-checks', '#7C3AED'],
+              ['verkaufshilfen', 'Verkaufshilfen', 'sparkles', '#D97706'],
+              ['zertifikate', 'Zertifikate', 'badge-check', '#0A6B2C'],
+            ].map(([k, lbl, icn, col]) => `
+              <button data-action="dl-set-cat" data-cat="${k}" style="padding:10px 11px;background:${d.category===k?col+'1A':'var(--c-surface)'};border:1.5px solid ${d.category===k?col:'var(--c-border)'};border-radius:10px;display:flex;align-items:center;gap:7px;cursor:pointer;text-align:left">
+                <div style="width:24px;height:24px;border-radius:6px;background:${col};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(icn, 12, 2.4)}</div>
+                <span style="font-size:12px;font-weight:600;color:${d.category===k?col:'var(--c-ink)'};line-height:1.2">${lbl}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">Sprache</label>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${[
+              ['', '🌐', 'Alle'],
+              ['de', '🇩🇪', 'DE'],
+              ['en', '🇬🇧', 'EN'],
+              ['es', '🇪🇸', 'ES'],
+              ['nl', '🇳🇱', 'NL'],
+              ['fr', '🇫🇷', 'FR'],
+            ].map(([c, flag, lbl]) => `
+              <button data-action="dl-set-lang" data-lang="${c}" style="padding:7px 12px;background:${d.lang===c?'var(--c-ink)':'var(--c-surface)'};color:${d.lang===c?'#fff':'var(--c-ink-soft)'};border:1px solid ${d.lang===c?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${flag} ${lbl}</button>
+            `).join('')}
+          </div>
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">„Alle" = Sprachunabhängig (z.B. PDFs ohne Text). Sonst nur Kunden mit gewählter App-Sprache sehen die Datei.</div>
+        </div>
+        <div class="field">
+          <label class="field__label">Sortierung <span style="color:var(--c-ink-mute);font-weight:500">(kleine Zahl = oben)</span></label>
+          <input class="field__input" type="number" min="0" max="999" step="1" data-action="dl-input" data-key="sortOrder" value="${d.sortOrder || 0}" style="font-family:var(--f-mono);max-width:120px">
+        </div>
+        <div class="field">
+          <label class="field__label">Datei ${hasFile ? '<span style="color:var(--c-ink-mute);font-weight:500">(ersetzen — alte Datei wird überschrieben)</span>' : '*'}</label>
+          ${hasFile ? `
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);margin-bottom:8px">
+              <div style="width:32px;height:32px;border-radius:7px;background:var(--c-blue-soft);color:var(--c-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('file-text', 14, 2.4)}</div>
+              <div style="flex:1;min-width:0;font-size:11.5px;color:var(--c-ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--f-mono)">${d.file[0].filename || '?'}</div>
+              <a href="${d.file[0].url}" target="_blank" rel="noopener" style="color:var(--c-blue);font-size:11.5px;font-weight:600">Öffnen</a>
+            </div>
+          ` : ''}
+          ${!d._recordId ? `<div style="font-size:11px;color:#854D0E;background:#FEF3C7;border:1px solid #FACC15;padding:8px 11px;border-radius:8px;line-height:1.4">${svg('info', 11, 2.5)} Zuerst speichern, danach lässt sich die Datei hochladen.</div>` : `
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" data-action="dl-file-pick" ${uploading ? 'disabled' : ''} style="padding:10px 14px;background:var(--c-blue);color:#fff;border:0;border-radius:var(--r-md);font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px${uploading?';opacity:.5':''}">${uploading?'<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lädt …':svg('cloud-upload', 13, 2.4) + ' ' + (hasFile ? 'Datei ersetzen' : 'Datei wählen')}</button>
+            </div>
+            <input type="file" id="downloadFileInput" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*" class="photo-input" data-action="dl-file-picked">
+            <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px;line-height:1.4">PDF, Word, Excel oder Bilder. Max 50 MB.</div>
+          `}
+        </div>
+      </div>
+      <div style="padding:0 16px 12px;display:flex;gap:8px;flex-shrink:0">
+        <button data-action="downloads-cancel" class="action-bar__btn" style="flex:1;padding:13px">Abbrechen</button>
+        <button data-action="downloads-save" class="action-bar__btn action-bar__btn--primary" style="flex:2;padding:13px;background:var(--c-blue);color:#fff;border:0">${svg('check', 14, 2.5)} ${isNew ? 'Speichern' : 'Übernehmen'}</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderFlyer() {
   const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
   // Lokaler t-Helper, der die Flyer-Lang priorisiert
@@ -11177,6 +11585,7 @@ function renderUsers() {
       <button data-action="export-users-csv" style="flex:0 0 auto;padding:13px 14px;background:#0A6B2C;color:#fff;border:0;border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Alle User-Daten als CSV (Excel) herunterladen">${svg('cloud-download', 14, 2.5)} CSV-Export</button>
       <button data-action="export-users-json" style="flex:0 0 auto;padding:13px 12px;background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;box-shadow:var(--elev-1)" title="Alle User-Daten als JSON-Datei">${svg('file-text', 12, 2.4)} JSON</button>
       <button data-action="go-flyer" style="flex:0 0 auto;padding:13px 14px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Kunden-Flyer öffnen + drucken">${svg('printer', 14, 2.5)} Flyer</button>
+      <button data-action="go-downloads-admin" style="flex:0 0 auto;padding:13px 14px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Downloads für Kunden verwalten">${svg('file-text', 14, 2.5)} Downloads</button>
     </div>
 
     <div style="padding:14px 20px 0">
@@ -13064,7 +13473,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer, downloadsAdmin: renderDownloadsAdmin };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -13602,6 +14011,97 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'go-flyer': go('flyer'); break;
+    case 'go-downloads-admin': {
+      if (!isAdmin()) break;
+      // Reset Lazy-Load (immer frisch laden im Admin)
+      state.downloads = undefined;
+      go('downloadsAdmin');
+      break;
+    }
+    case 'downloads-add': {
+      if (!isAdmin()) break;
+      state.downloadDraft = { title: '', description: '', category: 'prospekte', lang: 'de', file: [], sortOrder: 0, active: true };
+      render();
+      break;
+    }
+    case 'downloads-edit': {
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const d = (state.downloads || []).find(x => x._recordId === rid);
+      if (!d) break;
+      state.downloadDraft = { ...d };
+      render();
+      break;
+    }
+    case 'downloads-cancel': {
+      state.downloadDraft = null;
+      state.downloadUploading = false;
+      render();
+      break;
+    }
+    case 'downloads-save': {
+      if (!isAdmin() || !state.downloadDraft) break;
+      const d = state.downloadDraft;
+      if (!(d.title || '').trim()) { showToast('Titel ist Pflicht', 'error', 2400); break; }
+      if (!d.category) { showToast('Kategorie wählen', 'error', 2400); break; }
+      const fields = {
+        title: (d.title || '').trim(),
+        description: (d.description || '').trim(),
+        category: d.category,
+        lang: d.lang || '',
+        sort_order: String(d.sortOrder || 0),
+        active: '1',
+        created: d.created || nowIso(),
+      };
+      setLoading(true, 'Wird gespeichert …');
+      (d._recordId ? updateDownloadRecord(d._recordId, fields) : createDownloadRecord(fields))
+        .then(rec => {
+          // Lokal cachen + draft updaten (damit Upload-Button funktioniert)
+          const updated = recordToDownload(rec);
+          if (d._recordId) {
+            state.downloads = (state.downloads || []).map(x => x._recordId === d._recordId ? updated : x);
+          } else {
+            state.downloads = [...(state.downloads || []), updated];
+          }
+          state.downloadDraft = updated; // bleibt offen damit man jetzt die Datei hochladen kann
+          showToast(d._recordId ? 'Aktualisiert' : 'Angelegt — jetzt Datei hochladen', 'success', 2400);
+          render();
+        })
+        .catch(e => showToast('Speichern fehlgeschlagen: ' + (e.message || ''), 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'downloads-delete': {
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const d = (state.downloads || []).find(x => x._recordId === rid);
+      if (!d) break;
+      if (!confirm('Diesen Download wirklich löschen?\n\n' + (d.title || ''))) break;
+      setLoading(true, 'Wird gelöscht …');
+      deleteDownloadRecord(rid)
+        .then(() => {
+          state.downloads = (state.downloads || []).filter(x => x._recordId !== rid);
+          showToast('Gelöscht', 'success', 1800);
+          render();
+        })
+        .catch(e => showToast('Löschen fehlgeschlagen: ' + (e.message || ''), 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'dl-set-cat': {
+      if (state.downloadDraft) { state.downloadDraft.category = btn.dataset.cat; render(); }
+      break;
+    }
+    case 'dl-set-lang': {
+      if (state.downloadDraft) { state.downloadDraft.lang = btn.dataset.lang || ''; render(); }
+      break;
+    }
+    case 'dl-file-pick': {
+      if (!state.downloadDraft || !state.downloadDraft._recordId) break;
+      document.getElementById('downloadFileInput')?.click();
+      break;
+    }
+    case 'dl-input': /* input event */ break;
     case 'flyer-set-lang': {
       // Setzt nur die Flyer-Sprache, ohne die Admin-UI-Sprache zu ändern
       const code = btn.dataset.code;
@@ -15002,6 +15502,16 @@ document.addEventListener('click', (e) => {
     }
 
     /* ===== Install-to-Home Hilfe-Sheet ===== */
+    case 'open-downloads': {
+      state.downloadsOpen = true;
+      render();
+      break;
+    }
+    case 'close-downloads': {
+      state.downloadsOpen = false;
+      render();
+      break;
+    }
     case 'show-install-help': {
       state.installHelpOpen = true;
       render();
@@ -15874,6 +16384,12 @@ document.addEventListener('input', (e) => {
     // Admin editiert Kontaktdaten direkt im User-Editor (firstName/lastName/email/phone/companyName/firmEmail/firm*)
     if (state.userDraft && t.dataset.key) state.userDraft[t.dataset.key] = t.value;
   }
+  else if (a === 'dl-input') {
+    if (!state.downloadDraft) return;
+    const k = t.dataset.key;
+    if (!k) return;
+    state.downloadDraft[k] = (k === 'sortOrder') ? (Number(t.value) || 0) : t.value;
+  }
   else if (a === 'user-distributor-discount-input') {
     if (state.userDraft) state.userDraft.distributorDiscount = Number(t.value) || 0;
   }
@@ -15990,6 +16506,30 @@ document.addEventListener('change', (e) => {
   } else if (a === 'admin-distributor-logo-picked') {
     t.value = '';
     uploadAdminDistributorLogo(file);
+  } else if (a === 'dl-file-picked') {
+    t.value = '';
+    if (!state.downloadDraft || !state.downloadDraft._recordId) {
+      showToast('Erst Download speichern, dann Datei hochladen', 'error', 3000);
+      return;
+    }
+    state.downloadUploading = true;
+    render();
+    (async () => {
+      try {
+        const rec = await uploadRawFileToRecord(TBL_DOWNLOADS, state.downloadDraft._recordId, 'file', file);
+        // Re-Read um aktuelle Attachment-Daten (URL + Filename + size + type) zu bekommen
+        const fresh = recordToDownload(rec);
+        state.downloadDraft = fresh;
+        state.downloads = (state.downloads || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+        state.downloadUploading = false;
+        showToast('Datei hochgeladen ✓', 'success', 2400);
+        render();
+      } catch (err) {
+        state.downloadUploading = false;
+        showToast('Upload fehlgeschlagen: ' + (err.message || ''), 'error', 4000);
+        render();
+      }
+    })();
   }
 });
 
