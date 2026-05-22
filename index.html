@@ -842,6 +842,8 @@ a.tracker-chip:hover{filter:brightness(.97)}
 @keyframes pop{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
 @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}
+/* NEU-Badge — sanftes Pulsieren für Aufmerksamkeit ohne zu nerven */
+@keyframes pulseNew{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.55)}50%{box-shadow:0 0 0 5px rgba(245,158,11,0)}}
 @keyframes dot{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
 .cursor{display:inline-block;width:2px;height:1em;vertical-align:middle;background:currentColor;margin-left:2px;animation:blink 1s infinite}
 .dot-pulse{animation:pulse-dot 1.5s ease-in-out infinite}
@@ -1142,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.07';
+const APP_VERSION = 'v2.08';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2758,6 +2760,14 @@ function isCustomer() { return userRole() === 'customer'; }
 function isDistributor() { return isCustomer() && !!APP_KEYS.user?.isDistributor; }
 function isUnderDistributor() { return isCustomer() && !!APP_KEYS.user?.parentDistributorId && !!APP_KEYS.parentDistributor; }
 function isRegularCustomer() { return isCustomer() && !isDistributor() && !isUnderDistributor(); }
+// "Neue" User = noch nicht vom Admin/Distributor geprüfte Selbst-Registrierungen.
+// Wird visuell hervorgehoben (NEU-Badge + gelber Rand) bis jemand "Geprüft" klickt.
+function isNewUser(u) {
+  if (!u) return false;
+  if (u.role !== 'customer') return false; // Self-Register ist nur für Kunden
+  if (u.reviewed) return false;
+  return true;
+}
 // Effektiver Preis für aktuellen User — gibt { value, label, visible }
 // Preis-Sichtbarkeit (Flag `show_prices` auf User-Record):
 //   • Admin: immer sichtbar
@@ -2894,6 +2904,9 @@ const USER_FIELDS = [
   { name: 'show_prices', type: 'singleLineText' },
   // distributor_logo: Distributor-Logo (Attachment, max. 1 Datei) — wird neben FLP-Logo beim Sub-Customer angezeigt
   { name: 'distributor_logo', type: 'multipleAttachments' },
+  // reviewed: '1' = Admin/Distributor hat die Neu-Registrierung geprüft → kein „NEU"-Marker mehr.
+  // Leer = noch nicht geprüft (= frische Registrierung, wird visuell hervorgehoben).
+  { name: 'reviewed', type: 'singleLineText' },
   { name: 'created', type: 'singleLineText' },
 ];
 
@@ -2940,6 +2953,8 @@ function recordToUser(rec) {
     showPrices: String(f.show_prices || '').trim() === '1' || String(f.show_prices || '').toLowerCase() === 'true',
     // distributor_logo: Array von Airtable-Attachments [{ url, thumbnails: { small, large, full } }]
     distributorLogo: Array.isArray(f.distributor_logo) ? f.distributor_logo : [],
+    // reviewed: '1' = Neu-Registrierung wurde vom Admin/Distributor geprüft (kein NEU-Badge mehr)
+    reviewed: String(f.reviewed || '').trim() === '1' || String(f.reviewed || '').toLowerCase() === 'true',
     created: f.created || '',
   };
 }
@@ -2975,6 +2990,145 @@ async function loadUsers() {
     if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
     return (a.name || '').localeCompare(b.name || '');
   });
+}
+
+// ============================================================
+// NEUE-REGISTRIERUNGEN — In-App-Notification + Polling
+// ============================================================
+// Pollt periodisch nach neuen User-Registrierungen (für Admin + Distributor).
+// Bei neuen Einträgen: Browser-Notification (wenn erlaubt) + Toast.
+// Bewusst client-side: kein Backend-Push, weil der App keine Server-Komponente hat.
+
+// Permission anfragen — wird vom User explizit angeklickt (Browser-Anforderung).
+function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    showToast('Dieser Browser unterstützt keine Push-Notifications', 'error', 3000);
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    showToast('Push-Notifications bereits aktiviert', 'info', 2200);
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Push-Notifications wurden geblockt — bitte in den Browser-Einstellungen erlauben', 'error', 4000);
+    return;
+  }
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') {
+      showToast('Push-Notifications aktiviert ✔', 'success', 2400);
+      // Testnotification, damit der User sieht dass es funktioniert
+      try { new Notification('FLP Stockmanager', { body: 'Du wirst jetzt bei neuen Kunden-Registrierungen benachrichtigt.', icon: 'icon-180.png?v=3' }); } catch(e) {}
+      render();
+    } else {
+      showToast('Push wurde nicht erlaubt', 'info', 2400);
+      render();
+    }
+  });
+}
+
+// Notification senden, wenn Permission da ist (sonst nur Toast).
+function notifyNewRegistration(u) {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || u.email || 'Unbekannt';
+  const parts = [];
+  if (u.phone) parts.push('📞 ' + u.phone);
+  if (u.companyName) parts.push('🏢 ' + u.companyName);
+  if (u.email) parts.push('✉ ' + u.email);
+  const body = parts.join(' · ') || 'Neue Kunden-Registrierung';
+  // System-Notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification('🔔 Neue Registrierung: ' + name, {
+        body,
+        icon: 'icon-180.png?v=3',
+        badge: 'icon-180.png?v=3',
+        tag: 'flp-new-user-' + u._recordId,
+        requireInteraction: false,
+      });
+      n.onclick = () => {
+        window.focus();
+        state.usersFilter = 'new';
+        go('users');
+        n.close();
+      };
+    } catch(e) {}
+  }
+  // In-App-Toast als Fallback / Ergänzung
+  showToast('🔔 Neue Registrierung: ' + name + (u.phone ? ' (' + u.phone + ')' : ''), 'success', 5000);
+}
+
+// Polling-Loop — läuft alle 90s, sobald Admin oder Distributor eingeloggt ist.
+let _newUserPollTimer = null;
+let _knownUserIds = null; // Set der _recordIds, die wir schon kennen (= bei Start gesehen)
+async function pollForNewRegistrations() {
+  try {
+    if (isAdmin()) {
+      const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+      const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_USERS, { headers });
+      if (!r.ok) return;
+      const data = await r.json();
+      const all = (data.records || []).map(recordToUser);
+      const customers = all.filter(u => u.role === 'customer');
+      if (_knownUserIds === null) {
+        // Erster Lauf — IDs merken, nichts notifyen
+        _knownUserIds = new Set(customers.map(u => u._recordId));
+        return;
+      }
+      // Neue Kunden, die noch nicht reviewed sind
+      const fresh = customers.filter(u => !_knownUserIds.has(u._recordId) && !u.reviewed);
+      for (const u of fresh) {
+        notifyNewRegistration(u);
+        _knownUserIds.add(u._recordId);
+      }
+      // Auch users-State auffrischen, damit die UI synchron bleibt
+      if (fresh.length > 0) {
+        state.users = all.sort((a, b) => {
+          if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        if (state.view === 'users') render();
+      }
+    } else if (isDistributor() && APP_KEYS.user?._recordId) {
+      // Distributor: nur seine Sub-Kunden checken
+      const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+      const formula = "{parent_distributor_id}='" + APP_KEYS.user._recordId.replace(/'/g, "\\'") + "'";
+      const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_USERS + '?filterByFormula=' + encodeURIComponent(formula), { headers });
+      if (!r.ok) return;
+      const data = await r.json();
+      const subs = (data.records || []).map(recordToUser);
+      if (_knownUserIds === null) {
+        _knownUserIds = new Set(subs.map(u => u._recordId));
+        return;
+      }
+      const fresh = subs.filter(u => !_knownUserIds.has(u._recordId) && !u.reviewed);
+      for (const u of fresh) {
+        notifyNewRegistration(u);
+        _knownUserIds.add(u._recordId);
+      }
+      if (fresh.length > 0) {
+        state.distSubCustomers = subs;
+        if (state.view === 'customerSettings') render();
+      }
+    }
+  } catch (e) {
+    // Silently fail — Netzwerkprobleme oder API down: einfach beim nächsten Lauf nochmal probieren
+  }
+}
+
+function startNewUserPolling() {
+  // Nur für Admin oder Distributor
+  if (!isAdmin() && !isDistributor()) return;
+  if (_newUserPollTimer) return; // schon aktiv
+  // Sofort einmal initialisieren (markiert alle bestehenden als "bekannt")
+  pollForNewRegistrations();
+  // Dann alle 90s
+  _newUserPollTimer = setInterval(pollForNewRegistrations, 90 * 1000);
+}
+function stopNewUserPolling() {
+  if (_newUserPollTimer) {
+    clearInterval(_newUserPollTimer);
+    _newUserPollTimer = null;
+  }
+  _knownUserIds = null;
 }
 
 // ============================================================
@@ -3098,6 +3252,7 @@ async function persistUser(u) {
   if (u.parentDistributorId !== undefined) fields.parent_distributor_id = u.parentDistributorId || '';
   if (u.showPrices !== undefined) fields.show_prices = u.showPrices ? '1' : '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
+  if (u.reviewed !== undefined) fields.reviewed = u.reviewed ? '1' : '';
   if (u.created) fields.created = u.created;
   // Auto-Retry: wenn Airtable über ein unbekanntes Feld meckert, dieses entfernen + nochmal probieren
   // (Schutz vor Schema-Drift wenn ensureFieldsExist nicht durchgelaufen ist)
@@ -8596,9 +8751,16 @@ function renderCustomerSettings() {
                   const updating = state.distSubUpdatingId === sc._recordId;
                   const hasKey = !!sc.apiKey;
                   const isLocked = (sc.status || '').toLowerCase() !== 'aktiv';
+                  const isNew = isNewUser(sc);
                   return `
-                  <div style="background:${isLocked ? '#FAF6F0' : '#fff'};border:1px solid ${isLocked ? '#D4A574' : 'rgba(122,84,0,.15)'};border-radius:8px;overflow:hidden;${updating ? 'opacity:.6' : ''}${isLocked ? ';position:relative' : ''}">
+                  <div style="background:${isNew ? '#FFFBEB' : (isLocked ? '#FAF6F0' : '#fff')};border:1.5px solid ${isNew ? '#F59E0B' : (isLocked ? '#D4A574' : 'rgba(122,84,0,.15)')};border-radius:8px;overflow:hidden;${updating ? 'opacity:.6' : ''}${isLocked ? ';position:relative' : ''}${isNew ? ';box-shadow:0 0 0 1px #FCD34D' : ''}">
                     ${isLocked ? `<div style="position:absolute;top:8px;right:10px;font-size:9px;font-weight:700;color:#7A2E0E;background:#FCD9C7;border:1px solid #F5A582;padding:2px 7px;border-radius:6px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:3px">${svg('shield', 9, 2.6)} ${t('dist.customers.lockedBadge')}</div>` : ''}
+                    ${isNew ? `
+                      <div style="padding:8px 12px;background:#F59E0B;color:#fff;font-size:11px;font-weight:700;letter-spacing:.04em;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <span style="display:inline-flex;align-items:center;gap:5px">★ NEUE REGISTRIERUNG${sc.phone ? ' · ' + sc.phone.replace(/</g,'&lt;') : ''}</span>
+                        <button data-action="dist-customer-mark-reviewed" data-rid="${sc._recordId}" style="padding:4px 10px;background:#fff;color:#92400E;border:0;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${svg('check', 10, 2.7)} Geprüft</button>
+                      </div>
+                    ` : ''}
                     <div style="padding:10px 12px;display:flex;align-items:flex-start;gap:10px${isLocked ? ';opacity:.7;padding-top:14px' : ''}">
                       <div style="flex:1;min-width:0">
                         <div style="font-size:12.5px;font-weight:600;color:#5A3F00;${isLocked ? 'text-decoration:line-through;text-decoration-color:rgba(122,46,14,.45)' : ''}">${fullName.replace(/</g,'&lt;')}</div>
@@ -11576,10 +11738,17 @@ function renderCustomerTable(rows, userKind, distName, isMe) {
             } else if (kind === 'subcustomer') {
               priceCell = u.showPrices ? `<span style="color:#0A6B2C;font-weight:600">freigegeben</span>` : `<span style="color:var(--c-ink-mute)">aus</span>`;
             }
+            const isNew = isNewUser(u);
+            const rowBgFinal = isNew ? '#FFFBEB' : rowBg;
+            const rowBorderLeft = isNew ? 'box-shadow:inset 4px 0 0 #F59E0B;' : '';
             return `
-              <tr style="border-bottom:1px solid var(--c-divider);background:${rowBg};${inactive?'opacity:.55;':''}cursor:pointer" data-action="user-edit" data-rid="${u._recordId}">
+              <tr style="border-bottom:1px solid var(--c-divider);background:${rowBgFinal};${rowBorderLeft}${inactive?'opacity:.55;':''}cursor:pointer" data-action="user-edit" data-rid="${u._recordId}">
                 <td style="padding:10px 12px;vertical-align:top">
-                  <div style="font-weight:600;font-size:12.5px;color:var(--c-ink)">${esc(fullName(u))}${isMe(u) ? ' <span style="font-size:9px;background:var(--c-surface-alt);color:var(--c-ink-mute);padding:1px 5px;border-radius:6px;margin-left:3px">Du</span>' : ''}</div>
+                  <div style="font-weight:600;font-size:12.5px;color:var(--c-ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    ${esc(fullName(u))}
+                    ${isMe(u) ? '<span style="font-size:9px;background:var(--c-surface-alt);color:var(--c-ink-mute);padding:1px 5px;border-radius:6px">Du</span>' : ''}
+                    ${isNew ? `<span style="font-size:9px;background:#F59E0B;color:#fff;padding:1px 6px;border-radius:6px;font-weight:700;letter-spacing:.04em">★ NEU</span>` : ''}
+                  </div>
                   ${u.companyName ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px">${esc(u.companyName)}</div>` : ''}
                 </td>
                 <td style="padding:10px 12px;vertical-align:top"><span style="display:inline-flex;align-items:center;padding:2px 7px;border-radius:6px;background:${typeBg};color:${typeFg};border:1px solid ${typeBorder};font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${typeLabel}</span></td>
@@ -11591,7 +11760,10 @@ function renderCustomerTable(rows, userKind, distName, isMe) {
                 </td>
                 <td style="padding:10px 12px;vertical-align:top;font-size:11px">${priceCell}</td>
                 <td style="padding:10px 12px;vertical-align:top;font-size:11px">${inactive ? '<span style="color:var(--c-red);font-weight:600">Inaktiv</span>' : '<span style="color:#0A6B2C;font-weight:600">Aktiv</span>'}</td>
-                <td style="padding:10px 12px;vertical-align:top;text-align:right;color:var(--c-ink-subtle)">${svg('chevron-right', 13, 2.5)}</td>
+                <td style="padding:10px 12px;vertical-align:top;text-align:right;color:var(--c-ink-subtle);white-space:nowrap">
+                  ${isNew ? `<button data-action="user-mark-reviewed" data-rid="${u._recordId}" onclick="event.stopPropagation()" title="Als geprüft markieren" style="padding:5px 9px;background:#0A6B2C;color:#fff;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('check', 10, 2.7)} Geprüft</button>` : ''}
+                  ${svg('chevron-right', 13, 2.5)}
+                </td>
               </tr>
             `;
           }).join('')}
@@ -11643,10 +11815,12 @@ function renderUsers() {
   const customerCount= users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer').length;
   const activeCount  = users.filter(u => u.status === 'aktiv').length;
 
-  // Filter-State: 'all' | 'staff' | 'customers' | 'distributors' | 'subcustomers'
+  // Filter-State: 'all' | 'new' | 'staff' | 'customers' | 'distributors' | 'subcustomers'
   const filter = state.usersFilter || 'all';
+  const newUsersCount = users.filter(isNewUser).length;
   let filtered = users;
-  if (filter === 'staff')        filtered = users.filter(u => userKind(u) === 'admin' || userKind(u) === 'staff');
+  if (filter === 'new')          filtered = users.filter(isNewUser);
+  else if (filter === 'staff')        filtered = users.filter(u => userKind(u) === 'admin' || userKind(u) === 'staff');
   else if (filter === 'customers')   filtered = users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer' || userKind(u) === 'distributor');
   else if (filter === 'distributors')filtered = users.filter(u => userKind(u) === 'distributor');
   else if (filter === 'subcustomers')filtered = users.filter(u => userKind(u) === 'subcustomer');
@@ -11667,15 +11841,33 @@ function renderUsers() {
     <!-- Filter-Tabs -->
     <div style="padding:12px 20px 0;display:flex;gap:6px;flex-wrap:wrap">
       ${[
-        ['all',          'Alle',           users.length],
-        ['staff',        'Intern',         adminCount + staffCount],
-        ['customers',    'Kunden',         customerCount],
-        ['distributors', 'Distributoren',  distCount],
-        ['subcustomers', 'Sub-Kunden',     subCount],
-      ].map(([k, label, n]) => `
-        <button data-action="users-filter" data-filter="${k}" style="padding:6px 10px;font-size:11.5px;font-weight:600;border-radius:var(--r-pill);background:${filter===k?'var(--c-ink)':'var(--c-surface)'};color:${filter===k?'#fff':'var(--c-ink-soft)'};border:1px solid ${filter===k?'var(--c-ink)':'var(--c-border)'};display:inline-flex;align-items:center;gap:5px;cursor:pointer">${label} <span style="opacity:.65;font-size:10px;font-variant-numeric:tabular-nums">${n}</span></button>
-      `).join('')}
+        ['all',          'Alle',           users.length,        null],
+        ['new',          '★ Neu',          newUsersCount,       '#F59E0B'],
+        ['staff',        'Intern',         adminCount + staffCount, null],
+        ['customers',    'Kunden',         customerCount,       null],
+        ['distributors', 'Distributoren',  distCount,           null],
+        ['subcustomers', 'Sub-Kunden',     subCount,            null],
+      ].map(([k, label, n, accent]) => {
+        const isActive = filter === k;
+        const accentBg = accent && !isActive ? accent : null;
+        const bg = isActive ? 'var(--c-ink)' : (accentBg || 'var(--c-surface)');
+        const fg = isActive ? '#fff' : (accentBg ? '#fff' : 'var(--c-ink-soft)');
+        const bd = isActive ? 'var(--c-ink)' : (accentBg || 'var(--c-border)');
+        return `<button data-action="users-filter" data-filter="${k}" style="padding:6px 10px;font-size:11.5px;font-weight:600;border-radius:var(--r-pill);background:${bg};color:${fg};border:1px solid ${bd};display:inline-flex;align-items:center;gap:5px;cursor:pointer${k==='new' && n>0 ? ';box-shadow:0 0 0 2px rgba(245,158,11,.25)' : ''}">${label} <span style="opacity:${accentBg||isActive?.85:.65};font-size:10px;font-variant-numeric:tabular-nums">${n}</span></button>`;
+      }).join('')}
     </div>
+
+    ${newUsersCount > 0 ? `
+      <div style="margin:12px 20px 0;padding:12px 14px;background:linear-gradient(135deg,#FEF3C7 0%,#FFFBEB 100%);border:1.5px solid #F59E0B;border-radius:var(--r-md);display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(245,158,11,.15)">
+        <div style="width:36px;height:36px;border-radius:50%;background:#F59E0B;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:700">${newUsersCount}</div>
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:13px;font-weight:700;color:#92400E">Neue Registrierung${newUsersCount === 1 ? '' : 'en'}</div>
+          <div style="font-size:11px;color:#92400E;opacity:.85;margin-top:2px;line-height:1.4">Kontaktiere den Kunden, prüfe seine Angaben, und markiere ihn als „Geprüft" wenn ok.</div>
+        </div>
+        ${filter !== 'new' ? `<button data-action="users-filter" data-filter="new" style="padding:7px 13px;background:#F59E0B;color:#fff;border:0;border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer">Anzeigen</button>` : ''}
+        ${'Notification' in window && Notification.permission === 'default' ? `<button data-action="enable-new-user-notifications" style="padding:7px 13px;background:#fff;color:#92400E;border:1px solid #F59E0B;border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('bell', 12, 2.5)} Push aktivieren</button>` : ''}
+      </div>
+    ` : ''}
 
     <div style="padding:14px 20px 0;display:flex;gap:8px;flex-wrap:wrap">
       <button data-action="user-add" class="action-bar__btn action-bar__btn--primary" style="flex:1;min-width:160px;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neuen User anlegen</button>
@@ -11708,12 +11900,13 @@ function renderUsers() {
             const me = isMe(u);
             const kind = userKind(u);
             const isInactive = u.status !== 'aktiv';
+            const isNew = isNewUser(u);
             const initial = (u.name || u.firstName || '?').trim().charAt(0).toUpperCase();
             // Avatar-Farbe je nach Typ
             const avBg = kind === 'admin' ? '#FFD45C' : kind === 'distributor' ? '#F5C95B' : kind === 'subcustomer' ? '#DDD6FE' : kind === 'directcustomer' ? '#BFDBFE' : 'var(--c-blue-soft)';
             const avFg = kind === 'admin' ? '#3A2400' : kind === 'distributor' ? '#3A2400' : kind === 'subcustomer' ? '#5B21B6' : kind === 'directcustomer' ? '#1740B8' : 'var(--c-blue-deep)';
-            // Links-Rand-Markierung
-            const borderLeft = kind === 'subcustomer' ? 'border-left:4px solid #A78BFA' : kind === 'distributor' ? 'border-left:4px solid #F5C95B' : '';
+            // Links-Rand-Markierung — Neuregistrierungen haben Vorrang (orange glow)
+            const borderLeft = isNew ? 'border-left:4px solid #F59E0B;box-shadow:0 0 0 1px #FCD34D,var(--elev-1);background:#FFFBEB' : (kind === 'subcustomer' ? 'border-left:4px solid #A78BFA' : kind === 'distributor' ? 'border-left:4px solid #F5C95B' : '');
             // Type-Pill
             const typePill = (() => {
               if (kind === 'admin')          return `<span class="pill pill--amber" style="font-size:9px">Admin</span>`;
@@ -11731,6 +11924,7 @@ function renderUsers() {
                       <span style="font-size:14px;font-weight:600;letter-spacing:-.005em">${(u.name || '— Ohne Name —').replace(/</g, '&lt;')}</span>
                       ${me ? `<span class="pill pill--neutral" style="font-size:9px">Du</span>` : ''}
                       ${typePill}
+                      ${isNew ? `<span class="pill" style="font-size:9px;background:#F59E0B;color:#fff;border:1px solid #D97706;font-weight:700;letter-spacing:.05em;animation:pulseNew 1.6s ease-in-out infinite">★ NEU</span>` : ''}
                       ${isInactive ? `<span class="pill" style="font-size:9px;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,.3)">inaktiv</span>` : ''}
                     </div>
                     ${kind === 'subcustomer' ? `
@@ -11741,6 +11935,14 @@ function renderUsers() {
                   </div>
                   <span style="color:var(--c-ink-subtle);display:flex;flex-shrink:0">${svg('chevron-right', 14, 2.5)}</span>
                 </button>
+                ${isNew ? `
+                  <div style="padding:9px 12px;background:#FFFBEB;border-top:1px solid #FCD34D;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <div style="flex:1;min-width:120px;font-size:11px;color:#92400E;line-height:1.4">
+                      <strong>Neue Registrierung</strong>${u.phone ? ` · <span style="font-family:var(--f-mono)">${u.phone.replace(/</g,'&lt;')}</span>` : ''}${u.companyName ? ` · ${u.companyName.replace(/</g,'&lt;')}` : ''}
+                    </div>
+                    <button data-action="user-mark-reviewed" data-rid="${u._recordId}" style="padding:6px 11px;background:#0A6B2C;color:#fff;border:0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Als geprüft markieren — NEU-Marker wird entfernt">${svg('check', 11, 2.6)} Geprüft</button>
+                  </div>
+                ` : ''}
                 <div style="display:flex;border-top:1px solid var(--c-divider)">
                   <button data-action="user-copy-wa" data-rid="${u._recordId}" style="flex:1;padding:11px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:#0A6B2C;background:#E6F4EA;cursor:pointer" title="Einladungstext für WhatsApp kopieren">
                     ${svg('message-circle', 13, 2.4)} WhatsApp-Text kopieren
@@ -13389,7 +13591,9 @@ function renderRegister() {
   const d = state.registerDraft || { firstName: '', lastName: '', email: '', phone: '', company: '' };
   const errors = state.registerErrors || {};
   const pending = !!state.registerPending;
-  const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim());
+  // Telefonnummer ist Pflicht — mind. 6 Ziffern (lockere Validierung, internationale Formate erlauben)
+  const phoneValid = ((d.phone || '').replace(/[^\d]/g, '').length >= 6);
+  const valid = (d.firstName || '').trim() && (d.lastName || '').trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((d.email || '').trim()) && phoneValid;
   return `
 <div class="login-screen">
   <div class="login-card" style="max-width:520px;text-align:left;padding:24px 28px 32px">
@@ -13438,8 +13642,9 @@ function renderRegister() {
         ${errors.email ? `<div style="font-size:11px;color:var(--c-red);margin-top:5px">${errors.email}</div>` : ''}
       </div>
       <div class="field">
-        <label class="field__label">${t('register.field.phone')}</label>
-        <input class="field__input" data-action="register-input" data-key="phone" value="${(d.phone || '').replace(/"/g, '&quot;')}" placeholder="+49 170 1234567" type="tel" inputmode="tel" autocomplete="tel" ${pending ? 'disabled' : ''}>
+        <label class="field__label">${t('register.field.phone')} *</label>
+        <input class="field__input" data-action="register-input" data-key="phone" value="${(d.phone || '').replace(/"/g, '&quot;')}" placeholder="+49 170 1234567" type="tel" inputmode="tel" autocomplete="tel" ${pending ? 'disabled' : ''} style="${errors.phone ? 'border-color:var(--c-red)' : ''}">
+        ${errors.phone ? `<div style="font-size:11px;color:var(--c-red);margin-top:5px">${errors.phone}</div>` : ''}
       </div>
       <div class="field">
         <label class="field__label">${t('register.field.company')}</label>
@@ -14361,7 +14566,8 @@ document.addEventListener('click', (e) => {
       const dup = (state.users || []).find(x => x.apiKey === apiKey && x._recordId !== d._recordId);
       if (dup) { showToast('Dieser Schlüssel wird bereits verwendet', 'error', 2800); break; }
       const isNew = !d._recordId;
-      const userToSave = { ...d, name, apiKey };
+      // Admin-erstellte User gelten als „geprüft" — kein NEU-Marker, denn der Admin hat sie selbst angelegt.
+      const userToSave = { ...d, name, apiKey, reviewed: isNew ? true : d.reviewed };
       setLoading(true, isNew ? 'User wird angelegt …' : 'User wird gespeichert …');
       console.log('[user-save] start', { isNew, name, role: d.role, fieldsSet: Object.keys(d).filter(k => d[k] !== undefined && d[k] !== null && d[k] !== '') });
       persistUser(userToSave)
@@ -14444,6 +14650,54 @@ document.addEventListener('click', (e) => {
         if (ok) showToast('Schlüssel kopiert', 'success', 1800);
         else showToast('Kopieren fehlgeschlagen', 'error', 2400);
       });
+      break;
+    }
+    case 'user-mark-reviewed': {
+      // Admin markiert eine Neu-Registrierung als geprüft → NEU-Badge verschwindet.
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u) break;
+      // Optimistisch lokal markieren — bei Fehler revert
+      const prev = u.reviewed;
+      u.reviewed = true;
+      render();
+      airUpdate(TBL_USERS, rid, { reviewed: '1' })
+        .then(() => {
+          showToast('Als geprüft markiert', 'success', 1800);
+        })
+        .catch(err => {
+          u.reviewed = prev;
+          showToast('Fehler: ' + (err.message || ''), 'error', 3500);
+          render();
+        });
+      break;
+    }
+    case 'enable-new-user-notifications': {
+      // Browser-Notification-Permission anfragen (für In-App-Push bei neuen Registrierungen)
+      requestNotificationPermission();
+      break;
+    }
+    case 'dist-customer-mark-reviewed': {
+      // Distributor markiert einen seiner Sub-Kunden als geprüft
+      if (!isDistributor()) break;
+      const rid = btn.dataset.rid;
+      const sc = (state.distSubCustomers || []).find(x => x._recordId === rid);
+      if (!sc) break;
+      if (sc.parentDistributorId !== APP_KEYS.user?._recordId) {
+        showToast('Dieser Kunde gehört nicht zu deinen', 'error', 3000);
+        break;
+      }
+      const prev = sc.reviewed;
+      sc.reviewed = true;
+      render();
+      airUpdate(TBL_USERS, rid, { reviewed: '1' })
+        .then(() => showToast('Als geprüft markiert', 'success', 1800))
+        .catch(err => {
+          sc.reviewed = prev;
+          showToast('Fehler: ' + (err.message || ''), 'error', 3500);
+          render();
+        });
       break;
     }
     case 'user-toggle-active': {
@@ -14563,9 +14817,12 @@ document.addEventListener('click', (e) => {
       const fn = (d.firstName || '').trim();
       const ln = (d.lastName || '').trim();
       const em = (d.email || '').trim();
+      const ph = (d.phone || '').trim();
       if (!fn) errors.firstName = 'Vorname fehlt';
       if (!ln) errors.lastName = 'Nachname fehlt';
       if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errors.email = 'Bitte gültige Email-Adresse';
+      // Telefonnummer Pflicht — mind. 6 Ziffern
+      if (ph.replace(/[^\d]/g, '').length < 6) errors.phone = 'Bitte gültige Telefon- oder Handynummer';
       if (Object.keys(errors).length) {
         state.registerErrors = errors;
         state.registerError = 'Bitte alle Pflichtfelder ausfüllen';
@@ -16734,6 +16991,8 @@ async function bootData() {
     render();
     // Polling für Sold-Status starten — andere User sehen Verkaufs-Updates ~30s nach Speichern
     startSoldPolling();
+    // Polling für Neu-Registrierungen starten (Admin: alle Kunden, Distributor: nur Sub-Kunden)
+    startNewUserPolling();
   } catch (e) {
     state.bootingData = false;
     state.loggedIn = false;
