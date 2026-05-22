@@ -1144,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.10';
+const APP_VERSION = 'v2.11';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11822,6 +11822,10 @@ function renderCustomerTable(rows, userKind, distName, isMe) {
                 <td style="padding:10px 12px;vertical-align:top;font-size:11px">${priceCell}</td>
                 <td style="padding:10px 12px;vertical-align:top;font-size:11px">${inactive ? '<span style="color:var(--c-red);font-weight:600">Inaktiv</span>' : '<span style="color:#0A6B2C;font-weight:600">Aktiv</span>'}</td>
                 <td style="padding:10px 12px;vertical-align:top;text-align:right;color:var(--c-ink-subtle);white-space:nowrap">
+                  ${kind === 'distributor' ? (() => {
+                    const link = appLinkWithLang('', { dist: u._recordId });
+                    return `<button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" title="Distributor-Invite-Link kopieren: ${link.replace(/"/g,'&quot;')}" style="padding:5px 9px;background:#7A5400;color:#FFF8E1;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('share', 10, 2.6)} Link</button>`;
+                  })() : ''}
                   ${isNew ? `<button data-action="user-mark-reviewed" data-rid="${u._recordId}" onclick="event.stopPropagation()" title="Als geprüft markieren" style="padding:5px 9px;background:#0A6B2C;color:#fff;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('check', 10, 2.7)} Geprüft</button>` : ''}
                   ${svg('chevron-right', 13, 2.5)}
                 </td>
@@ -12045,6 +12049,38 @@ function renderUsers() {
                     <button data-action="user-mark-reviewed" data-rid="${u._recordId}" style="padding:6px 11px;background:#0A6B2C;color:#fff;border:0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Als geprüft markieren — NEU-Marker wird entfernt">${svg('check', 11, 2.6)} Geprüft</button>
                   </div>
                 ` : ''}
+                ${kind === 'distributor' ? (() => {
+                  const distLink = appLinkWithLang('', { dist: u._recordId });
+                  const isExpanded = state.adminDistLinkOpen === u._recordId;
+                  return `
+                  <div style="padding:10px 12px;background:#FFFCEF;border-top:1px solid #F5C95B">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7A5400;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">${svg('share', 10, 2.5)} Invite-Link</span>
+                      <div style="flex:1"></div>
+                      <button data-action="toggle-admin-dist-link" data-rid="${u._recordId}" style="background:transparent;border:0;color:#7A5400;padding:2px 6px;cursor:pointer;font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px">${svg('globe', 10, 2.5)} Sprachen ${svg(isExpanded ? 'chevron-up' : 'chevron-down', 10, 2.5)}</button>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:stretch">
+                      <input type="text" readonly value="${distLink.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();this.select()" style="flex:1;min-width:0;padding:7px 10px;font-family:var(--f-mono);font-size:11px;background:#fff;border:1px solid rgba(122,84,0,.2);border-radius:6px;color:#5A3F00;outline:none;overflow:hidden;text-overflow:ellipsis">
+                      <button data-action="copy-lang-link" data-link="${distLink.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:7px 11px;background:#7A5400;color:#FFF8E1;border:0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('copy', 11, 2.5)} Kopieren</button>
+                    </div>
+                    ${isExpanded ? `
+                      <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+                        ${I18N_LANGS.map(L => {
+                          const link = appLinkWithLang(L.code, { dist: u._recordId });
+                          return `
+                            <div style="padding:6px 9px;background:#fff;border:1px solid rgba(122,84,0,.15);border-radius:6px;display:flex;align-items:center;gap:8px">
+                              <span style="font-size:14px;flex-shrink:0">${L.flag}</span>
+                              <span style="font-size:10px;font-weight:700;color:#5A3F00;min-width:22px">${L.code.toUpperCase()}</span>
+                              <div style="flex:1;min-width:0;font-size:10px;color:#7A5400;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link.replace(/</g,'&lt;')}</div>
+                              <button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:4px 8px;background:#7A5400;color:#FFF8E1;border:0;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px">${svg('copy', 9, 2.5)}</button>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                  `;
+                })() : ''}
                 <div style="display:flex;border-top:1px solid var(--c-divider)">
                   <button data-action="user-copy-wa" data-rid="${u._recordId}" style="flex:1;padding:11px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:#0A6B2C;background:#E6F4EA;cursor:pointer" title="Einladungstext für WhatsApp kopieren">
                     ${svg('message-circle', 13, 2.4)} WhatsApp-Text kopieren
@@ -14787,6 +14823,13 @@ document.addEventListener('click', (e) => {
     }
     case 'toggle-dist-lang-links': {
       state.distLangLinksOpen = !state.distLangLinksOpen;
+      render();
+      break;
+    }
+    case 'toggle-admin-dist-link': {
+      // Admin klappt die Sprach-Varianten eines Distributor-Invite-Links auf/zu (max. einer auf einmal)
+      const rid = btn.dataset.rid || '';
+      state.adminDistLinkOpen = state.adminDistLinkOpen === rid ? '' : rid;
       render();
       break;
     }
