@@ -1119,7 +1119,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.96';
+const APP_VERSION = 'v1.97';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11370,10 +11370,22 @@ function renderUsers() {
                 <input class="field__input" data-action="user-contact-input" data-key="firmCountry" value="${(d.firmCountry || '').replace(/"/g, '&quot;')}" placeholder="Deutschland" autocomplete="off">
               </div>
 
+              <!-- Sprache (editierbar) — bestimmt in welcher Sprache der User die App sieht
+                   UND in welcher Sprache der WhatsApp-Einladungstext gesendet wird -->
+              <div class="field" style="margin:0">
+                <label class="field__label">Sprache <span style="color:var(--c-ink-mute);font-weight:500">(beeinflusst App-UI + WhatsApp-Einladungstext)</span></label>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  ${I18N_LANGS.map(L => `
+                    <button type="button" data-action="user-set-lang" data-code="${L.code}" style="padding:6px 10px;background:${d.lang===L.code?'var(--c-ink)':'var(--c-surface)'};color:${d.lang===L.code?'#fff':'var(--c-ink-soft)'};border:1px solid ${d.lang===L.code?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${L.flag} ${L.label}</button>
+                  `).join('')}
+                  ${d.lang ? `<button type="button" data-action="user-set-lang" data-code="" title="Sprache zurücksetzen — User-Default beim ersten Login" style="padding:6px 9px;background:transparent;color:var(--c-ink-mute);border:1px dashed var(--c-border);border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer">${svg('x', 10, 2.5)} Auto</button>` : ''}
+                </div>
+                <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">${d.lang ? '' : 'Aktuell <strong>Auto</strong> — User wählt selbst beim ersten Login. WhatsApp-Text geht in deiner aktuellen Admin-Sprache.'}</div>
+              </div>
+
               <!-- Read-only Meta-Infos -->
               ${(() => {
                 const meta = [];
-                if (d.lang) meta.push(['Sprache', { de:'Deutsch', en:'English', es:'Español', nl:'Nederlands', fr:'Français' }[d.lang] || d.lang]);
                 if (Array.isArray(d.employees) && d.employees.length) meta.push(['Mitarbeiter', d.employees.length + ' angelegt']);
                 if (d.parentDistributorId) {
                   const pd = (state.users || []).find(x => x._recordId === d.parentDistributorId);
@@ -13686,6 +13698,14 @@ document.addEventListener('click', (e) => {
     case 'user-toggle-show-prices': {
       if (!state.userDraft) break;
       state.userDraft.showPrices = !state.userDraft.showPrices;
+      render();
+      break;
+    }
+    case 'user-set-lang': {
+      // Admin/Distributor setzt die Sprache des Users — beeinflusst WhatsApp-Text + App-UI
+      if (!state.userDraft) break;
+      const code = btn.dataset.code || '';
+      state.userDraft.lang = code; // leerer String = Auto
       render();
       break;
     }
