@@ -1119,7 +1119,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.95';
+const APP_VERSION = 'v1.96';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2996,41 +2996,46 @@ async function removeUser(u) {
   return await airDelete(TBL_USERS, u._recordId);
 }
 
-// Baut den WhatsApp-Einladungstext für einen User (mit Link + Schlüssel)
+// Baut den WhatsApp-Einladungstext für einen User (mit Link + Schlüssel).
+// Sprache = u.lang (was wir vom Empfänger wissen) oder Fallback Sender-Sprache.
 function buildUserWelcomeMessage(u) {
+  const lang = u?.lang || state.lang || 'en';
+  const tL = (k, p) => tLang(lang, k, p);
   const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
-  const name = u?.name ? u.name.split(' ')[0] : 'zusammen';
-  const greeting = u?.name ? `Hallo ${name}` : 'Hallo';
+  const firstName = u?.firstName || (u?.name ? u.name.split(' ')[0] : '');
+  const greeting = firstName ? tL('wa.greeting', { name: firstName }) : tL('wa.greetingNoName');
   return [
-    `${greeting},`,
-    ``,
-    `dein Zugang zur ${APP_CONFIG.PROJECT_NAME || 'FLP Stockmanager'}-App von FLP Lift Parts ist eingerichtet:`,
-    ``,
-    `🌐 ${appUrl}`,
-    `🔑 ${u.apiKey}`,
-    ``,
-    `Einfach den Link auf dem Handy öffnen, persönlichen Schlüssel eintippen und los. Der Schlüssel bleibt im Browser gespeichert — beim nächsten Mal genügt der Link.`,
+    greeting + ',',
+    '',
+    tL('wa.userInvite.intro', { app: APP_CONFIG.PROJECT_NAME || 'FLP Stockmanager' }),
+    '',
+    '🌐 ' + appUrl,
+    '🔑 ' + u.apiKey,
+    '',
+    tL('wa.userInvite.howto'),
   ].join('\n');
 }
 
 // Variante für Distributoren, die ihre eigenen Sub-Kunden einladen.
-// distributor = APP_KEYS.user (der Distributor), sc = Sub-Customer-Record
+// Sprache = sc.lang (Empfänger-Präferenz) oder Distributor-Sprache als Fallback.
 function buildSubCustomerInvite(distributor, sc) {
+  const lang = sc?.lang || distributor?.lang || state.lang || 'en';
+  const tL = (k, p) => tLang(lang, k, p);
   const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
   const firstName = sc?.firstName || (sc?.name ? sc.name.split(' ')[0] : '');
-  const greeting = firstName ? `Hallo ${firstName}` : 'Hallo';
-  const distName = (distributor?.companyName || distributor?.name || 'uns').trim();
+  const greeting = firstName ? tL('wa.greeting', { name: firstName }) : tL('wa.greetingNoName');
+  const distName = (distributor?.companyName || distributor?.name || tL('wa.distFallback')).trim();
   return [
-    `${greeting},`,
-    ``,
-    `dein persönlicher Zugang zur FLP Stockmanager-App, in Kooperation mit ${distName}, ist eingerichtet:`,
-    ``,
-    `🌐 ${appUrl}`,
-    `🔑 ${sc.apiKey}`,
-    ``,
-    `Einfach den Link auf dem Handy öffnen, den Schlüssel eintippen und los. Der Schlüssel bleibt im Browser gespeichert — beim nächsten Mal genügt der Link.`,
-    ``,
-    `Bei Fragen meld dich direkt bei ${distName}.`,
+    greeting + ',',
+    '',
+    tL('wa.subInvite.intro', { distName }),
+    '',
+    '🌐 ' + appUrl,
+    '🔑 ' + sc.apiKey,
+    '',
+    tL('wa.subInvite.howto'),
+    '',
+    tL('wa.subInvite.contact', { distName }),
   ].join('\n');
 }
 
@@ -3213,6 +3218,15 @@ const I18N = {
     'home.browse.subFrom': 'Beispiele aus {name}',
     'home.help.title': 'Nichts passendes gefunden?',
     'home.help.sub': 'Schreib uns direkt — wir melden uns schnell zurück.',
+    // WhatsApp-Einladungstexte (lokalisiert nach Empfänger-Sprache)
+    'wa.greeting': 'Hallo {name}',
+    'wa.greetingNoName': 'Hallo',
+    'wa.userInvite.intro': 'dein Zugang zur {app}-App von FLP Lift Parts ist eingerichtet:',
+    'wa.userInvite.howto': 'Einfach den Link auf dem Handy öffnen, persönlichen Schlüssel eintippen und los. Der Schlüssel bleibt im Browser gespeichert — beim nächsten Mal genügt der Link.',
+    'wa.subInvite.intro': 'dein persönlicher Zugang zur FLP Stockmanager-App, in Kooperation mit {distName}, ist eingerichtet:',
+    'wa.subInvite.howto': 'Einfach den Link auf dem Handy öffnen, den Schlüssel eintippen und los. Der Schlüssel bleibt im Browser gespeichert — beim nächsten Mal genügt der Link.',
+    'wa.subInvite.contact': 'Bei Fragen meld dich direkt bei {distName}.',
+    'wa.distFallback': 'uns',
     // FLYER (Druck-Material für Kunden, separat lokalisierbar)
     'flyer.toolbar.title': 'Kundenflyer',
     'flyer.toolbar.back': 'Zurück',
@@ -3495,6 +3509,14 @@ const I18N = {
     'home.browse.subFrom': 'Examples from {name}',
     'home.help.title': 'Nothing matches?',
     'home.help.sub': 'Write to us directly — we’ll get back to you quickly.',
+    'wa.greeting': 'Hi {name}',
+    'wa.greetingNoName': 'Hi',
+    'wa.userInvite.intro': 'your access to the {app} app by FLP Lift Parts is ready:',
+    'wa.userInvite.howto': 'Just open the link on your phone, type in your personal key and you’re in. The key stays in the browser — next time the link alone is enough.',
+    'wa.subInvite.intro': 'your personal access to the FLP Stockmanager app, in cooperation with {distName}, is ready:',
+    'wa.subInvite.howto': 'Just open the link on your phone, type in the key and you’re in. The key stays in the browser — next time the link alone is enough.',
+    'wa.subInvite.contact': 'If you have questions, reach out to {distName} directly.',
+    'wa.distFallback': 'us',
     'flyer.toolbar.title': 'Customer flyer',
     'flyer.toolbar.back': 'Back',
     'flyer.toolbar.print': 'Print / Save as PDF',
@@ -3766,6 +3788,14 @@ const I18N = {
     'home.browse.subFrom': 'Ejemplos de {name}',
     'home.help.title': '¿No encuentras nada?',
     'home.help.sub': 'Escríbenos directamente — te respondemos rápido.',
+    'wa.greeting': 'Hola {name}',
+    'wa.greetingNoName': 'Hola',
+    'wa.userInvite.intro': 'tu acceso a la app {app} de FLP Lift Parts está listo:',
+    'wa.userInvite.howto': 'Abre el enlace en el móvil, escribe tu clave personal y listo. La clave queda guardada en el navegador — la próxima vez basta el enlace.',
+    'wa.subInvite.intro': 'tu acceso personal a la app FLP Stockmanager, en cooperación con {distName}, está listo:',
+    'wa.subInvite.howto': 'Abre el enlace en el móvil, escribe la clave y listo. La clave queda guardada en el navegador — la próxima vez basta el enlace.',
+    'wa.subInvite.contact': 'Si tienes preguntas, contacta directamente con {distName}.',
+    'wa.distFallback': 'nosotros',
     'flyer.toolbar.title': 'Folleto para clientes',
     'flyer.toolbar.back': 'Atrás',
     'flyer.toolbar.print': 'Imprimir / Guardar PDF',
@@ -4037,6 +4067,14 @@ const I18N = {
     'home.browse.subFrom': 'Voorbeelden uit {name}',
     'home.help.title': 'Niets gevonden?',
     'home.help.sub': 'Stuur ons direct een bericht — we reageren snel.',
+    'wa.greeting': 'Hoi {name}',
+    'wa.greetingNoName': 'Hoi',
+    'wa.userInvite.intro': 'je toegang tot de {app}-app van FLP Lift Parts staat klaar:',
+    'wa.userInvite.howto': 'Open de link op je telefoon, tik je persoonlijke sleutel in en je bent erin. De sleutel blijft in de browser opgeslagen — volgende keer volstaat de link.',
+    'wa.subInvite.intro': 'je persoonlijke toegang tot de FLP Stockmanager-app, in samenwerking met {distName}, staat klaar:',
+    'wa.subInvite.howto': 'Open de link op je telefoon, tik de sleutel in en je bent erin. De sleutel blijft in de browser opgeslagen — volgende keer volstaat de link.',
+    'wa.subInvite.contact': 'Bij vragen neem je direct contact op met {distName}.',
+    'wa.distFallback': 'ons',
     'flyer.toolbar.title': 'Klantenflyer',
     'flyer.toolbar.back': 'Terug',
     'flyer.toolbar.print': 'Afdrukken / Opslaan als PDF',
@@ -4308,6 +4346,14 @@ const I18N = {
     'home.browse.subFrom': 'Exemples de {name}',
     'home.help.title': 'Rien ne convient ?',
     'home.help.sub': 'Écris-nous directement — nous répondons vite.',
+    'wa.greeting': 'Salut {name}',
+    'wa.greetingNoName': 'Salut',
+    'wa.userInvite.intro': 'ton accès à l’app {app} de FLP Lift Parts est prêt :',
+    'wa.userInvite.howto': 'Ouvre le lien sur ton téléphone, saisis ta clé personnelle et c’est parti. La clé reste enregistrée dans le navigateur — la prochaine fois, le lien suffit.',
+    'wa.subInvite.intro': 'ton accès personnel à l’app FLP Stockmanager, en coopération avec {distName}, est prêt :',
+    'wa.subInvite.howto': 'Ouvre le lien sur ton téléphone, saisis la clé et c’est parti. La clé reste enregistrée dans le navigateur — la prochaine fois, le lien suffit.',
+    'wa.subInvite.contact': 'En cas de questions, contacte directement {distName}.',
+    'wa.distFallback': 'nous',
     'flyer.toolbar.title': 'Flyer client',
     'flyer.toolbar.back': 'Retour',
     'flyer.toolbar.print': 'Imprimer / Enregistrer en PDF',
@@ -4526,6 +4572,18 @@ function setLang(code) {
     APP_KEYS.user.lang = code;
   }
 }
+// Like t() but uses an explicit lang (für WhatsApp-Texte, die in der Sprache
+// des Empfängers gehen sollen, nicht in der Sprache des Senders).
+function tLang(lang, key, params) {
+  const code = lang || state.lang || 'en';
+  const dict = I18N[code] || I18N.en || I18N.de;
+  let str = (key in dict) ? dict[key] : (I18N.de[key] || I18N.en?.[key] || key);
+  if (params) Object.keys(params).forEach(k => {
+    str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+  });
+  return str;
+}
+
 function t(key, params) {
   const lang = state.lang || 'en';
   const dict = I18N[lang] || I18N.en || I18N.de;
