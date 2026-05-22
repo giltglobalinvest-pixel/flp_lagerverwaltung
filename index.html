@@ -1135,7 +1135,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.02';
+const APP_VERSION = 'v2.03';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -8806,7 +8806,10 @@ function renderHome() {
         <div class="brand__sub" style="display:inline-flex;align-items:center;gap:4px">${state.companies.length} ${state.companies.length === 1 ? 'Firma' : 'Firmen'} \u00b7 Wechseln ${svg('chevron-down', 9, 2.5)}</div>
       </div>
     </button>
-    <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
+    <div style="display:flex;gap:4px;align-items:center">
+      <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
+      <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
+    </div>
   </div>
   <div class="scroll">
     <!-- Blaue Such-Kachel — enthält das Suchfeld direkt -->
