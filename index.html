@@ -1012,6 +1012,13 @@ body.mode-tablet .bottom-bar>*{flex:1}
 .cert-overlay--sm.cert-overlay--tuev{left:3px;width:18px;height:18px;aspect-ratio:auto}
 .cert-overlay--sm.cert-overlay--6plus{right:3px;width:15px;height:18px;aspect-ratio:auto}
 
+/* NEU-Badge — wird unten rechts auf dem ersten Bild eingeblendet wenn cond === 'neu'.
+   Visuell deutlich abgesetzt vom TÜV/6+-Overlay (gradient, weißer Text, klar lesbar). */
+.new-overlay{position:absolute;bottom:4%;right:4%;padding:5px 11px;background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;font-weight:800;font-size:13px;letter-spacing:.08em;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25);pointer-events:none;z-index:3;font-family:var(--f-display);line-height:1;display:inline-flex;align-items:center;gap:5px;text-transform:uppercase;border:1.5px solid rgba(255,255,255,.4)}
+.new-overlay__star{font-size:11px;line-height:1}
+.new-overlay--sm{bottom:3px;right:3px;padding:2px 5px;font-size:8.5px;letter-spacing:.04em;border-radius:3px;border-width:1px;gap:2px}
+.new-overlay--sm .new-overlay__star{font-size:7px}
+
 @media (orientation:landscape) and (max-height:500px){
   .rotate-prompt{display:flex}
   /* Phone-Inhalt + Toasts hinter dem Overlay verstecken, damit nichts rausguckt */
@@ -1135,7 +1142,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.06';
+const APP_VERSION = 'v2.07';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3505,6 +3512,7 @@ const I18N = {
     'time.d': '{n} d',
     // Condition labels
     'cond.neu': 'Neu',
+    'badge.new': 'NEU',
     'cond.refurb': 'Generalüberholt',
     'cond.used': 'Gebraucht',
     // Function-status labels
@@ -3794,6 +3802,7 @@ const I18N = {
     'time.h': '{n} h',
     'time.d': '{n} d',
     'cond.neu': 'New',
+    'badge.new': 'NEW',
     'cond.refurb': 'Refurbished',
     'cond.used': 'Used',
     'func.ok': 'Tested · OK',
@@ -4081,6 +4090,7 @@ const I18N = {
     'time.h': '{n} h',
     'time.d': '{n} d',
     'cond.neu': 'Nuevo',
+    'badge.new': 'NUEVO',
     'cond.refurb': 'Reacondicionado',
     'cond.used': 'Usado',
     'func.ok': 'Probado · OK',
@@ -4368,6 +4378,7 @@ const I18N = {
     'time.h': '{n} u',
     'time.d': '{n} d',
     'cond.neu': 'Nieuw',
+    'badge.new': 'NIEUW',
     'cond.refurb': 'Gereviseerd',
     'cond.used': 'Gebruikt',
     'func.ok': 'Getest · OK',
@@ -4655,6 +4666,7 @@ const I18N = {
     'time.h': '{n} h',
     'time.d': '{n} j',
     'cond.neu': 'Neuf',
+    'badge.new': 'NEUF',
     'cond.refurb': 'Reconditionné',
     'cond.used': 'Occasion',
     'func.ok': 'Testé · OK',
@@ -6540,12 +6552,24 @@ const photoSrc = (p, size = 'small') => {
 // Zertifikat-Overlays — TÜV SÜD + 6+ Logo
 // Werden auf Artikel-Fotos eingeblendet wenn func === 'ok'. Performance: pure CSS,
 // keine zusätzlichen HTTP-Requests (Logos inline als data-URLs im Stylesheet).
+// Für Neuware (cond === 'neu') werden die Cert-Overlays unterdrückt — TÜV/6+ steht für
+// generalüberholt + getestet, nicht für fabrikneu.
 //   it    = Item-Record
 //   opts  = { small: true } für kleine Thumbnails (fixe Pixel-Größe statt %)
 function certOverlay(it, opts = {}) {
-  if (!it || it.func !== 'ok') return '';
+  if (!it || it.func !== 'ok' || it.cond === 'neu') return '';
   const sm = opts.small ? ' cert-overlay--sm' : '';
   return `<div class="cert-overlay cert-overlay--tuev${sm}" aria-label="TÜV SÜD"></div><div class="cert-overlay cert-overlay--6plus${sm}" aria-label="6+ TÜV-zertifizierte Generalüberholung"></div>`;
+}
+
+// NEU-Badge — unten rechts auf dem ersten Bild für Neuware (cond === 'neu').
+// Ergänzt das Cert-Overlay (das oben links/rechts sitzt) und gibt Kunden visuell
+// klaren Hinweis auf fabrikneue Teile.
+function newOverlay(it, opts = {}) {
+  if (!it || it.cond !== 'neu') return '';
+  const sm = opts.small ? ' new-overlay--sm' : '';
+  const label = t('badge.new') || 'NEU';
+  return `<div class="new-overlay${sm}" aria-label="${label}"><span class="new-overlay__star">★</span>${label}</div>`;
 }
 
 // Format VP als €-String (deutsche Lokalisierung).
@@ -9048,16 +9072,17 @@ function renderListen() {
 }
 
 function renderResults() {
-  const filters = ['Alle', 'Funktioniert', 'Defekt/Schrott', 'Generalüberholt'];
+  const filters = ['Alle', 'Neu', 'Funktioniert', 'Defekt/Schrott', 'Generalüberholt'];
   const q = (state.query || '').trim();
   let m = inventory.filter(it => {
     if (!q) return true;
     const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
     return searchMatch(q, hay);
   });
-  if (state.filterIdx === 1) m = m.filter(it => it.func === 'ok' || it.func === 'untested');
-  if (state.filterIdx === 2) m = m.filter(it => it.func === 'defective' || it.func === 'scrap');
-  if (state.filterIdx === 3) m = m.filter(it => it.cond === 'refurb');
+  if (state.filterIdx === 1) m = m.filter(it => it.cond === 'neu');
+  if (state.filterIdx === 2) m = m.filter(it => it.func === 'ok' || it.func === 'untested');
+  if (state.filterIdx === 3) m = m.filter(it => it.func === 'defective' || it.func === 'scrap');
+  if (state.filterIdx === 4) m = m.filter(it => it.cond === 'refurb');
 
   return `
 <div class="screen">
@@ -9442,7 +9467,7 @@ function renderDetail() {
       return `
         <div class="hero-image hero-image--photo">
           <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
-          ${(!it.sold && idx === 0) ? certOverlay(it) : ''}
+          ${(!it.sold && idx === 0) ? certOverlay(it) + newOverlay(it) : ''}
           ${photos.length > 1 ? `
             <button class="gallery-nav gallery-nav--prev" data-action="gallery-prev" ${idx === 0 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
             <button class="gallery-nav gallery-nav--next" data-action="gallery-next" ${idx === photos.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
