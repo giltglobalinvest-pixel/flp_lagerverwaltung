@@ -1144,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.12';
+const APP_VERSION = 'v2.13';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1513,10 +1513,23 @@ async function loadDownloads() {
 }
 
 // Filtert Downloads für den aktuellen User (basierend auf Sprache).
-// Items mit lang='' werden IMMER angezeigt (= sprachunabhängig).
+// d.lang ist eine Liste (komma-separiert oder einzelner Wert). Leer = sprachunabhängig (immer sichtbar).
+// Beispiele: ''         → alle sehen
+//            'de'       → nur DE
+//            'de,en,fr' → DE + EN + FR sehen
 function filteredDownloadsForUser() {
-  const lang = state.lang || 'de';
-  return (state.downloads || []).filter(d => !d.lang || d.lang === lang);
+  const userLang = state.lang || 'de';
+  return (state.downloads || []).filter(d => {
+    if (!d.lang) return true;
+    const langs = String(d.lang).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    return langs.length === 0 || langs.includes(userLang);
+  });
+}
+
+// Helper: Liest die lang-Liste eines Drafts/Records als Array. Stabil bei leerem Input.
+function getDownloadLangs(d) {
+  if (!d || !d.lang) return [];
+  return String(d.lang).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
 async function createDownloadRecord(fields) {
@@ -8525,7 +8538,7 @@ function renderDownloadsSheet() {
                       <div style="flex:1;min-width:0">
                         <div style="font-size:13px;font-weight:600;color:var(--c-ink);line-height:1.3">${(d.title || fileName).replace(/</g,'&lt;')}</div>
                         ${d.description ? `<div style="font-size:11px;color:var(--c-ink-mute);margin-top:2px;line-height:1.4">${d.description.replace(/</g,'&lt;')}</div>` : ''}
-                        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono)">${size ? size + ' · ' : ''}${(f.type || '').replace('application/','').toUpperCase() || 'PDF'}${d.lang ? ' · ' + d.lang.toUpperCase() : ''}</div>
+                        <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono)">${size ? size + ' · ' : ''}${(f.type || '').replace('application/','').toUpperCase() || 'PDF'}${d.lang ? ' · ' + getDownloadLangs(d).map(l => l.toUpperCase()).join('+') : ''}</div>
                       </div>
                       <span style="color:var(--c-ink-subtle);display:flex;flex-shrink:0">${svg('cloud-download', 16, 2.4)}</span>
                     </a>
@@ -11277,7 +11290,7 @@ function renderDownloadsAdmin() {
                             ${co ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:1.5px 7px;background:${co.color || '#94A3B8'}1A;color:${co.color || '#475569'};border-radius:var(--r-pill);font-size:10px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:${co.color || '#94A3B8'}"></span>${(co.name || '').replace(/</g,'&lt;')}</span>` : ''}
                             ${!d.company ? `<span style="padding:1.5px 7px;background:var(--c-surface-alt);color:var(--c-ink-mute);border-radius:var(--r-pill);font-size:10px;font-weight:600">🌐 Alle</span>` : ''}
                           </div>
-                          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px;font-family:var(--f-mono)">${d.lang ? d.lang.toUpperCase() : 'ALLE'} · ${f ? (f.filename || '?') : '— keine Datei —'} · #${d.sortOrder}</div>
+                          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px;font-family:var(--f-mono)">${d.lang ? getDownloadLangs(d).map(l => l.toUpperCase()).join('+') : 'ALLE'} · ${f ? (f.filename || '?') : '— keine Datei —'} · #${d.sortOrder}</div>
                         </div>
                         <button data-action="downloads-edit" data-rid="${d._recordId}" title="Bearbeiten" style="padding:6px;background:transparent;color:var(--c-ink-mute);border:0;cursor:pointer">${svg('pencil', 13, 2.4)}</button>
                         <button data-action="downloads-delete" data-rid="${d._recordId}" title="Löschen" style="padding:6px;background:transparent;color:var(--c-red);border:0;cursor:pointer">${svg('trash', 13, 2.4)}</button>
@@ -11333,20 +11346,27 @@ function renderDownloadEditSheet(d) {
           </div>
         </div>
         <div class="field">
-          <label class="field__label">Sprache</label>
-          <div style="display:flex;gap:5px;flex-wrap:wrap">
-            ${[
-              ['', '🌐', 'Alle'],
-              ['de', '🇩🇪', 'DE'],
-              ['en', '🇬🇧', 'EN'],
-              ['es', '🇪🇸', 'ES'],
-              ['nl', '🇳🇱', 'NL'],
-              ['fr', '🇫🇷', 'FR'],
-            ].map(([c, flag, lbl]) => `
-              <button data-action="dl-set-lang" data-lang="${c}" style="padding:7px 12px;background:${d.lang===c?'var(--c-ink)':'var(--c-surface)'};color:${d.lang===c?'#fff':'var(--c-ink-soft)'};border:1px solid ${d.lang===c?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${flag} ${lbl}</button>
-            `).join('')}
-          </div>
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">„Alle" = Sprachunabhängig (z.B. PDFs ohne Text). Sonst nur Kunden mit gewählter App-Sprache sehen die Datei.</div>
+          <label class="field__label">Sprache <span style="color:var(--c-ink-mute);font-weight:500">(Mehrfachauswahl möglich)</span></label>
+          ${(() => {
+            const draftLangs = getDownloadLangs(d);
+            const isAll = draftLangs.length === 0;
+            return `
+              <div style="display:flex;gap:5px;flex-wrap:wrap">
+                <button data-action="dl-set-lang" data-lang="" style="padding:7px 12px;background:${isAll?'var(--c-ink)':'var(--c-surface)'};color:${isAll?'#fff':'var(--c-ink-soft)'};border:1px solid ${isAll?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">🌐 Alle</button>
+                ${[
+                  ['de', '🇩🇪', 'DE'],
+                  ['en', '🇬🇧', 'EN'],
+                  ['es', '🇪🇸', 'ES'],
+                  ['nl', '🇳🇱', 'NL'],
+                  ['fr', '🇫🇷', 'FR'],
+                ].map(([c, flag, lbl]) => {
+                  const active = draftLangs.includes(c);
+                  return `<button data-action="dl-set-lang" data-lang="${c}" style="padding:7px 12px;background:${active?'var(--c-blue)':'var(--c-surface)'};color:${active?'#fff':'var(--c-ink-soft)'};border:1px solid ${active?'var(--c-blue)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;${active?'box-shadow:0 0 0 2px rgba(36,86,229,.18)':''}">${active?svg('check', 10, 3):''} ${flag} ${lbl}</button>`;
+                }).join('')}
+              </div>
+            `;
+          })()}
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">„Alle" = Sprachunabhängig (z.B. PDFs ohne Text). Sonst sehen nur Kunden mit einer der gewählten App-Sprachen die Datei. <strong>Mehrere Sprachen anklickbar</strong> — z.B. DE + EN für ein zweisprachiges PDF.</div>
         </div>
         <div class="field">
           <label class="field__label">Firma</label>
@@ -14596,7 +14616,26 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'dl-set-lang': {
-      if (state.downloadDraft) { state.downloadDraft.lang = btn.dataset.lang || ''; render(); }
+      // Multi-Select: Klick auf Sprach-Flagge toggelt; Klick auf „Alle" leert die Liste (= sprachunabhängig).
+      if (!state.downloadDraft) break;
+      const clicked = (btn.dataset.lang || '').toLowerCase();
+      const current = getDownloadLangs(state.downloadDraft);
+      if (clicked === '') {
+        // „Alle" → alles leeren
+        state.downloadDraft.lang = '';
+      } else {
+        let next;
+        if (current.includes(clicked)) {
+          next = current.filter(l => l !== clicked);
+        } else {
+          next = [...current, clicked];
+        }
+        // Reihenfolge stabilisieren (gleiche Folge wie Picker: de,en,es,nl,fr)
+        const order = ['de','en','es','nl','fr'];
+        next.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        state.downloadDraft.lang = next.join(',');
+      }
+      render();
       break;
     }
     case 'dl-set-company': {
