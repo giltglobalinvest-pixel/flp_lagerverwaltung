@@ -1144,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.08';
+const APP_VERSION = 'v2.09';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2841,6 +2841,24 @@ function getDistributorInviteLink() {
   return base + '?dist=' + encodeURIComponent(u._recordId);
 }
 
+// Universeller URL-Builder für App-Links mit Sprach-Override.
+// Beispiele:
+//   appLinkWithLang('en')                      → https://check.flp-stock.com/?lang=en
+//   appLinkWithLang('fr', { dist: 'rec123' })  → https://check.flp-stock.com/?dist=rec123&lang=fr
+// Lang wird NUR angehängt wenn gültig — bestehende Links ohne ?lang= bleiben unverändert
+// und triggern automatisch die Browser-Sprach-Erkennung wie bisher.
+function appLinkWithLang(lang, extra = {}) {
+  const base = (location.origin + location.pathname).replace(/\/?loader\.html$/i, '/');
+  const params = new URLSearchParams();
+  for (const k in extra) {
+    const v = extra[k];
+    if (v != null && v !== '') params.set(k, String(v));
+  }
+  if (lang && I18N[lang]) params.set('lang', lang);
+  const qs = params.toString();
+  return base + (qs ? '?' + qs : '');
+}
+
 // Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
 // und ist gleichzeitig der Filter beim Laden. Mehrere User können sich Daten teilen,
 // indem sie in ihrem User-Record dasselbe `tenant_key` gesetzt haben.
@@ -3289,7 +3307,8 @@ async function removeUser(u) {
 function buildUserWelcomeMessage(u) {
   const lang = u?.lang || state.lang || 'en';
   const tL = (k, p) => tLang(lang, k, p);
-  const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
+  // Link mit ?lang=... vorbelegt — App startet beim Empfänger direkt in seiner Sprache
+  const appUrl = appLinkWithLang(lang);
   const firstName = u?.firstName || (u?.name ? u.name.split(' ')[0] : '');
   const greeting = firstName ? tL('wa.greeting', { name: firstName }) : tL('wa.greetingNoName');
   return [
@@ -3309,7 +3328,8 @@ function buildUserWelcomeMessage(u) {
 function buildSubCustomerInvite(distributor, sc) {
   const lang = sc?.lang || distributor?.lang || state.lang || 'en';
   const tL = (k, p) => tLang(lang, k, p);
-  const appUrl = (location.origin + location.pathname).replace(/loader\.html$/i, '').replace(/\/$/, '') + '/';
+  // Sprach-Vorgabe im Link, damit der Sub-Kunde direkt in seiner Sprache landet
+  const appUrl = appLinkWithLang(lang);
   const firstName = sc?.firstName || (sc?.name ? sc.name.split(' ')[0] : '');
   const greeting = firstName ? tL('wa.greeting', { name: firstName }) : tL('wa.greetingNoName');
   const distName = (distributor?.companyName || distributor?.name || tL('wa.distFallback')).trim();
@@ -4873,7 +4893,18 @@ const I18N = {
   },
 };
 function detectInitialLang() {
-  // Manuelle Auswahl (per Switcher) hat IMMER Vorrang
+  // 1. URL-Parameter ?lang=xx hat höchste Priorität — erlaubt direkte Sprach-Links
+  //    (z.B. https://check.flp-stock.com/?lang=en). Wird in localStorage gecached,
+  //    damit ein Reload die Sprache behält.
+  try {
+    const url = new URL(location.href);
+    const urlLang = (url.searchParams.get('lang') || '').toLowerCase().slice(0, 2);
+    if (urlLang && I18N[urlLang]) {
+      try { localStorage.setItem('flp_lang', urlLang); } catch(e) {}
+      return urlLang;
+    }
+  } catch(e) {}
+  // 2. Manuelle Auswahl (per Switcher) hat Vorrang vor Browser-Default
   try {
     const stored = localStorage.getItem('flp_lang');
     if (stored && I18N[stored]) return stored;
@@ -8818,6 +8849,30 @@ function renderCustomerSettings() {
             <input type="text" readonly value="${inviteLink.replace(/"/g,'&quot;')}" id="distInviteLinkInput" style="flex:1;padding:9px 12px;font-family:var(--f-mono);font-size:11.5px;background:#fff;border:1px solid rgba(122,84,0,.2);border-radius:8px;color:#5A3F00;outline:none;overflow:hidden;text-overflow:ellipsis">
             <button data-action="copy-distributor-link" style="padding:9px 14px;background:#7A5400;color:#FFF8E1;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('copy', 12, 2.5)} ${t('dist.inviteLink.copy')}</button>
           </div>
+
+          <!-- Sprach-Direktlinks: erweitert den Invite-Link mit &lang=xx je Sprache.
+               Bestehende Links ohne lang-Parameter bleiben unverändert. -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(122,84,0,.25)">
+            <button data-action="toggle-dist-lang-links" style="background:transparent;border:0;color:#7A5400;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;letter-spacing:-.005em">${svg('globe', 12, 2.5)} Sprach-spezifische Links ${svg(state.distLangLinksOpen ? 'chevron-up' : 'chevron-down', 11, 2.5)}</button>
+            ${state.distLangLinksOpen ? `
+              <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+                ${I18N_LANGS.map(L => {
+                  const link = appLinkWithLang(L.code, { dist: u._recordId });
+                  return `
+                    <div style="padding:8px 10px;background:#fff;border:1px solid rgba(122,84,0,.15);border-radius:7px;display:flex;align-items:center;gap:9px">
+                      <span style="font-size:16px;flex-shrink:0">${L.flag}</span>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:10.5px;font-weight:700;color:#5A3F00">${L.label}</div>
+                        <div style="font-size:10px;color:#7A5400;font-family:var(--f-mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link.replace(/</g,'&lt;')}</div>
+                      </div>
+                      <button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:5px 9px;background:#7A5400;color:#FFF8E1;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${svg('copy', 10, 2.5)} Kopieren</button>
+                    </div>
+                  `;
+                }).join('')}
+                <div style="margin-top:4px;font-size:10.5px;color:#5A3F00;opacity:.8;line-height:1.5">Verschicke einen Sprach-Link an einen Kunden, damit die App bei ihm direkt in seiner Sprache startet.</div>
+              </div>
+            ` : ''}
+          </div>
         </div>
       </div>
       `;
@@ -11875,7 +11930,48 @@ function renderUsers() {
       <button data-action="export-users-json" style="flex:0 0 auto;padding:13px 12px;background:var(--c-surface);color:var(--c-ink-soft);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;box-shadow:var(--elev-1)" title="Alle User-Daten als JSON-Datei">${svg('file-text', 12, 2.4)} JSON</button>
       <button data-action="go-flyer" style="flex:0 0 auto;padding:13px 14px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Kunden-Flyer öffnen + drucken">${svg('printer', 14, 2.5)} Flyer</button>
       <button data-action="go-downloads-admin" style="flex:0 0 auto;padding:13px 14px;background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Downloads für Kunden verwalten">${svg('file-text', 14, 2.5)} Downloads</button>
+      <button data-action="toggle-lang-links" style="flex:0 0 auto;padding:13px 14px;background:${state.langLinksOpen ? 'var(--c-ink)' : 'var(--c-surface)'};color:${state.langLinksOpen ? '#fff' : 'var(--c-ink)'};border:1px solid ${state.langLinksOpen ? 'var(--c-ink)' : 'var(--c-border)'};border-radius:var(--r-md);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:var(--elev-1)" title="Direkt-Links pro Sprache (zum Versenden an Neukunden)">${svg('globe', 14, 2.5)} Sprach-Links ${svg(state.langLinksOpen ? 'chevron-up' : 'chevron-down', 11, 2.5)}</button>
     </div>
+
+    ${state.langLinksOpen ? (() => {
+      const baseAppLink = appLinkWithLang('');
+      return `
+      <div style="margin:14px 20px 0;padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1)">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('globe', 15, 2.4)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;letter-spacing:-.005em">Direkt-Links pro Sprache</div>
+            <div style="font-size:11px;color:var(--c-ink-mute);margin-top:3px;line-height:1.45">Wenn ein Kunde diese URL öffnet, startet die App direkt in der gewählten Sprache. Bestehende Links ohne <code style="font-family:var(--f-mono);font-size:10px;background:var(--c-surface);padding:1px 4px;border-radius:3px">?lang=</code> funktionieren weiter wie bisher.</div>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;padding:10px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:600;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em">Original (Auto-Sprache)</div>
+            <div style="font-size:11.5px;color:var(--c-ink);font-family:var(--f-mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${baseAppLink.replace(/</g,'&lt;')}</div>
+          </div>
+          <button data-action="copy-lang-link" data-link="${baseAppLink.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:7px 11px;background:var(--c-ink);color:#fff;border:0;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('copy', 12, 2.5)} Kopieren</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${I18N_LANGS.map(L => {
+            const link = appLinkWithLang(L.code);
+            return `
+              <div style="padding:9px 11px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px;flex-shrink:0">${L.flag}</span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:11.5px;font-weight:700;color:var(--c-ink);letter-spacing:-.005em">${L.label}</div>
+                  <div style="font-size:10.5px;color:var(--c-ink-mute);font-family:var(--f-mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link.replace(/</g,'&lt;')}</div>
+                </div>
+                <button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:6px 10px;background:var(--c-blue);color:#fff;border:0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">${svg('copy', 11, 2.5)} Kopieren</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div style="margin-top:10px;padding:9px 12px;background:#FFF8E1;border:1px solid #F5C95B;border-radius:8px;font-size:10.5px;color:#5A3F00;line-height:1.5">
+          <strong>${svg('info', 10, 2.5)} Tipp:</strong> Beim Versenden eines WhatsApp-Texts per <em>„WhatsApp-Text kopieren"</em> wird die Sprache des Empfängers (falls bekannt aus seinem Profil) <strong>automatisch</strong> im Link gesetzt.
+        </div>
+      </div>
+      `;
+    })() : ''}
 
     <div style="padding:14px 20px 0">
       ${loading ? `
@@ -14676,6 +14772,25 @@ document.addEventListener('click', (e) => {
     case 'enable-new-user-notifications': {
       // Browser-Notification-Permission anfragen (für In-App-Push bei neuen Registrierungen)
       requestNotificationPermission();
+      break;
+    }
+    case 'toggle-lang-links': {
+      state.langLinksOpen = !state.langLinksOpen;
+      render();
+      break;
+    }
+    case 'toggle-dist-lang-links': {
+      state.distLangLinksOpen = !state.distLangLinksOpen;
+      render();
+      break;
+    }
+    case 'copy-lang-link': {
+      const link = btn.dataset.link || '';
+      if (!link) break;
+      copyTextToClipboard(link).then(ok => {
+        if (ok) showToast('Link kopiert: ' + link, 'success', 2400);
+        else showToast('Kopieren fehlgeschlagen', 'error', 2400);
+      });
       break;
     }
     case 'dist-customer-mark-reviewed': {
