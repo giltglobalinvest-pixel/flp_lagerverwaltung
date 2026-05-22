@@ -1144,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.09';
+const APP_VERSION = 'v2.10';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -6843,6 +6843,12 @@ const itemCard = (it, opts = {}) => {
       priceChip = `<span class="pill" style="background:${bg};color:${fg};border:1px solid ${border};font-family:var(--f-mono);font-weight:700">${formatVp(ep.value)}</span>`;
     }
   }
+  // Preis-Chip f\u00fcr Admin / interne User (nicht Customer) \u2014 zeigt den hinterlegten Verkaufspreis (vp).
+  // Verkaufte Items werden ausgeblendet (das Sold-Stamp \u00fcberdeckt den Preis-Wert sowieso).
+  let internalPriceChip = '';
+  if (!cust && it.vp != null && !it.sold) {
+    internalPriceChip = `<span class="pill" style="background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6;font-family:var(--f-mono);font-weight:700" title="Verkaufspreis">${formatVp(it.vp)}</span>`;
+  }
   return `
 <button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${(owner && !cust) ? 'border-left:3px solid #FB923C' : ''}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
@@ -6859,7 +6865,7 @@ const itemCard = (it, opts = {}) => {
       <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}${owner ? `<span class="price-chip price-chip--sm" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Besitzer: ${owner.replace(/"/g, '&quot;')}">${svg('user', 9, 2.6)} ${owner}</span>` : ''}</div>
       <h3 class="item-card__name">${it.title}</h3>
       <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
-      <div class="item-card__row" style="margin-top:8px">${condP}${funcP}</div>
+      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${condP}${funcP}${internalPriceChip}</div>
       <div class="item-card__divider">
         <span class="item-card__loc">${svg('map-pin', 11, 2.4)} ${it.loc || '\u2014'}</span>
       </div>
