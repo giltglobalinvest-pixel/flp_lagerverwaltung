@@ -1131,7 +1131,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v1.99';
+const APP_VERSION = 'v2.00';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9172,7 +9172,7 @@ function renderDetail() {
       return `
         <div class="hero-image hero-image--photo">
           <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
-          ${!it.sold ? certOverlay(it) : ''}
+          ${(!it.sold && idx === 0) ? certOverlay(it) : ''}
           ${photos.length > 1 ? `
             <button class="gallery-nav gallery-nav--prev" data-action="gallery-prev" ${idx === 0 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
             <button class="gallery-nav gallery-nav--next" data-action="gallery-next" ${idx === photos.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
