@@ -1135,7 +1135,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.03';
+const APP_VERSION = 'v2.04';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -8203,7 +8203,6 @@ function renderCustomerHomeMain() {
   </div>
 
   ${state.installHelpOpen ? renderInstallHelpSheet() : ''}
-  ${state.downloadsOpen ? renderDownloadsSheet() : ''}
 </div>`;
 }
 
@@ -13633,7 +13632,10 @@ function render() {
   }
   try { _overlay = renderCompanyOverlay(); }
   catch (overlayErr) { console.error('[render] overlay threw:', overlayErr); _overlay = ''; }
-  app.innerHTML = _html + _overlay;
+  let _downloads = '';
+  try { _downloads = state.downloadsOpen ? renderDownloadsSheet() : ''; }
+  catch (dlErr) { console.error('[render] downloads sheet threw:', dlErr); _downloads = ''; }
+  app.innerHTML = _html + _overlay + _downloads;
 
   // Restore scroll positions
   app.querySelectorAll('.scroll').forEach((el, i) => { if (savedScrolls[`scroll:${i}`]) el.scrollTop = savedScrolls[`scroll:${i}`]; });
