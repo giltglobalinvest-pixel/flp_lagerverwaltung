@@ -1144,7 +1144,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.11';
+const APP_VERSION = 'v2.12';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9737,7 +9737,16 @@ function renderDetail() {
       //   • Distributor: EK IMMER (mit Rabatt-Badge)
       //   • Sub-Customer mit Preis-Freigabe: Endpreis IMMER (Distributor entscheidet — kein FLP-Webshop-Gate)
       //   • Regulärer FLP-Direktkunde: VP nur wenn inShop ("Im Webshop")
-      if (it.vp == null || it.sold) return '';
+      if (it.sold) return '';
+      // Kein Preis hinterlegt? Admin sieht trotzdem einen CTA-Button zum schnellen Setzen.
+      if (it.vp == null) {
+        if (!isAdmin()) return '';
+        return `
+          <button data-action="quick-price" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;background:var(--c-bg-soft);border:1.5px dashed var(--c-border);border-radius:var(--r-tile);width:100%;cursor:pointer;color:var(--c-ink-mute);font-size:12.5px;font-weight:600;transition:all .15s" onmouseover="this.style.borderColor='var(--c-blue)';this.style.color='var(--c-blue)'" onmouseout="this.style.borderColor='var(--c-border)';this.style.color='var(--c-ink-mute)'">
+            ${svg('plus', 14, 2.5)} Verkaufspreis setzen
+          </button>
+        `;
+      }
       const ep = effectivePriceForUser(it);
       if (!ep.visible || ep.value == null) return '';
       // inShop-Gate gilt NUR für reguläre FLP-Direktkunden (public-Webshop-Semantik).
@@ -9756,6 +9765,22 @@ function renderDetail() {
       else if (isMark) label = t('price.endprice');
       else if (isInternal && !it.inShop) label = 'Verkaufspreis';
       else label = t('price.shop');
+      // Admin darf den Preis direkt aus der Detail-Ansicht editieren — Klick auf die Kachel
+      // öffnet ein Quick-Edit-Sheet mit Preis-Input (analog zu Zustand/Funktion/Lagerort).
+      if (isAdmin()) {
+        return `
+        <button data-action="quick-price" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${bg};border:1px solid ${border};border-radius:var(--r-tile);gap:10px;width:100%;cursor:pointer;text-align:left;transition:transform .1s" onmousedown="this.style.transform='scale(.99)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''" ontouchstart="this.style.transform='scale(.99)'" ontouchend="this.style.transform=''" title="Preis bearbeiten">
+          <div style="display:flex;align-items:center;gap:8px;color:${text}">
+            ${svg(icon, 16, 2.4)}
+            <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-family:var(--f-mono);font-size:18px;font-weight:700;color:${text};letter-spacing:.02em">${formatVp(ep.value)}</div>
+            <span style="color:${text};opacity:.55;display:flex">${svg('pencil', 13, 2.4)}</span>
+          </div>
+        </button>
+        `;
+      }
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${bg};border:1px solid ${border};border-radius:var(--r-tile);gap:10px">
           <div style="display:flex;align-items:center;gap:8px;color:${text}">
@@ -10238,6 +10263,40 @@ function renderDetail() {
       <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
         <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
         <button class="action-bar__btn action-bar__btn--primary" data-action="save-quick-loc" style="padding:14px">${svg('check', 14, 3)} Sichern</button>
+      </div>
+    </div>
+    `;
+  })() : ''}
+
+  ${state.quickEdit === 'price' ? (() => {
+    // Quick-Edit für Verkaufspreis — schneller Eingabe-Sheet ohne Edit-Form aufrufen zu müssen.
+    // Erlaubt sowohl Komma als auch Punkt; speichert als Number in it.vp.
+    const draftRaw = state.quickPriceDraft != null
+      ? String(state.quickPriceDraft)
+      : (it.vp != null ? String(it.vp).replace('.', ',') : '');
+    const parsed = parseFloat(String(draftRaw).replace(',', '.').replace(/[^\d.\-]/g, ''));
+    const valid = !isNaN(parsed) && parsed >= 0;
+    return `
+    <div class="sheet-backdrop" data-action="close-quick"></div>
+    <div class="action-sheet" style="max-height:85vh;display:flex;flex-direction:column">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">Verkaufspreis ${it.vp != null ? 'bearbeiten' : 'setzen'}</div>
+      <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px">
+        <div class="field">
+          <label class="field__label">Verkaufspreis · €</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input class="field__input" type="text" inputmode="decimal" data-action="quick-price-input" value="${(draftRaw || '').replace(/"/g, '&quot;')}" placeholder="z.B. 3850,00" style="font-family:var(--f-mono);font-size:22px;font-weight:700;text-align:right;flex:1" autofocus>
+            <span style="font-family:var(--f-mono);font-size:22px;font-weight:700;color:var(--c-ink-mute)">€</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:6px;line-height:1.4">Eingabe mit Komma <em>oder</em> Punkt — z.B. <code style="font-family:var(--f-mono)">3850</code>, <code style="font-family:var(--f-mono)">3850,00</code> oder <code style="font-family:var(--f-mono)">3850.00</code>. Leer lassen = Preis löschen.</div>
+        </div>
+        ${it.vp != null ? `
+          <button data-action="clear-quick-price" style="padding:9px 12px;background:var(--c-red-soft);color:var(--c-red);border:1px solid rgba(229,72,77,.25);border-radius:var(--r-md);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">${svg('trash', 12, 2.5)} Preis entfernen</button>
+        ` : ''}
+      </div>
+      <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+        <button class="action-bar__btn" data-action="close-quick" style="padding:14px">Abbrechen</button>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="save-quick-price" style="padding:14px;opacity:${valid || !draftRaw ? '1' : '.55'}" ${valid || !draftRaw ? '' : 'disabled'}>${svg('check', 14, 3)} Sichern</button>
       </div>
     </div>
     `;
@@ -15699,7 +15758,58 @@ document.addEventListener('click', (e) => {
     case 'quick-cond': state.quickEdit = 'cond'; render(); break;
     case 'quick-func': state.quickEdit = 'func'; render(); break;
     case 'quick-loc': state.quickEdit = 'loc'; state.quickLocDraft = state.item ? parseLoc(state.item.loc) : { hall: '', shelf: '', pos: '', box: '' }; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; render(); break;
-    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; state.returnDraft = null; render(); break;
+    case 'quick-price': {
+      // Nur Admin darf den Preis direkt editieren (Customer hat hier sowieso keine Click-Action)
+      if (!isAdmin() || !state.item) break;
+      state.quickEdit = 'price';
+      state.quickPriceDraft = state.item.vp != null ? String(state.item.vp).replace('.', ',') : '';
+      render();
+      break;
+    }
+    case 'quick-price-input': /* handled by input event listener */ break;
+    case 'clear-quick-price': {
+      state.quickPriceDraft = '';
+      render();
+      break;
+    }
+    case 'save-quick-price': {
+      if (!isAdmin() || !state.item) break;
+      const raw = (state.quickPriceDraft || '').trim();
+      let newVp = null;
+      if (raw !== '') {
+        const parsed = parseFloat(raw.replace(',', '.').replace(/[^\d.\-]/g, ''));
+        if (isNaN(parsed) || parsed < 0) {
+          showToast('Bitte gültigen Preis eingeben', 'error', 2400);
+          break;
+        }
+        newVp = Math.round(parsed * 100) / 100; // auf 2 Nachkommastellen
+      }
+      const it = state.item;
+      const prev = it.vp;
+      it.vp = newVp;
+      // Auch im Inventory aktualisieren (state.item ist meist Referenz, aber zur Sicherheit)
+      const invIt = (inventory || []).find(x => x._recordId === it._recordId);
+      if (invIt && invIt !== it) invIt.vp = newVp;
+      state.quickEdit = null;
+      state.quickPriceDraft = null;
+      setLoading(true, 'Preis wird gespeichert …');
+      // vp wird in Airtable als String gespeichert (siehe ITEM_FIELDS-Kommentar)
+      airUpdate(TBL_ITEMS, it._recordId, { vp: newVp != null ? String(newVp) : '' })
+        .then(() => {
+          showToast(newVp != null ? 'Preis gespeichert: ' + formatVp(newVp) : 'Preis entfernt', 'success', 2400);
+          render();
+        })
+        .catch(err => {
+          // Revert
+          it.vp = prev;
+          if (invIt && invIt !== it) invIt.vp = prev;
+          showToast('Speichern fehlgeschlagen: ' + (err.message || ''), 'error', 3500);
+          render();
+        })
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'close-quick': state.quickEdit = null; state.quickLocDraft = null; state.quickPriceDraft = null; state.locAddingFor = null; state.locAddDraft = ''; state.locManageMode = null; state.saleDraft = null; state.returnDraft = null; render(); break;
 
     /* ===== Customer-Onboarding (3 Schritte beim ersten Login) ===== */
     case 'onboard-next': {
@@ -16838,6 +16948,10 @@ document.addEventListener('input', (e) => {
   else if (a === 'inquiry-note-input') {
     if (!state.inquiryDraft) state.inquiryDraft = { note: '' };
     state.inquiryDraft.note = t.value;
+  }
+  else if (a === 'quick-price-input') {
+    // Live-Update des Preis-Drafts (kein Re-Render, sonst geht der Cursor verloren)
+    state.quickPriceDraft = t.value;
   }
   else if (a === 'customer-set-firm-input') {
     const u = APP_KEYS.user;
