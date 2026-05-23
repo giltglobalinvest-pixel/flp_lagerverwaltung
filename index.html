@@ -1198,7 +1198,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.24';
+const APP_VERSION = 'v2.25';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3561,6 +3561,32 @@ const I18N = {
     'landing.share.btn': 'Teilen',
     'landing.share.title': 'FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager',
     'landing.share.text': 'Hey! Wir haben aktuell jede Menge Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile bei FLP auf Lager. Schau einfach kurz online:',
+
+    // Foto-Such-Ergebnis-Screen (renderPhotoResults)
+    'photoResults.title': 'Foto-Suche',
+    'photoResults.hits': '{n} Treffer',
+    'photoResults.aiDetected': 'KI hat erkannt',
+    'photoResults.model': 'Modell',
+    'photoResults.maker': 'Hersteller',
+    'photoResults.category': 'Kategorie',
+    'photoResults.relaxed.title': 'Lockerere Suche aktiv',
+    'photoResults.relaxed.sub': 'mehr Treffer zugelassen, dafür weniger genau.',
+    'photoResults.empty.title': 'Kein Treffer im Bestand',
+    'photoResults.empty.relaxed': 'Auch lockerere Suche fand nichts',
+    'photoResults.empty.sub.withModel': 'Versuche manuell zu suchen — die Schreibweise im Bestand könnte abweichen — oder probier ein klareres Foto vom Typenschild.',
+    'photoResults.empty.sub.noModel': 'Konnte aus dem Foto keine eindeutigen Daten lesen. Versuche ein klareres Bild vom Typenschild oder eine manuelle Suche.',
+    'photoResults.relaxBtn': 'Suche lockern (mehr Treffer zulassen)',
+    'photoResults.searchWithModel': 'Manuell suchen mit „{model}"',
+    'photoResults.searchWithMaker': 'Suche nach Hersteller „{maker}"',
+    'photoResults.searchManually': 'Manuell suchen',
+    'photoResults.tryAnother': 'Anderes Foto versuchen',
+    'photoResults.exactMatch.title': 'Eindeutig zugeordnet',
+    'photoResults.exactMatch.pill': 'Sicher',
+    'photoResults.exactMatch.hint': 'Treffer durch Modell-Code & Hersteller-Text vom Typenschild.',
+    'photoResults.possibleMatch.title': 'Möglicher Treffer',
+    'photoResults.possibleMatch.pill': 'Beschriftung prüfen',
+    'photoResults.possibleMatch.hint': 'Schwächere Text-Übereinstimmung — Beschriftung gegen Etikett vergleichen.',
+    'photoResults.textMatch': 'Text-Match',
     'landing.footer.imprint': 'Impressum',
     'landing.footer.privacy': 'Datenschutz',
     'landing.footer.contact': 'Kontakt',
@@ -3869,6 +3895,32 @@ const I18N = {
     'landing.share.btn': 'Share',
     'landing.share.title': 'FLP Stockmanager — Drives & frequency inverters in stock',
     'landing.share.text': 'Hey! We currently have plenty of drives, frequency inverters and other lift components in stock at FLP. Just have a quick look online:',
+
+    // Photo search results (renderPhotoResults)
+    'photoResults.title': 'Photo search',
+    'photoResults.hits': '{n} matches',
+    'photoResults.aiDetected': 'AI detected',
+    'photoResults.model': 'Model',
+    'photoResults.maker': 'Manufacturer',
+    'photoResults.category': 'Category',
+    'photoResults.relaxed.title': 'Looser search active',
+    'photoResults.relaxed.sub': 'more matches allowed, but less precise.',
+    'photoResults.empty.title': 'No matches in stock',
+    'photoResults.empty.relaxed': 'Even the looser search found nothing',
+    'photoResults.empty.sub.withModel': 'Try searching manually — the spelling in stock might differ — or take a sharper photo of the nameplate.',
+    'photoResults.empty.sub.noModel': 'Could not read clear data from the photo. Try a sharper image of the nameplate or search manually.',
+    'photoResults.relaxBtn': 'Loosen the search (allow more matches)',
+    'photoResults.searchWithModel': 'Search manually with "{model}"',
+    'photoResults.searchWithMaker': 'Search by manufacturer "{maker}"',
+    'photoResults.searchManually': 'Search manually',
+    'photoResults.tryAnother': 'Try another photo',
+    'photoResults.exactMatch.title': 'Clear match',
+    'photoResults.exactMatch.pill': 'Confident',
+    'photoResults.exactMatch.hint': 'Match via model code & manufacturer text from the nameplate.',
+    'photoResults.possibleMatch.title': 'Possible match',
+    'photoResults.possibleMatch.pill': 'Verify label',
+    'photoResults.possibleMatch.hint': 'Weaker text match — compare description with label.',
+    'photoResults.textMatch': 'Text match',
     'landing.footer.imprint': 'Imprint',
     'landing.footer.privacy': 'Privacy',
     'landing.footer.contact': 'Contact',
@@ -4160,6 +4212,32 @@ const I18N = {
     'landing.share.btn': 'Compartir',
     'landing.share.title': 'FLP Stockmanager — Accionamientos y variadores en stock',
     'landing.share.text': '¡Hola! Tenemos muchos accionamientos, variadores de frecuencia y otros componentes de ascensor en stock en FLP. Echa un vistazo rápido en línea:',
+
+    // Resultados búsqueda por foto (renderPhotoResults)
+    'photoResults.title': 'Búsqueda por foto',
+    'photoResults.hits': '{n} resultados',
+    'photoResults.aiDetected': 'IA detectó',
+    'photoResults.model': 'Modelo',
+    'photoResults.maker': 'Fabricante',
+    'photoResults.category': 'Categoría',
+    'photoResults.relaxed.title': 'Búsqueda más amplia activa',
+    'photoResults.relaxed.sub': 'más resultados permitidos, pero menos precisos.',
+    'photoResults.empty.title': 'Sin resultados en stock',
+    'photoResults.empty.relaxed': 'Tampoco la búsqueda ampliada encontró nada',
+    'photoResults.empty.sub.withModel': 'Intenta buscar manualmente — la ortografía en stock puede variar — o haz una foto más clara de la placa.',
+    'photoResults.empty.sub.noModel': 'No se pudieron leer datos claros de la foto. Intenta una imagen más nítida de la placa o busca manualmente.',
+    'photoResults.relaxBtn': 'Ampliar búsqueda (permitir más resultados)',
+    'photoResults.searchWithModel': 'Buscar manualmente con «{model}»',
+    'photoResults.searchWithMaker': 'Buscar por fabricante «{maker}»',
+    'photoResults.searchManually': 'Buscar manualmente',
+    'photoResults.tryAnother': 'Probar otra foto',
+    'photoResults.exactMatch.title': 'Coincidencia clara',
+    'photoResults.exactMatch.pill': 'Seguro',
+    'photoResults.exactMatch.hint': 'Coincidencia por código de modelo y texto del fabricante en la placa.',
+    'photoResults.possibleMatch.title': 'Posible coincidencia',
+    'photoResults.possibleMatch.pill': 'Verificar etiqueta',
+    'photoResults.possibleMatch.hint': 'Coincidencia de texto más débil — comprueba la descripción con la etiqueta.',
+    'photoResults.textMatch': 'Coincidencia de texto',
     'landing.footer.imprint': 'Aviso legal',
     'landing.footer.privacy': 'Privacidad',
     'landing.footer.contact': 'Contacto',
@@ -4451,6 +4529,32 @@ const I18N = {
     'landing.share.btn': 'Delen',
     'landing.share.title': 'FLP Stockmanager — Aandrijvingen & frequentieregelaars op voorraad',
     'landing.share.text': 'Hé! We hebben nu veel aandrijvingen, frequentieregelaars en andere lift-onderdelen op voorraad bij FLP. Kijk even snel online:',
+
+    // Foto-zoek-resultaten (renderPhotoResults)
+    'photoResults.title': 'Foto-zoeken',
+    'photoResults.hits': '{n} resultaten',
+    'photoResults.aiDetected': 'AI herkende',
+    'photoResults.model': 'Model',
+    'photoResults.maker': 'Fabrikant',
+    'photoResults.category': 'Categorie',
+    'photoResults.relaxed.title': 'Bredere zoekopdracht actief',
+    'photoResults.relaxed.sub': 'meer resultaten toegestaan, maar minder nauwkeurig.',
+    'photoResults.empty.title': 'Geen resultaten in voorraad',
+    'photoResults.empty.relaxed': 'Ook de bredere zoekopdracht vond niets',
+    'photoResults.empty.sub.withModel': 'Probeer handmatig te zoeken — de schrijfwijze in voorraad kan afwijken — of maak een scherpere foto van het typeplaatje.',
+    'photoResults.empty.sub.noModel': 'Kon geen duidelijke gegevens uit de foto lezen. Probeer een scherpere foto van het typeplaatje of zoek handmatig.',
+    'photoResults.relaxBtn': 'Zoekopdracht verbreden (meer resultaten toestaan)',
+    'photoResults.searchWithModel': 'Handmatig zoeken met „{model}"',
+    'photoResults.searchWithMaker': 'Zoeken op fabrikant „{maker}"',
+    'photoResults.searchManually': 'Handmatig zoeken',
+    'photoResults.tryAnother': 'Andere foto proberen',
+    'photoResults.exactMatch.title': 'Duidelijke match',
+    'photoResults.exactMatch.pill': 'Zeker',
+    'photoResults.exactMatch.hint': 'Match via modelcode & fabrikant-tekst van het typeplaatje.',
+    'photoResults.possibleMatch.title': 'Mogelijke match',
+    'photoResults.possibleMatch.pill': 'Etiket controleren',
+    'photoResults.possibleMatch.hint': 'Zwakkere tekstovereenkomst — vergelijk beschrijving met etiket.',
+    'photoResults.textMatch': 'Tekstmatch',
     'landing.footer.imprint': 'Colofon',
     'landing.footer.privacy': 'Privacy',
     'landing.footer.contact': 'Contact',
@@ -4742,6 +4846,32 @@ const I18N = {
     'landing.share.btn': 'Partager',
     'landing.share.title': 'FLP Stockmanager — Entraînements & variateurs en stock',
     'landing.share.text': 'Salut ! Nous avons actuellement plein d’entraînements, de variateurs de fréquence et d’autres composants d’ascenseur en stock chez FLP. Jette un œil rapide en ligne :',
+
+    // Résultats recherche par photo (renderPhotoResults)
+    'photoResults.title': 'Recherche par photo',
+    'photoResults.hits': '{n} résultats',
+    'photoResults.aiDetected': "L'IA a détecté",
+    'photoResults.model': 'Modèle',
+    'photoResults.maker': 'Fabricant',
+    'photoResults.category': 'Catégorie',
+    'photoResults.relaxed.title': 'Recherche élargie active',
+    'photoResults.relaxed.sub': 'plus de résultats autorisés, mais moins précis.',
+    'photoResults.empty.title': 'Aucun résultat en stock',
+    'photoResults.empty.relaxed': "Même la recherche élargie n'a rien trouvé",
+    'photoResults.empty.sub.withModel': "Essaie de chercher manuellement — l'orthographe dans le stock peut différer — ou prends une photo plus nette de la plaque.",
+    'photoResults.empty.sub.noModel': "Impossible de lire des données claires sur la photo. Essaie une image plus nette de la plaque ou cherche manuellement.",
+    'photoResults.relaxBtn': 'Élargir la recherche (plus de résultats)',
+    'photoResults.searchWithModel': 'Rechercher manuellement avec « {model} »',
+    'photoResults.searchWithMaker': 'Rechercher par fabricant « {maker} »',
+    'photoResults.searchManually': 'Rechercher manuellement',
+    'photoResults.tryAnother': 'Essayer une autre photo',
+    'photoResults.exactMatch.title': 'Correspondance exacte',
+    'photoResults.exactMatch.pill': 'Sûr',
+    'photoResults.exactMatch.hint': 'Correspondance via code modèle & texte fabricant de la plaque.',
+    'photoResults.possibleMatch.title': 'Correspondance possible',
+    'photoResults.possibleMatch.pill': "Vérifier l'étiquette",
+    'photoResults.possibleMatch.hint': "Correspondance textuelle plus faible — compare la description avec l'étiquette.",
+    'photoResults.textMatch': 'Correspondance texte',
     'landing.footer.imprint': 'Mentions légales',
     'landing.footer.privacy': 'Confidentialité',
     'landing.footer.contact': 'Contact',
@@ -12975,15 +13105,18 @@ function renderPhotoResults() {
     ${visualMatches.length ? `
       <div>
         <div class="section-head">
-          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">M\u00f6glicher Treffer</h2><span class="pill pill--amber">${svg('alert-triangle', 9, 2.5)} Beschriftung pr\u00fcfen</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><h2 class="section-head__title">${t('photoResults.possibleMatch.title')}</h2><span class="pill pill--amber">${svg('alert-triangle', 9, 2.5)} ${t('photoResults.possibleMatch.pill')}</span></div>
         </div>
-        <div class="hint-banner" style="background:var(--c-amber-soft);color:#7C4A06;margin-bottom:8px;font-size:11.5px">${svg('alert-triangle', 12, 2.4)} Schw\u00e4chere Text-\u00dcbereinstimmung \u2014 Beschriftung gegen Etikett vergleichen.</div>
+        <div class="hint-banner" style="background:var(--c-amber-soft);color:#7C4A06;margin-bottom:8px;font-size:11.5px">${svg('alert-triangle', 12, 2.4)} ${t('photoResults.possibleMatch.hint')}</div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${visualMatches.map(it => `
             <button class="item-card" data-action="select-item" data-id="${it.id}">
-              <div class="item-card__icon item-card__icon--neutral">${svg('package', 22, 2.2)}<span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func].dot}"></span></div>
+              <div class="item-card__icon ${it.photoUrl ? '' : 'item-card__icon--neutral'}" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
+                ${it.photoUrl ? `<img src="${photoSrc(it, 'large')}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;${it.sold ? 'opacity:.5;filter:grayscale(.6)' : ''}">` : svg('package', 22, 2.2)}
+                <span class="item-card__dot" style="background:${FUNCTION_STATUS[it.func]?.dot || '#94A3B8'}"></span>
+              </div>
               <div class="item-card__body">
-                <div class="item-card__row"><span class="code-chip">#${it.id}</span><span class="pill pill--neutral">${svg('scan-text', 9, 2.5)} Text-Match ${it.match}%</span></div>
+                <div class="item-card__row"><span class="code-chip">#${it.id}</span><span class="pill pill--neutral">${svg('scan-text', 9, 2.5)} ${t('photoResults.textMatch')} ${it.match}%</span></div>
                 <h3 class="item-card__name">${it.title}</h3>
                 <div class="item-card__row" style="margin-top:6px">${condPill(it.cond)}${funcPill(it.func)}</div>
                 <div class="match-bar"><div class="match-bar__fill" style="width:${it.match}%;background:${it.match > 70 ? 'var(--c-blue)' : it.match > 55 ? 'var(--c-amber)' : 'var(--c-ink-subtle)'}"></div></div>
