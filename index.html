@@ -1198,7 +1198,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.25';
+const APP_VERSION = 'v2.26';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2934,9 +2934,76 @@ function appLinkWithLang(lang, extra = {}) {
 function whatsappShareBtn(opts = {}) {
   const size = opts.size || 32;
   const title = opts.title || (t('landing.share.btn') + ' (WhatsApp)');
-  return `<button class="wa-share-btn" data-action="share-app" title="${title}" aria-label="${title}" style="width:${size}px;height:${size}px">
+  // In-App-Buttons (withConfirm:true) öffnen erst ein Modal mit Erklärung,
+  // Landing-Buttons (default) gehen direkt zur Share-Logik.
+  const action = opts.withConfirm ? 'open-share-modal' : 'share-app';
+  return `<button class="wa-share-btn" data-action="${action}" title="${title}" aria-label="${title}" style="width:${size}px;height:${size}px">
     <svg viewBox="0 0 24 24" fill="currentColor" style="width:60%;height:60%;display:block"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
   </button>`;
+}
+
+// Liefert die zusätzlichen URL-Parameter, die beim Share angehängt werden:
+//   - Distributor selbst:          ?dist=<eigene-recordId>  → Empfänger wird ggf. sein Sub-Kunde
+//   - Sub-Kunde eines Distributors: ?dist=<parent-recordId> → Empfänger wird ebenfalls Sub-Kunde
+//   - Admin/Direktkunde/nicht eingeloggt: keine extra-Parameter
+function shareLinkExtra() {
+  const u = APP_KEYS.user;
+  if (!u) return {};
+  if (isDistributor() && u._recordId) return { dist: u._recordId };
+  if (isUnderDistributor() && APP_KEYS.parentDistributor?._recordId) {
+    return { dist: APP_KEYS.parentDistributor._recordId };
+  }
+  return {};
+}
+
+// Modal das vor dem Share angezeigt wird (nur in-app) — erklärt was geteilt wird.
+function renderShareModal() {
+  const lang = state.lang || 'en';
+  const extra = shareLinkExtra();
+  const shareUrl = appLinkWithLang(lang, extra);
+  const distId = extra.dist;
+  // Distributor-Co-Branding-Info anzeigen wenn dist-Param dabei ist
+  let distName = '';
+  if (distId) {
+    if (isDistributor()) distName = (APP_KEYS.user.companyName || APP_KEYS.user.name || '').trim();
+    else if (isUnderDistributor() && APP_KEYS.parentDistributor) {
+      const pd = APP_KEYS.parentDistributor;
+      distName = (pd.companyName || pd.name || '').trim();
+    }
+  }
+  return `
+    <div class="sheet-backdrop" data-action="close-share-modal"></div>
+    <div class="action-sheet" style="max-width:480px;width:100%">
+      <div class="action-sheet__handle"></div>
+      <div style="padding:18px 20px 8px;display:flex;align-items:center;gap:14px">
+        <div style="width:54px;height:54px;border-radius:14px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(37,211,102,.35)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:17px;font-weight:700;letter-spacing:-.015em;color:var(--c-ink)">${t('shareModal.title')}</div>
+          <div style="font-size:12px;color:var(--c-ink-mute);margin-top:3px;line-height:1.45">${t('shareModal.sub')}</div>
+        </div>
+      </div>
+      <div style="padding:8px 20px 14px;display:flex;flex-direction:column;gap:10px">
+        ${distName ? `
+          <div style="padding:11px 13px;background:#FFF8E1;border:1px solid #F5C95B;border-radius:var(--r-md);font-size:11.5px;color:#5A3F00;line-height:1.45;display:flex;align-items:flex-start;gap:9px">
+            <span style="flex-shrink:0;margin-top:1px">${svg('badge-check', 12, 2.5)}</span>
+            <span>${t('shareModal.distHint', { name: '<strong>' + distName.replace(/</g,'&lt;') + '</strong>' })}</span>
+          </div>
+        ` : ''}
+        <div style="padding:11px 13px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;align-items:center;gap:9px">
+          <span style="flex-shrink:0;color:var(--c-ink-mute)">${svg('link', 13, 2.4)}</span>
+          <div style="flex:1;min-width:0;font-family:var(--f-mono);font-size:11.5px;color:var(--c-ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${shareUrl.replace(/</g,'&lt;')}</div>
+        </div>
+      </div>
+      <div style="padding:0 16px 14px;display:grid;grid-template-columns:1fr 2fr;gap:8px">
+        <button class="action-bar__btn" data-action="close-share-modal" style="padding:14px">${t('shareModal.cancel')}</button>
+        <button class="action-bar__btn action-bar__btn--primary" data-action="share-app-from-modal" style="padding:14px;background:#25D366;color:#fff;border:0;box-shadow:0 4px 14px rgba(37,211,102,.35)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display:inline-block;vertical-align:middle;margin-right:6px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>${t('shareModal.shareBtn')}
+        </button>
+      </div>
+    </div>
+  `;
 }
 
 // Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
@@ -3561,6 +3628,11 @@ const I18N = {
     'landing.share.btn': 'Teilen',
     'landing.share.title': 'FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager',
     'landing.share.text': 'Hey! Wir haben aktuell jede Menge Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile bei FLP auf Lager. Schau einfach kurz online:',
+    'shareModal.title': 'Teilen mit Freunden',
+    'shareModal.sub': 'Schick diesen Link an Freunde, Kollegen oder Kontakte aus der Branche — sie können dann unseren Lagerbestand durchsuchen und Anfragen stellen.',
+    'shareModal.distHint': 'Dein Link enthält die Verknüpfung mit deinem Distributor {name} — neue Registrierungen über deinen Link werden automatisch dort zugeordnet.',
+    'shareModal.shareBtn': 'Jetzt per WhatsApp teilen',
+    'shareModal.cancel': 'Abbrechen',
 
     // Foto-Such-Ergebnis-Screen (renderPhotoResults)
     'photoResults.title': 'Foto-Suche',
@@ -3895,6 +3967,11 @@ const I18N = {
     'landing.share.btn': 'Share',
     'landing.share.title': 'FLP Stockmanager — Drives & frequency inverters in stock',
     'landing.share.text': 'Hey! We currently have plenty of drives, frequency inverters and other lift components in stock at FLP. Just have a quick look online:',
+    'shareModal.title': 'Share with friends',
+    'shareModal.sub': 'Send this link to friends, colleagues or industry contacts — they can then browse our stock and send inquiries.',
+    'shareModal.distHint': 'Your link includes the link to your distributor {name} — new registrations via your link are automatically assigned there.',
+    'shareModal.shareBtn': 'Share via WhatsApp now',
+    'shareModal.cancel': 'Cancel',
 
     // Photo search results (renderPhotoResults)
     'photoResults.title': 'Photo search',
@@ -4212,6 +4289,11 @@ const I18N = {
     'landing.share.btn': 'Compartir',
     'landing.share.title': 'FLP Stockmanager — Accionamientos y variadores en stock',
     'landing.share.text': '¡Hola! Tenemos muchos accionamientos, variadores de frecuencia y otros componentes de ascensor en stock en FLP. Echa un vistazo rápido en línea:',
+    'shareModal.title': 'Compartir con amigos',
+    'shareModal.sub': 'Envía este enlace a amigos, colegas o contactos del sector — podrán explorar nuestro stock y hacer consultas.',
+    'shareModal.distHint': 'Tu enlace incluye la vinculación con tu distribuidor {name} — los nuevos registros desde tu enlace se asignan automáticamente allí.',
+    'shareModal.shareBtn': 'Compartir por WhatsApp ahora',
+    'shareModal.cancel': 'Cancelar',
 
     // Resultados búsqueda por foto (renderPhotoResults)
     'photoResults.title': 'Búsqueda por foto',
@@ -4529,6 +4611,11 @@ const I18N = {
     'landing.share.btn': 'Delen',
     'landing.share.title': 'FLP Stockmanager — Aandrijvingen & frequentieregelaars op voorraad',
     'landing.share.text': 'Hé! We hebben nu veel aandrijvingen, frequentieregelaars en andere lift-onderdelen op voorraad bij FLP. Kijk even snel online:',
+    'shareModal.title': 'Delen met vrienden',
+    'shareModal.sub': 'Stuur deze link naar vrienden, collega\'s of branche-contacten — zij kunnen onze voorraad doorzoeken en aanvragen sturen.',
+    'shareModal.distHint': 'Je link bevat de koppeling met je distributeur {name} — nieuwe registraties via je link worden daar automatisch toegewezen.',
+    'shareModal.shareBtn': 'Nu via WhatsApp delen',
+    'shareModal.cancel': 'Annuleren',
 
     // Foto-zoek-resultaten (renderPhotoResults)
     'photoResults.title': 'Foto-zoeken',
@@ -4846,6 +4933,11 @@ const I18N = {
     'landing.share.btn': 'Partager',
     'landing.share.title': 'FLP Stockmanager — Entraînements & variateurs en stock',
     'landing.share.text': 'Salut ! Nous avons actuellement plein d’entraînements, de variateurs de fréquence et d’autres composants d’ascenseur en stock chez FLP. Jette un œil rapide en ligne :',
+    'shareModal.title': 'Partager avec des amis',
+    'shareModal.sub': 'Envoie ce lien à des amis, collègues ou contacts du secteur — ils pourront parcourir notre stock et envoyer des demandes.',
+    'shareModal.distHint': 'Ton lien contient le lien vers ton distributeur {name} — les nouveaux enregistrements via ton lien sont automatiquement attribués à lui.',
+    'shareModal.shareBtn': 'Partager via WhatsApp maintenant',
+    'shareModal.cancel': 'Annuler',
 
     // Résultats recherche par photo (renderPhotoResults)
     'photoResults.title': 'Recherche par photo',
@@ -8675,7 +8767,7 @@ function renderCustomerHomeMain() {
     <button class="logout-btn" data-action="logout" title="${t('nav.logout') || 'Abmelden'}">${svg('log-out', 16, 2.4)}</button>
     ${renderCoBrandedHeader('Stock Manager')}
     <div style="display:flex;gap:4px;align-items:center">
-      ${whatsappShareBtn({ size: 30 })}
+      ${whatsappShareBtn({ size: 30, withConfirm: true })}
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
       <button class="icon-btn" data-action="show-onboard-again" title="${t('home.helpButton')}">${svg('info', 16, 2.4)}</button>
@@ -9481,7 +9573,7 @@ function renderHome() {
       </div>
     </button>
     <div style="display:flex;gap:4px;align-items:center">
-      ${whatsappShareBtn({ size: 30 })}
+      ${whatsappShareBtn({ size: 30, withConfirm: true })}
       <button class="icon-btn" data-action="go-flyer" title="Kunden-Flyer (PDF, 5 Sprachen) \u00f6ffnen + drucken">${svg('printer', 16, 2.4)}</button>
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
@@ -14545,7 +14637,10 @@ function render() {
   let _downloads = '';
   try { _downloads = state.downloadsOpen ? renderDownloadsSheet() : ''; }
   catch (dlErr) { console.error('[render] downloads sheet threw:', dlErr); _downloads = ''; }
-  app.innerHTML = _html + _overlay + _downloads;
+  let _shareModal = '';
+  try { _shareModal = state.shareModalOpen ? renderShareModal() : ''; }
+  catch (smErr) { console.error('[render] share modal threw:', smErr); _shareModal = ''; }
+  app.innerHTML = _html + _overlay + _downloads + _shareModal;
 
   // Restore scroll positions
   app.querySelectorAll('.scroll').forEach((el, i) => { if (savedScrolls[`scroll:${i}`]) el.scrollTop = savedScrolls[`scroll:${i}`]; });
@@ -15465,26 +15560,40 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
-    case 'share-app': {
-      // App teilen — WhatsApp + Web-Share-API. Link enthält die aktuelle Sprache als
-      // ?lang=... Parameter, damit der Empfänger direkt in seiner Sprache landet.
+    case 'share-app':
+    case 'share-app-from-modal': {
+      // App teilen — WhatsApp + Web-Share-API. Link enthält:
+      //   - ?lang=...  (aktuelle Sprache → Empfänger landet sofort in seiner Sprache)
+      //   - ?dist=...  (wenn User Distributor oder Sub-Kunde eines Distributors ist → Co-Branding)
       const lang = state.lang || 'en';
-      const shareUrl = appLinkWithLang(lang);
+      const shareUrl = appLinkWithLang(lang, shareLinkExtra());
       const shareTitle = t('landing.share.title');
       const shareText = t('landing.share.text');
       const fullText = shareText + '\n\n' + shareUrl;
+      // Modal vor Share schließen falls offen
+      if (state.shareModalOpen) { state.shareModalOpen = false; render(); }
       // 1. Versuche Web Share API (nativer System-Share-Dialog mit WhatsApp + Stories + …)
       if (navigator.share) {
         navigator.share({ title: shareTitle, text: shareText, url: shareUrl })
           .catch(err => {
-            // Abgebrochen oder fehlgeschlagen — auf WhatsApp-Direkt-Link fallen
-            if (err && err.name === 'AbortError') return; // User cancelled, kein Fallback
+            if (err && err.name === 'AbortError') return; // User cancelled
             window.open('https://wa.me/?text=' + encodeURIComponent(fullText), '_blank');
           });
       } else {
         // 2. Kein Web-Share (Desktop) → direkt zu wa.me
         window.open('https://wa.me/?text=' + encodeURIComponent(fullText), '_blank');
       }
+      break;
+    }
+    case 'open-share-modal': {
+      // In-App: erst Modal mit Erklärung anzeigen (was wird geteilt + Co-Branding-Hinweis)
+      state.shareModalOpen = true;
+      render();
+      break;
+    }
+    case 'close-share-modal': {
+      state.shareModalOpen = false;
+      render();
       break;
     }
     case 'go-login': {
