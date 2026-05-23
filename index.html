@@ -912,6 +912,16 @@ a.tracker-chip:hover{filter:brightness(.97)}
 .photo-input{display:none}
 
 /* Galerie-Navigation im Detail-Hero */
+/* Foto-Tools (Admin): Drehen + Rückgängig — schwebt unten links auf dem Hero-Bild,
+   sodass es weder mit Cert-Overlays (oben), NEU-Badge (unten rechts), noch Gallery-Nav (Mitte) kollidiert. */
+.photo-tools{position:absolute;bottom:10px;left:10px;display:flex;gap:6px;z-index:3;align-items:center}
+.photo-tools__btn{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;background:rgba(15,24,48,0.7);backdrop-filter:blur(8px);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;transition:background .15s}
+.photo-tools__btn:hover:not(:disabled){background:rgba(15,24,48,0.9)}
+.photo-tools__btn:disabled{opacity:.45;cursor:wait}
+.photo-tools__btn--undo{background:rgba(245,158,11,0.85)}
+.photo-tools__btn--undo:hover:not(:disabled){background:rgba(217,119,6,0.95)}
+.photo-tools__lbl{font-size:10.5px;letter-spacing:.02em}
+.photo-tools__spin{display:flex;align-items:center;justify-content:center;padding:0 6px}
 .gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(15,24,48,0.55);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;z-index:2;transition:opacity .15s}
 .gallery-nav:disabled{opacity:.25;pointer-events:none}
 .gallery-nav--prev{left:10px;transform:translateY(-50%) rotate(180deg)}
@@ -1144,7 +1154,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.13';
+const APP_VERSION = 'v2.14';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2457,6 +2467,8 @@ const ICONS = {
   'arrow-left-right': '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
   pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',
   'chevron-down': '<path d="m6 9 6 6 6-6"/>',
@@ -6109,6 +6121,154 @@ async function handleItemPhotoAdd(file) {
   }
 }
 
+// Dreht ein Foto um 90° (cw oder ccw) — lädt das Bild, rotiert via Canvas,
+// re-uploadet, ersetzt im Photo-Array an derselben Position.
+// Original wird in state.photoRotateBackup für „Rückgängig" gemerkt (session-only).
+// processImage() wird vom uploadFileToRecord automatisch aufgerufen → korrigiert
+// das 5:4-Format wieder via Center-Crop, damit das gedrehte Bild ins Hochkant-Layout passt.
+async function handleItemPhotoRotate(idx, direction = 'cw') {
+  const it = state.item;
+  if (!it || !it.photo || idx < 0 || idx >= it.photo.length) return;
+  const original = it.photo[idx];
+  if (!original?.url) { showToast('Kein Bild zum Drehen', 'error', 2400); return; }
+
+  const backupKey = it._recordId + ':' + idx;
+  state.photoRotateBackup = state.photoRotateBackup || {};
+  // Backup nur beim ersten Mal speichern → echtes Original
+  if (!state.photoRotateBackup[backupKey]) {
+    state.photoRotateBackup[backupKey] = {
+      url: original.url,
+      filename: original.filename || 'photo.jpg',
+    };
+  }
+  state.photoRotating = backupKey;
+  render();
+
+  try {
+    setLoading(true, 'Bild wird geladen …');
+    // Download via fetch (Airtable-Content-URLs unterstützen CORS)
+    let blob;
+    try {
+      const res = await fetch(original.url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      blob = await res.blob();
+    } catch (fetchErr) {
+      // Fallback: über Image mit crossOrigin
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.crossOrigin = 'anonymous';
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error('CORS-Bild-Load fehlgeschlagen'));
+        i.src = original.url;
+      });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+    }
+    if (!blob) throw new Error('Bild-Daten leer');
+
+    // Decode via FileReader (vermeidet Taint-Probleme)
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('FileReader-Fehler'));
+      r.readAsDataURL(blob);
+    });
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Bild-Decoder-Fehler'));
+      i.src = dataUrl;
+    });
+
+    setLoading(true, 'Bild wird gedreht …');
+    // Rotate 90° via canvas — Dimensionen tauschen
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = img.naturalHeight;
+    rotCanvas.height = img.naturalWidth;
+    const rctx = rotCanvas.getContext('2d');
+    rctx.imageSmoothingEnabled = true;
+    rctx.imageSmoothingQuality = 'high';
+    rctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+    rctx.rotate(direction === 'ccw' ? -Math.PI / 2 : Math.PI / 2);
+    rctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    const rotatedBlob = await new Promise(r => rotCanvas.toBlob(r, 'image/jpeg', 0.95));
+    if (!rotatedBlob) throw new Error('Canvas-toBlob fehlgeschlagen');
+
+    // Als File wrappen — uploadFileToRecord ruft processImage auf,
+    // das macht den 5:4-Crop + Resize automatisch.
+    const baseName = (original.filename || 'photo').replace(/\.[^.]+$/, '');
+    const rotatedFile = new File(
+      [rotatedBlob],
+      baseName + '_rot.jpg',
+      { type: 'image/jpeg', lastModified: Date.now() }
+    );
+
+    setLoading(true, 'Bild wird hochgeladen …');
+    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', rotatedFile);
+
+    // Frisch laden — neue Datei ist am Ende des Arrays
+    setLoading(true, 'Wird verarbeitet …');
+    const tmpPhotos = await fetchPhotosWithRetry(it._recordId, it.photo.length + 1);
+    const newestAtt = tmpPhotos[tmpPhotos.length - 1];
+
+    // Neue Reihenfolge: alle bisherigen IDs (ohne das angehängte am Ende),
+    // an Position `idx` aber das neue Bild statt des alten
+    const desired = tmpPhotos.slice(0, -1).map(p => ({ id: p.id }));
+    desired[idx] = { id: newestAtt.id };
+
+    await airUpdate(TBL_ITEMS, it._recordId, { photo: desired });
+    const finalPhotos = await fetchPhotosWithRetry(it._recordId, desired.length);
+    it.photo = finalPhotos;
+    it.photoUrl = finalPhotos[0]?.url || null;
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    showToast('Bild gedreht', 'success', 1800);
+  } catch (e) {
+    // Backup wieder löschen, wenn der erste Versuch fehlschlägt und kein vorheriges Backup existierte
+    showToast('Drehen fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+  } finally {
+    state.photoRotating = null;
+    setLoading(false);
+    render();
+  }
+}
+
+// Stellt das Original-Bild aus state.photoRotateBackup wieder her.
+// PATCHt das Photo-Array mit Backup-URL an der Index-Position.
+async function handleItemPhotoUndoRotate(idx) {
+  const it = state.item;
+  if (!it || !it.photo || idx < 0 || idx >= it.photo.length) return;
+  const backupKey = it._recordId + ':' + idx;
+  const backup = state.photoRotateBackup?.[backupKey];
+  if (!backup) { showToast('Kein Backup verfügbar', 'info', 2400); return; }
+
+  state.photoRotating = backupKey;
+  render();
+  try {
+    setLoading(true, 'Wird zurückgesetzt …');
+    // Photo-Array: vorhandene IDs behalten, an idx aber das Backup via URL einfügen
+    const desired = it.photo.map((p, i) => i === idx
+      ? { url: backup.url, filename: backup.filename }
+      : { id: p.id });
+    await airUpdate(TBL_ITEMS, it._recordId, { photo: desired });
+    const finalPhotos = await fetchPhotosWithRetry(it._recordId, desired.length);
+    it.photo = finalPhotos;
+    it.photoUrl = finalPhotos[0]?.url || null;
+    it.updated = nowIso();
+    it.upd = 'gerade eben';
+    delete state.photoRotateBackup[backupKey];
+    showToast('Original wiederhergestellt', 'success', 1800);
+  } catch (e) {
+    showToast('Rückgängig fehlgeschlagen: ' + (e?.message || ''), 'error', 3500);
+  } finally {
+    state.photoRotating = null;
+    setLoading(false);
+    render();
+  }
+}
+
 // Entfernt ein Foto am Index aus dem Item.
 async function handleItemPhotoDelete(idx) {
   const it = state.item;
@@ -9700,10 +9860,21 @@ function renderDetail() {
         return `<div class="hero-image"><div class="hero-image__circle">${svg('package', 48, 1.8)}</div></div>`;
       }
       const cur = photos[idx];
+      const backupKey = it._recordId + ':' + idx;
+      const hasBackup = !!(state.photoRotateBackup && state.photoRotateBackup[backupKey]);
+      const rotating = state.photoRotating === backupKey;
       return `
         <div class="hero-image hero-image--photo">
           <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
           ${(!it.sold && idx === 0) ? certOverlay(it) + newOverlay(it) : ''}
+          ${isAdmin() ? `
+            <div class="photo-tools">
+              <button class="photo-tools__btn" data-action="photo-rotate-ccw" data-idx="${idx}" title="90° gegen den Uhrzeigersinn drehen" ${rotating ? 'disabled' : ''}>${svg('rotate-ccw', 14, 2.4)}</button>
+              <button class="photo-tools__btn" data-action="photo-rotate-cw" data-idx="${idx}" title="90° im Uhrzeigersinn drehen" ${rotating ? 'disabled' : ''}>${svg('rotate-cw', 14, 2.4)}</button>
+              ${hasBackup ? `<button class="photo-tools__btn photo-tools__btn--undo" data-action="photo-rotate-undo" data-idx="${idx}" title="Drehung rückgängig — Original wiederherstellen" ${rotating ? 'disabled' : ''}>${svg('undo-2', 14, 2.4)}<span class="photo-tools__lbl">Rückgängig</span></button>` : ''}
+              ${rotating ? `<div class="photo-tools__spin"><div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:14px;height:14px;border-width:2px"></div></div>` : ''}
+            </div>
+          ` : ''}
           ${photos.length > 1 ? `
             <button class="gallery-nav gallery-nav--prev" data-action="gallery-prev" ${idx === 0 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
             <button class="gallery-nav gallery-nav--next" data-action="gallery-next" ${idx === photos.length - 1 ? 'disabled' : ''}>${svg('chevron-right', 18, 2.5)}</button>
@@ -16831,6 +17002,24 @@ document.addEventListener('click', (e) => {
     case 'gallery-goto': {
       state.galleryIndex = +btn.dataset.idx || 0;
       render();
+      break;
+    }
+    case 'photo-rotate-cw': {
+      if (!isAdmin()) break;
+      const idx = +btn.dataset.idx || 0;
+      handleItemPhotoRotate(idx, 'cw');
+      break;
+    }
+    case 'photo-rotate-ccw': {
+      if (!isAdmin()) break;
+      const idx = +btn.dataset.idx || 0;
+      handleItemPhotoRotate(idx, 'ccw');
+      break;
+    }
+    case 'photo-rotate-undo': {
+      if (!isAdmin()) break;
+      const idx = +btn.dataset.idx || 0;
+      handleItemPhotoUndoRotate(idx);
       break;
     }
     case 'photo-delete': {
