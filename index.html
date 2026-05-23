@@ -1127,7 +1127,7 @@ body.is-flyer-view .version-badge{display:none !important}
   .phone__inner { all: unset !important; display: block !important; height: auto !important; }
   #app { display: block !important; height: auto !important; }
   .flyer-screen { padding: 0 !important; background: #fff !important; gap: 0 !important; min-height: auto !important; display: block !important; }
-  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; height: 297mm !important; min-height: 0 !important; max-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
+  .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; height: 297mm !important; min-height: 0 !important; max-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; zoom: 1 !important; transform: none !important; }
   /* Einzelne Karten/Phones NICHT in der Mitte trennen */
   .flyer__step, .flyer__perk, .flyer__mock-card, .flyer__cta { break-inside: avoid; page-break-inside: avoid; }
   /* Mock-Phone-Section beim Drucken ausblenden — sie ist dekorativ und sprengt sonst die 1-Seiten-Begrenzung.
@@ -1172,7 +1172,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.19';
+const APP_VERSION = 'v2.20';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
