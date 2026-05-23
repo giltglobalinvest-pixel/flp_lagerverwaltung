@@ -1156,7 +1156,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.16';
+const APP_VERSION = 'v2.17';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -12383,7 +12383,7 @@ function renderUsers() {
           <div class="action-sheet__title">${isNew ? 'Neuen User anlegen' : 'User bearbeiten'}</div>
           <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
             <div class="field">
-              <label class="field__label">Name</label>
+              <label class="field__label">Name <span style="color:var(--c-red)">*</span> <span style="color:var(--c-ink-mute);font-weight:500">(wird beim Customer aus Vor + Nachname automatisch befüllt)</span></label>
               <input class="field__input" data-action="user-name-input" value="${(d.name || '').replace(/"/g, '&quot;')}" placeholder="z.B. Max Mustermann" autocomplete="off" autofocus>
             </div>
             <div class="field">
@@ -12579,10 +12579,21 @@ function renderUsers() {
               </div>
             ` : ''}
           </div>
-          <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
-            <button class="action-bar__btn" data-action="user-cancel" style="padding:14px">Abbrechen</button>
-            <button class="action-bar__btn action-bar__btn--primary" data-action="user-save" style="padding:14px" ${(d.name || '').trim() && (d.apiKey || '').trim() ? '' : 'disabled'}>${svg('check', 14, 3)} ${isNew ? 'Anlegen' : 'Speichern'}</button>
-          </div>
+          ${(() => {
+            const nameOk = !!(d.name || '').trim();
+            const keyOk = !!(d.apiKey || '').trim();
+            const canSave = nameOk && keyOk;
+            const missing = [];
+            if (!nameOk) missing.push('Name (oder Vor- + Nachname)');
+            if (!keyOk) missing.push('Persönlicher Schlüssel');
+            return `
+              ${!canSave ? `<div style="padding:8px 16px 0;font-size:11.5px;color:var(--c-amber);display:flex;align-items:center;gap:6px">${svg('alert-triangle', 12, 2.4)} <strong>Fehlt noch:</strong> ${missing.join(' · ')}</div>` : ''}
+              <div style="padding:8px 16px 12px;display:grid;grid-template-columns:1fr 2fr;gap:8px;flex-shrink:0">
+                <button class="action-bar__btn" data-action="user-cancel" style="padding:14px">Abbrechen</button>
+                <button class="action-bar__btn action-bar__btn--primary" data-action="user-save" style="padding:14px;${canSave ? '' : 'opacity:.45;cursor:not-allowed'}" ${canSave ? '' : 'disabled'} title="${canSave ? '' : 'Bitte ' + missing.join(' und ') + ' ausfüllen'}">${svg('check', 14, 3)} ${isNew ? 'Anlegen' : 'Speichern'}</button>
+              </div>
+            `;
+          })()}
         </div>
       `;
     })() : ''}
@@ -17278,7 +17289,29 @@ document.addEventListener('input', (e) => {
   else if (a === 'user-key-input')  { if (state.userDraft) state.userDraft.apiKey = t.value; }
   else if (a === 'user-contact-input') {
     // Admin editiert Kontaktdaten direkt im User-Editor (firstName/lastName/email/phone/companyName/firmEmail/firm*)
-    if (state.userDraft && t.dataset.key) state.userDraft[t.dataset.key] = t.value;
+    if (state.userDraft && t.dataset.key) {
+      const d = state.userDraft;
+      const k = t.dataset.key;
+      d[k] = t.value;
+      // Top-„Name" automatisch aus firstName + lastName synthetisieren, wenn der Admin nicht
+      // manuell schon was eingegeben hat — oder wenn der bisherige Name dem alten Vor+Nachname
+      // entspricht (= war auto-derived). Verhindert dass d.name leer bleibt und Save-Button disabled.
+      if (k === 'firstName' || k === 'lastName') {
+        const prevFn = (k === 'firstName' ? (d._prevDerivedFn || '') : d.firstName || '').trim();
+        const prevLn = (k === 'lastName' ? (d._prevDerivedLn || '') : d.lastName || '').trim();
+        const prevDerived = [prevFn, prevLn].filter(Boolean).join(' ');
+        const newDerived = [(d.firstName || '').trim(), (d.lastName || '').trim()].filter(Boolean).join(' ');
+        const currentName = (d.name || '').trim();
+        if (!currentName || currentName === prevDerived) {
+          d.name = newDerived;
+          // Save-Button-Re-Render nötig damit disabled-Attribut neu evaluiert wird
+          render();
+          return;
+        }
+        d._prevDerivedFn = d.firstName;
+        d._prevDerivedLn = d.lastName;
+      }
+    }
   }
   else if (a === 'dl-input') {
     if (!state.downloadDraft) return;
