@@ -9,13 +9,13 @@
 <meta name="apple-mobile-web-app-title" content="FLP Stockmanager">
 <meta name="application-name" content="FLP Stockmanager">
 <meta name="theme-color" content="#1D7CAF">
-<title>FLP Stockmanager — Ersatzteile per Foto finden</title>
-<meta name="description" content="Defekter Frequenzumrichter? Antrieb am Ende? Foto vom Typenschild — wir prüfen sofort, ob das Ersatzteil bei FLP Lift Parts auf Lager ist. Kostenlos, ohne Tippen.">
+<title>FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager</title>
+<meta name="description" content="Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile direkt bei FLP Lift Parts ab Lager. Online checken — was wir aktuell haben, mit Foto und Details.">
 <!-- Open Graph / Facebook / WhatsApp / LinkedIn — Social Preview Cards -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://check.flp-stock.com/">
-<meta property="og:title" content="FLP Stockmanager — Aufzug-Ersatzteil per Foto finden">
-<meta property="og:description" content="Foto vom Typenschild reicht — KI erkennt das Teil, du siehst sofort, ob es bei FLP Lift Parts auf Lager ist. Frequenzumrichter, Antriebe, Steuerungen. Kostenlos.">
+<meta property="og:title" content="FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager">
+<meta property="og:description" content="Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile direkt bei FLP Lift Parts ab Lager. Online checken — was wir haben, mit Foto + Details.">
 <meta property="og:image" content="https://check.flp-stock.com/icon-512.png">
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
@@ -24,8 +24,8 @@
 <meta property="og:locale" content="de_DE">
 <!-- Twitter / X Card -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="FLP Stockmanager — Aufzug-Ersatzteil per Foto finden">
-<meta name="twitter:description" content="Foto vom Typenschild reicht — KI erkennt das Teil, du siehst sofort, ob es bei FLP Lift Parts auf Lager ist.">
+<meta name="twitter:title" content="FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager">
+<meta name="twitter:description" content="Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile direkt bei FLP Lift Parts ab Lager. Online checken.">
 <meta name="twitter:image" content="https://check.flp-stock.com/icon-512.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=3">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=3">
@@ -342,6 +342,10 @@ body.mode-tablet .user-bar__user::after{
    ============================================================ */
 .landing{position:absolute;inset:0;background:linear-gradient(180deg,#F0F4FA 0%,#E0E8F3 100%);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:200}
 .landing__topbar{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid rgba(15,24,48,0.06);z-index:5;flex-wrap:nowrap;min-width:0}
+/* WhatsApp-Teilen-Icon — kompakt, grünes Brand-Round-Button, leichter Pulse-Hint zum Auffallen */
+.wa-share-btn{display:inline-flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border:0;border-radius:50%;cursor:pointer;box-shadow:0 2px 8px rgba(37,211,102,.35),inset 0 1px 0 rgba(255,255,255,.2);transition:transform .15s,box-shadow .15s;flex-shrink:0}
+.wa-share-btn:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(37,211,102,.45)}
+.wa-share-btn:active{transform:scale(.95)}
 .landing__topbar > *{min-width:0}
 .landing__topbar > div:last-child{flex-shrink:0}
 @media (max-width:380px){
@@ -1189,7 +1193,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.21';
+const APP_VERSION = 'v2.22';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2919,6 +2923,17 @@ function appLinkWithLang(lang, extra = {}) {
   return base + (qs ? '?' + qs : '');
 }
 
+// Kompakter WhatsApp-Icon-Button — wird in Landing-Topbar UND in Admin/Customer-Home eingesetzt.
+// Größe + Farben sind als CSS-Vars steuerbar (s. .wa-share-btn in <style>).
+// data-action="share-app" triggert die share-Logik (siehe Action-Handler).
+function whatsappShareBtn(opts = {}) {
+  const size = opts.size || 32;
+  const title = opts.title || (t('landing.share.btn') + ' (WhatsApp)');
+  return `<button class="wa-share-btn" data-action="share-app" title="${title}" aria-label="${title}" style="width:${size}px;height:${size}px">
+    <svg viewBox="0 0 24 24" fill="currentColor" style="width:60%;height:60%;display:block"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+  </button>`;
+}
+
 // Team-Schlüssel: wird in das api_key-Feld der Records (Companies/Items/Halls) geschrieben
 // und ist gleichzeitig der Filter beim Laden. Mehrere User können sich Daten teilen,
 // indem sie in ihrem User-Record dasselbe `tenant_key` gesetzt haben.
@@ -3539,8 +3554,8 @@ const I18N = {
     'landing.bottom.sub': 'In zwei Minuten bist du registriert und kannst dein erstes Foto abschicken.',
     'landing.bottom.cta': 'Jetzt kostenlos starten',
     'landing.share.btn': 'Teilen',
-    'landing.share.title': 'FLP Stockmanager — Ersatzteile per Foto finden',
-    'landing.share.text': 'Hey! Schau mal — mit dem FLP Stockmanager findest du Aufzug-Ersatzteile per Foto vom Typenschild. KI erkennt das Teil, du siehst sofort, ob es auf Lager ist. Kostenlos:',
+    'landing.share.title': 'FLP Stockmanager — Antriebe & Frequenzumrichter ab Lager',
+    'landing.share.text': 'Hey! Wir haben aktuell jede Menge Antriebe, Frequenzumrichter und weitere Aufzug-Bauteile bei FLP auf Lager. Schau einfach kurz online:',
     'landing.footer.imprint': 'Impressum',
     'landing.footer.privacy': 'Datenschutz',
     'landing.footer.contact': 'Kontakt',
@@ -3847,8 +3862,8 @@ const I18N = {
     'landing.bottom.sub': 'In two minutes you’re registered and can send your first photo.',
     'landing.bottom.cta': 'Get started for free',
     'landing.share.btn': 'Share',
-    'landing.share.title': 'FLP Stockmanager — Find lift parts by photo',
-    'landing.share.text': 'Hey! Check this out — with FLP Stockmanager you find lift spare parts by photo of the nameplate. AI identifies the part, you see instantly if it’s in stock. Free:',
+    'landing.share.title': 'FLP Stockmanager — Drives & frequency inverters in stock',
+    'landing.share.text': 'Hey! We currently have plenty of drives, frequency inverters and other lift components in stock at FLP. Just have a quick look online:',
     'landing.footer.imprint': 'Imprint',
     'landing.footer.privacy': 'Privacy',
     'landing.footer.contact': 'Contact',
@@ -4138,8 +4153,8 @@ const I18N = {
     'landing.bottom.sub': 'En dos minutos estás registrado y puedes enviar tu primera foto.',
     'landing.bottom.cta': 'Empieza gratis',
     'landing.share.btn': 'Compartir',
-    'landing.share.title': 'FLP Stockmanager — Recambios de ascensores por foto',
-    'landing.share.text': '¡Mira esto! Con FLP Stockmanager encuentras recambios de ascensores por foto de la placa de identificación. La IA reconoce la pieza, ves al instante si está en stock. Gratis:',
+    'landing.share.title': 'FLP Stockmanager — Accionamientos y variadores en stock',
+    'landing.share.text': '¡Hola! Tenemos muchos accionamientos, variadores de frecuencia y otros componentes de ascensor en stock en FLP. Echa un vistazo rápido en línea:',
     'landing.footer.imprint': 'Aviso legal',
     'landing.footer.privacy': 'Privacidad',
     'landing.footer.contact': 'Contacto',
@@ -4429,8 +4444,8 @@ const I18N = {
     'landing.bottom.sub': 'Binnen twee minuten ben je geregistreerd en kun je je eerste foto sturen.',
     'landing.bottom.cta': 'Gratis starten',
     'landing.share.btn': 'Delen',
-    'landing.share.title': 'FLP Stockmanager — Lift-onderdelen via foto',
-    'landing.share.text': 'Hé, kijk eens! Met FLP Stockmanager vind je lift-reserveonderdelen via foto van het typeplaatje. AI herkent het onderdeel, je ziet direct of het op voorraad is. Gratis:',
+    'landing.share.title': 'FLP Stockmanager — Aandrijvingen & frequentieregelaars op voorraad',
+    'landing.share.text': 'Hé! We hebben nu veel aandrijvingen, frequentieregelaars en andere lift-onderdelen op voorraad bij FLP. Kijk even snel online:',
     'landing.footer.imprint': 'Colofon',
     'landing.footer.privacy': 'Privacy',
     'landing.footer.contact': 'Contact',
@@ -4720,8 +4735,8 @@ const I18N = {
     'landing.bottom.sub': 'En deux minutes tu es inscrit et tu peux envoyer ta première photo.',
     'landing.bottom.cta': 'Démarrer gratuitement',
     'landing.share.btn': 'Partager',
-    'landing.share.title': 'FLP Stockmanager — Pièces d’ascenseur par photo',
-    'landing.share.text': 'Regarde ça ! Avec FLP Stockmanager tu trouves des pièces détachées d’ascenseur en photographiant la plaque signalétique. L’IA identifie la pièce, tu vois immédiatement si elle est en stock. Gratuit :',
+    'landing.share.title': 'FLP Stockmanager — Entraînements & variateurs en stock',
+    'landing.share.text': 'Salut ! Nous avons actuellement plein d’entraînements, de variateurs de fréquence et d’autres composants d’ascenseur en stock chez FLP. Jette un œil rapide en ligne :',
     'landing.footer.imprint': 'Mentions légales',
     'landing.footer.privacy': 'Confidentialité',
     'landing.footer.contact': 'Contact',
@@ -8525,6 +8540,7 @@ function renderCustomerHomeMain() {
     <button class="logout-btn" data-action="logout" title="${t('nav.logout') || 'Abmelden'}">${svg('log-out', 16, 2.4)}</button>
     ${renderCoBrandedHeader('Stock Manager')}
     <div style="display:flex;gap:4px;align-items:center">
+      ${whatsappShareBtn({ size: 30 })}
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="icon-btn" data-action="go-customer-settings" title="${t('cset.title')}" style="position:relative">${svg('settings', 16, 2.4)}${!customerHasRecipient() ? `<span style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#EF4444;border:1.5px solid #fff"></span>` : ''}</button>
       <button class="icon-btn" data-action="show-onboard-again" title="${t('home.helpButton')}">${svg('info', 16, 2.4)}</button>
@@ -9330,6 +9346,7 @@ function renderHome() {
       </div>
     </button>
     <div style="display:flex;gap:4px;align-items:center">
+      ${whatsappShareBtn({ size: 30 })}
       <button class="icon-btn" data-action="go-flyer" title="Kunden-Flyer (PDF, 5 Sprachen) \u00f6ffnen + drucken">${svg('printer', 16, 2.4)}</button>
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
@@ -13718,6 +13735,7 @@ function renderLanding() {
       <span class="landing__brand-name">Stockmanager</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
+      ${whatsappShareBtn({ size: 36 })}
       ${renderLangSwitcher()}
       <button data-action="go-login-screen" class="landing__login-btn">${svg('log-in', 13, 2.5)} ${t('nav.login')}</button>
     </div>
@@ -13829,14 +13847,9 @@ function renderLanding() {
   <section class="landing__cta-bottom">
     <h2 class="landing__h2">${t('landing.bottom.title')}</h2>
     <p class="landing__sub-h2">${t('landing.bottom.sub')}</p>
-    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center">
-      <button data-action="go-register" class="landing__btn landing__btn--primary landing__btn--big">
-        ${svg('sparkles', 15, 2.4)} ${t('landing.bottom.cta')}
-      </button>
-      <button data-action="share-app" class="landing__btn landing__btn--big" style="background:#25D366;color:#fff;border-color:#1FAF54;box-shadow:0 4px 12px rgba(37,211,102,.3)" title="Per WhatsApp teilen">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:inline-block;vertical-align:middle;margin-right:6px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>${t('landing.share.btn')}
-      </button>
-    </div>
+    <button data-action="go-register" class="landing__btn landing__btn--primary landing__btn--big">
+      ${svg('sparkles', 15, 2.4)} ${t('landing.bottom.cta')}
+    </button>
   </section>
 
   <!-- Footer -->
