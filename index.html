@@ -1156,7 +1156,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.15';
+const APP_VERSION = 'v2.16';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9879,11 +9879,14 @@ function renderDetail() {
       const backupKey = it._recordId + ':' + idx;
       const hasBackup = !!(state.photoRotateBackup && state.photoRotateBackup[backupKey]);
       const rotating = state.photoRotating === backupKey;
-      // Portrait-Erkennung via Attachment-Metadata (von Airtable: width/height auf Top-Level)
-      const isPortrait = !!(cur.width && cur.height && cur.height > cur.width);
+      // Portrait-Erkennung:
+      //   1) Sofort aus Airtable-Metadaten (cur.width/cur.height) wenn vorhanden — vermeidet Flackern
+      //   2) Fallback via onload-Handler — wenn Bild geladen ist, Natural-Dimensions prüfen
+      //      und Portrait-Klasse setzen. Funktioniert immer, auch wenn Airtable Metadata fehlen.
+      const metaIsPortrait = !!(cur.width && cur.height && cur.height > cur.width);
       return `
-        <div class="hero-image hero-image--photo${isPortrait ? ' hero-image--portrait' : ''}">
-          <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
+        <div class="hero-image hero-image--photo${metaIsPortrait ? ' hero-image--portrait' : ''}">
+          <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img" onload="this.parentElement.classList.toggle('hero-image--portrait', this.naturalHeight > this.naturalWidth * 1.05)">
           ${(!it.sold && idx === 0) ? certOverlay(it) + newOverlay(it) : ''}
           ${isAdmin() ? `
             <div class="photo-tools">
