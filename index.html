@@ -1130,8 +1130,24 @@ body.is-flyer-view .version-badge{display:none !important}
   .flyer { box-shadow: none !important; border-radius: 0 !important; width: 210mm !important; height: 297mm !important; min-height: 0 !important; max-height: 297mm !important; max-width: none !important; margin: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
   /* Einzelne Karten/Phones NICHT in der Mitte trennen */
   .flyer__step, .flyer__perk, .flyer__mock-card, .flyer__cta { break-inside: avoid; page-break-inside: avoid; }
+  /* Mock-Phone-Section beim Drucken ausblenden — sie ist dekorativ und sprengt sonst die 1-Seiten-Begrenzung.
+     Bildschirm-Vorschau zeigt sie weiterhin, damit Kunden in der App ein visuelles Beispiel sehen. */
+  .flyer__mock-section { display: none !important; }
   /* Hintergründe behalten beim Drucken (Browser-Default ist sonst "weiß", was Farben killt) */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+}
+
+/* Mobile-Optimierung: Flyer ist 210mm breit (~794px). Auf schmalen Viewports passt das nicht —
+   per `zoom` proportional schrumpfen, damit auf dem Handy alles sichtbar ist (zoom wirkt auf
+   Layout im Gegensatz zu transform:scale, das nur die Darstellung skaliert). */
+@media (max-width: 820px) {
+  .flyer-screen { padding: 12px 0 24px !important; gap: 10px !important; overflow-x: hidden !important; align-items: stretch !important }
+  .flyer-toolbar { padding: 0 12px !important; max-width: 100% !important }
+  .flyer { zoom: 0.46; margin: 0 auto !important; }
+}
+/* Etwas größer für Tablets im Portrait-Modus */
+@media (min-width: 480px) and (max-width: 820px) {
+  .flyer { zoom: 0.6; }
 }
 </style>
 </head>
@@ -1156,7 +1172,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.18';
+const APP_VERSION = 'v2.19';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
