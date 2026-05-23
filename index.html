@@ -1198,7 +1198,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.26';
+const APP_VERSION = 'v2.27';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2241,10 +2241,16 @@ async function loginWithUserKey(userKey) {
   if (!userData.records || !userData.records.length) throw new Error('Ung\u00fcltiger Key');
   // recordToUser \u2192 mappt Airtable-Snake-Case-Felder auf camelCase (firstName, companyName, firmStreet, employees, \u2026)
   APP_KEYS.user = recordToUser(userData.records[0]);
-  // Falls User eine gespeicherte Sprache hat \u2192 \u00fcbernehmen
+  // Falls User eine gespeicherte Sprache hat \u2192 \u00fcbernehmen.
+  // Sonst: Admin + interne User defaulten auf DE (\u00fcberschreibt ein evtl. via URL gesetztes
+  // ?lang=en, damit z.B. der Admin nach Klick auf einen geteilten EN-Link wieder seine
+  // gewohnte DE-Oberfl\u00e4che bekommt). Customer behalten ihr aktuelles state.lang.
   if (APP_KEYS.user.lang && I18N[APP_KEYS.user.lang]) {
     state.lang = APP_KEYS.user.lang;
     try { localStorage.setItem('flp_lang', APP_KEYS.user.lang); } catch(e) {}
+  } else if (APP_KEYS.user.role === 'admin' || APP_KEYS.user.role === 'user') {
+    state.lang = 'de';
+    try { localStorage.setItem('flp_lang', 'de'); } catch(e) {}
   }
   // Wenn dieser User einem Distributor unterstellt ist \u2192 dessen Profil nachladen
   // (f\u00fcr Marge + Show-Prices-Flag bei der Preis-Anzeige)
