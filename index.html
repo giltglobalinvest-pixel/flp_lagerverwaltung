@@ -598,6 +598,8 @@ body.mode-tablet .user-bar__user::after{
 .qcard__text{font-size:16px;line-height:1.3;font-weight:600;letter-spacing:-.01em;margin:0}
 .qcard__edit{background:rgba(255,255,255,0.15);color:#fff;padding:4px 10px;font-size:11px;font-weight:600;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px}
 .hero-image{position:relative;aspect-ratio:5/4;background:linear-gradient(135deg,var(--c-blue-soft) 0%,#fff 100%);border:1px solid var(--c-border);border-radius:var(--r-tile);box-shadow:var(--elev-1);overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:pan-y;max-height:65vh;width:100%}
+/* Hero-Variante für gedrehte Hochkant-Bilder — Container wird höher, damit Bild voll sichtbar ist */
+.hero-image--portrait{aspect-ratio:4/5;max-height:78vh;max-width:420px;margin:0 auto}
 /* Tablet/Desktop in 1-Spalten-Layout (768-1099px): Hero-Foto wird sonst riesig — zentrieren + Max-Breite */
 @media (min-width:768px) and (max-width:1099px){
   .hero-image{max-width:520px;margin:0 auto}
@@ -1154,7 +1156,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.14';
+const APP_VERSION = 'v2.15';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -6183,21 +6185,34 @@ async function handleItemPhotoRotate(idx, direction = 'cw') {
     });
 
     setLoading(true, 'Bild wird gedreht …');
-    // Rotate 90° via canvas — Dimensionen tauschen
+    // Rotate 90° via canvas — Dimensionen tauschen.
+    // Dann gleich auf max. PHOTO_MAX_EDGE skalieren (KEIN 5:4-Crop wie beim Standard-Upload!
+    // Der Hero-Container wechselt CSS-seitig auf 4:5 Portrait, sobald das Bild hochkant ist).
+    const rotW = img.naturalHeight;
+    const rotH = img.naturalWidth;
+    let outW = rotW, outH = rotH;
+    const longest = Math.max(rotW, rotH);
+    if (longest > PHOTO_MAX_EDGE) {
+      const scale = PHOTO_MAX_EDGE / longest;
+      outW = Math.round(rotW * scale);
+      outH = Math.round(rotH * scale);
+    }
     const rotCanvas = document.createElement('canvas');
-    rotCanvas.width = img.naturalHeight;
-    rotCanvas.height = img.naturalWidth;
+    rotCanvas.width = outW;
+    rotCanvas.height = outH;
     const rctx = rotCanvas.getContext('2d');
     rctx.imageSmoothingEnabled = true;
     rctx.imageSmoothingQuality = 'high';
-    rctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+    // Skalierte Rotation in einem Schritt: Translate zum Zentrum, rotieren, Bild zentriert zeichnen
+    rctx.translate(outW / 2, outH / 2);
     rctx.rotate(direction === 'ccw' ? -Math.PI / 2 : Math.PI / 2);
-    rctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-    const rotatedBlob = await new Promise(r => rotCanvas.toBlob(r, 'image/jpeg', 0.95));
+    const scaleFactor = outW / rotW; // == outH / rotH (gleiche Skalierung)
+    const drawW = img.naturalWidth * scaleFactor;
+    const drawH = img.naturalHeight * scaleFactor;
+    rctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+    const rotatedBlob = await new Promise(r => rotCanvas.toBlob(r, 'image/jpeg', PHOTO_JPEG_QUALITY));
     if (!rotatedBlob) throw new Error('Canvas-toBlob fehlgeschlagen');
 
-    // Als File wrappen — uploadFileToRecord ruft processImage auf,
-    // das macht den 5:4-Crop + Resize automatisch.
     const baseName = (original.filename || 'photo').replace(/\.[^.]+$/, '');
     const rotatedFile = new File(
       [rotatedBlob],
@@ -6206,7 +6221,8 @@ async function handleItemPhotoRotate(idx, direction = 'cw') {
     );
 
     setLoading(true, 'Bild wird hochgeladen …');
-    await uploadFileToRecord(TBL_ITEMS, it._recordId, 'photo', rotatedFile);
+    // Roh-Upload ohne processImage (würde das gedrehte Bild wieder auf 5:4 schneiden!)
+    await uploadRawFileToRecord(TBL_ITEMS, it._recordId, 'photo', rotatedFile);
 
     // Frisch laden — neue Datei ist am Ende des Arrays
     setLoading(true, 'Wird verarbeitet …');
@@ -9863,8 +9879,10 @@ function renderDetail() {
       const backupKey = it._recordId + ':' + idx;
       const hasBackup = !!(state.photoRotateBackup && state.photoRotateBackup[backupKey]);
       const rotating = state.photoRotating === backupKey;
+      // Portrait-Erkennung via Attachment-Metadata (von Airtable: width/height auf Top-Level)
+      const isPortrait = !!(cur.width && cur.height && cur.height > cur.width);
       return `
-        <div class="hero-image hero-image--photo">
+        <div class="hero-image hero-image--photo${isPortrait ? ' hero-image--portrait' : ''}">
           <img src="${photoSrc(cur, 'large')}" alt="" decoding="async" class="hero-image__img">
           ${(!it.sold && idx === 0) ? certOverlay(it) + newOverlay(it) : ''}
           ${isAdmin() ? `
