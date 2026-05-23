@@ -1156,7 +1156,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.17';
+const APP_VERSION = 'v2.18';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -8661,6 +8661,15 @@ function renderDownloadsSheet() {
         <button data-action="close-downloads" class="icon-btn" style="background:transparent">${svg('x', 14, 2.5)}</button>
       </div>
       <div class="js-scroll" style="padding:8px 16px 16px;overflow-y:auto;flex:1;min-height:0" data-scroll-key="downloads">
+        <!-- Eingebauter Flyer — immer ganz oben sichtbar, dynamisch in 5 Sprachen aus der App heraus -->
+        <div style="margin-top:6px;padding:14px;background:linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%);border:1.5px solid #93C5FD;border-radius:var(--r-md);display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(36,86,229,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''" onclick="document.querySelector('[data-action=\\'open-flyer-from-downloads\\']')?.click()">
+          <div style="width:42px;height:42px;border-radius:10px;background:#2456E5;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg('printer', 19, 2.4)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13.5px;font-weight:700;color:#1740B8;letter-spacing:-.005em">FLP Stockmanager Flyer</div>
+            <div style="font-size:11px;color:#1E3A8A;opacity:.85;margin-top:2px;line-height:1.45">A4-PDF in 5 Sprachen — was die App kann, für Kunden zum Mitnehmen.</div>
+          </div>
+          <button data-action="open-flyer-from-downloads" style="flex-shrink:0;padding:8px 13px;background:#2456E5;color:#fff;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('arrow-right', 12, 2.5)} Öffnen</button>
+        </div>
         ${loading ? `
           <div style="display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--c-ink-mute)"><div class="spinner spinner--sm"></div> ${t('downloads.loading')}</div>
         ` : all.length === 0 ? `
@@ -9273,6 +9282,7 @@ function renderHome() {
       </div>
     </button>
     <div style="display:flex;gap:4px;align-items:center">
+      <button class="icon-btn" data-action="go-flyer" title="Kunden-Flyer (PDF, 5 Sprachen) \u00f6ffnen + drucken">${svg('printer', 16, 2.4)}</button>
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
       <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
     </div>
@@ -14313,7 +14323,7 @@ function render() {
   // Customer-Schutz: gesperrte Views auf customerHome (= renderHome\u2192renderCustomerHome) umleiten.
   // Erlaubt f\u00fcr Customer: home, photoSearch, aiAnalyze, photoResults, detail, results, listen
   if (isCustomer()) {
-    const allowed = new Set(['home','photoSearch','aiAnalyze','photoResults','detail','results','listen','camera','cropper','customerSettings']);
+    const allowed = new Set(['home','photoSearch','aiAnalyze','photoResults','detail','results','listen','camera','cropper','customerSettings','flyer']);
     if (state.view && !allowed.has(state.view)) {
       state.view = 'home';
     }
@@ -14736,6 +14746,12 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'go-flyer': go('flyer'); break;
+    case 'open-flyer-from-downloads': {
+      // Aus dem Downloads-Modal heraus den Flyer öffnen — Modal schließen + Flyer-View laden
+      state.downloadsOpen = false;
+      go('flyer');
+      break;
+    }
     case 'go-downloads-admin': {
       if (!isAdmin()) break;
       // Reset Lazy-Load (immer frisch laden im Admin)
