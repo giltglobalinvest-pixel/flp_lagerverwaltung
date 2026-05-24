@@ -1213,7 +1213,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.37';
+const APP_VERSION = 'v2.38';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2806,18 +2806,63 @@ const DOWNLOAD_FIELDS = [
   { name: 'created',     type: 'singleLineText' },
 ];
 
+// UsageEvents — Append-only Log für tatsächliches Nutzungs-Tracking (Phase 2 der Statistik).
+// Jeder Event-Datensatz: Zeitstempel, User-Snapshot, Event-Typ, optionale Metadaten (JSON).
+const TBL_USAGE = 'UsageEvents';
+const USAGE_FIELDS = [
+  { name: 'ts',           type: 'singleLineText' },  // ISO-Timestamp
+  { name: 'user_id',      type: 'singleLineText' },  // recordId des User
+  { name: 'user_name',    type: 'singleLineText' },  // Denormalisiert für schnelle Stats
+  { name: 'user_role',    type: 'singleLineText' },  // admin | customer | distributor | subcustomer | user
+  { name: 'user_country', type: 'singleLineText' },
+  { name: 'user_dist_id', type: 'singleLineText' },  // recordId des Eltern-Distributors falls vorhanden
+  { name: 'event',        type: 'singleLineText' },  // login | photo_search | item_view | inquiry_sent | order_sent | share_app
+  { name: 'lang',         type: 'singleLineText' },
+  { name: 'meta',         type: 'multilineText' },   // JSON-String für Kontext-Daten
+];
+
 async function ensureAllTables() {
   await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureTable(TBL_ITEMS, ITEM_FIELDS);
   await ensureTable(TBL_HALLS, HALL_FIELDS);
   await ensureTable(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
+  await ensureTable(TBL_USAGE, USAGE_FIELDS);
   // Nachträglich fehlende Felder ergänzen (Migration alter Tabellen)
   await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
   await ensureFieldsExist(TBL_HALLS, HALL_FIELDS);
   await ensureFieldsExist(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
+  await ensureFieldsExist(TBL_USAGE, USAGE_FIELDS);
   // User-Tabelle existiert bereits — nur Felder ggf. nachpflegen (für Customer-Registrierung)
   await ensureFieldsExist(TBL_USERS, USER_FIELDS);
+}
+
+// ============================================================
+// USAGE TRACKING — fire-and-forget Event-Logging in Airtable
+// Wird in Schlüsselstellen aufgerufen (Login, Photo-Search, Item-View, Inquiry, Share).
+// Niemals throw — wenn Logging fehlschlägt, App läuft normal weiter.
+// ============================================================
+function trackEvent(eventName, meta) {
+  try {
+    if (!APP_KEYS.airtableWriteKey || !APP_KEYS.user) return; // nur für eingeloggte User
+    const u = APP_KEYS.user;
+    const role = u.role === 'customer'
+      ? (u.isDistributor ? 'distributor' : (u.parentDistributorId ? 'subcustomer' : 'customer'))
+      : (u.role || 'user');
+    const fields = {
+      ts: new Date().toISOString(),
+      user_id: u._recordId || '',
+      user_name: ([u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || u.email || '— anon —').slice(0, 80),
+      user_role: role,
+      user_country: (u.firmCountry || '').slice(0, 60),
+      user_dist_id: u.parentDistributorId || '',
+      event: eventName,
+      lang: state.lang || '',
+      meta: meta ? JSON.stringify(meta).slice(0, 1500) : '',
+    };
+    // Fire-and-forget — niemals await, niemals UI blockieren
+    airWrite(TBL_USAGE, fields).catch(() => { /* silently fail */ });
+  } catch (e) { /* never throw */ }
 }
 
 async function ensureFieldsExist(tableName, expectedFields) {
@@ -3169,6 +3214,47 @@ function renderCoBrandedHeader(wordmark) {
       <span class="flp-brand__wordmark">${wordmark}</span>
     </div>
   `;
+}
+
+// Lädt alle UsageEvents (Phase-2 Statistik). Sortiert chronologisch absteigend (neuste zuerst).
+// Pagination: Airtable max 100 pro Request, deshalb iterativ.
+async function loadUsageEvents(maxRecords = 1000) {
+  const headers = { 'Authorization': 'Bearer ' + (APP_KEYS.airtableWriteKey || APP_CONFIG.AIRTABLE_READ_KEY) };
+  const out = [];
+  let offset = '';
+  let pagesLoaded = 0;
+  const maxPages = Math.ceil(maxRecords / 100);
+  do {
+    const url = 'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_USAGE
+      + '?pageSize=100&sort%5B0%5D%5Bfield%5D=ts&sort%5B0%5D%5Bdirection%5D=desc'
+      + (offset ? '&offset=' + encodeURIComponent(offset) : '');
+    const r = await fetch(url, { headers });
+    if (!r.ok) {
+      if (r.status === 404 || r.status === 422) return []; // Tabelle existiert noch nicht
+      throw new Error('UsageEvents-Laden fehlgeschlagen: HTTP ' + r.status);
+    }
+    const data = await r.json();
+    for (const rec of (data.records || [])) {
+      const f = rec.fields || {};
+      out.push({
+        _recordId: rec.id,
+        ts: f.ts || '',
+        tsMs: Date.parse(f.ts || 0) || 0,
+        userId: f.user_id || '',
+        userName: f.user_name || '',
+        userRole: f.user_role || '',
+        userCountry: f.user_country || '',
+        userDistId: f.user_dist_id || '',
+        event: f.event || '',
+        lang: f.lang || '',
+        meta: (() => { try { return f.meta ? JSON.parse(f.meta) : {}; } catch(e) { return {}; } })(),
+      });
+    }
+    offset = data.offset || '';
+    pagesLoaded++;
+    if (out.length >= maxRecords) break;
+  } while (offset && pagesLoaded < maxPages);
+  return out;
 }
 
 async function loadUsers() {
@@ -7381,6 +7467,15 @@ Format: {"model_code":"...","probable_maker":"...","category":"...","keywords":[
     state.photoSearchRelaxed = false;
     applyPhotoSearchThresholds();
     state.photoSearchPhase = 'results';
+    // Usage-Tracking — Variable umbenannt, weil 'info' in dieser Funktion bereits oben mit let deklariert ist
+    const aiInfo = state.photoSearchAIInfo || {};
+    trackEvent('photo_search', {
+      model: (aiInfo.model_code || '').slice(0, 60),
+      maker: (aiInfo.probable_maker || '').slice(0, 60),
+      category: (aiInfo.category || '').slice(0, 40),
+      textHits: state.photoSearchTextMatches?.length || 0,
+      visualHits: state.photoSearchVisualMatches?.length || 0,
+    });
     go('photoResults');
   } catch (e) {
     showToast('Foto-Suche fehlgeschlagen: ' + e.message, 'error', 3500);
@@ -11823,6 +11918,9 @@ function renderStatistics() {
   const users = state.users || [];
   const loading = !!state.usersLoading;
   const error = state.usersError;
+  const usageEvents = state.usageEvents || [];
+  const usageLoading = !!state.usageEventsLoading;
+  const usageError = state.usageEventsError;
   // Trigger initial load if never loaded
   if (!Array.isArray(state.users) && !state.usersLoading) {
     setTimeout(() => {
@@ -11832,6 +11930,17 @@ function renderStatistics() {
         .then(list => { state.users = list; state.usersLoading = false; render(); })
         .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
     }, 0);
+  }
+  // Lazy-Load der UsageEvents (Phase 2 — echtes Nutzungs-Tracking)
+  if (state.usageEvents === undefined && !state.usageEventsLoading) {
+    state.usageEvents = null;
+    setTimeout(() => {
+      state.usageEventsLoading = true;
+      render();
+      loadUsageEvents(2000)
+        .then(list => { state.usageEvents = list; state.usageEventsLoading = false; render(); })
+        .catch(err => { state.usageEventsError = err.message || String(err); state.usageEventsLoading = false; render(); });
+    }, 50);
   }
 
   // Klassifizierung
@@ -12137,6 +12246,152 @@ function renderStatistics() {
       </div>
     </div>
 
+    <!-- USAGE EVENTS (Phase 2) — tatsächliche App-Nutzung -->
+    ${(() => {
+      // Aggregationen über usageEvents
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const last7 = usageEvents.filter(e => now - e.tsMs < 7 * day);
+      const last30 = usageEvents.filter(e => now - e.tsMs < 30 * day);
+      // Events pro Tag (letzte 14 Tage)
+      const eventsByDay = {};
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now - i * day);
+        const key = d.toISOString().slice(0, 10);
+        eventsByDay[key] = 0;
+      }
+      for (const e of usageEvents) {
+        const key = new Date(e.tsMs).toISOString().slice(0, 10);
+        if (key in eventsByDay) eventsByDay[key]++;
+      }
+      const dayKeys = Object.keys(eventsByDay);
+      const dayVals = Object.values(eventsByDay);
+      const maxDay = Math.max(1, ...dayVals);
+      // Event-Typ-Verteilung (letzte 30 Tage)
+      const eventTypes = {};
+      for (const e of last30) eventTypes[e.event] = (eventTypes[e.event] || 0) + 1;
+      // Top User (letzte 30 Tage)
+      const userActivity = {};
+      for (const e of last30) {
+        const k = e.userId || 'anon';
+        if (!userActivity[k]) userActivity[k] = { name: e.userName || '— ?', role: e.userRole, count: 0, country: e.userCountry || '' };
+        userActivity[k].count++;
+      }
+      const topUsers = Object.entries(userActivity)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 10);
+      // Top viewed items (letzte 30 Tage)
+      const itemViews = {};
+      for (const e of last30) {
+        if (e.event !== 'item_view') continue;
+        const id = e.meta?.itemId;
+        if (!id) continue;
+        if (!itemViews[id]) itemViews[id] = { id, title: e.meta.title || id, count: 0 };
+        itemViews[id].count++;
+      }
+      const topItems = Object.values(itemViews)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8);
+      // Event-Label-Mapping
+      const eventLabel = {
+        login: 'Logins',
+        item_view: 'Artikel-Aufrufe',
+        photo_search: 'Foto-Suchen',
+        inquiry_sent: 'Anfragen',
+        order_sent: 'Bestellungen',
+        share_app: 'WhatsApp-Shares',
+      };
+      const eventColor = {
+        login: '#2456E5',
+        item_view: '#7C3AED',
+        photo_search: '#D97706',
+        inquiry_sent: '#0A6B2C',
+        order_sent: '#10B981',
+        share_app: '#25D366',
+      };
+      return `
+      <div style="padding:14px 20px 0">
+        <div class="tile" style="padding:16px;background:linear-gradient(135deg,#FFFBEB 0%,#FEF3C7 100%);border-color:#FCD34D">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <div style="width:24px;height:24px;border-radius:6px;background:#D97706;color:#fff;display:flex;align-items:center;justify-content:center">${svg('sparkles', 12, 2.4)}</div>
+            <div style="font-size:14px;font-weight:700;color:#7C4A06">Echte App-Nutzung (Phase 2)</div>
+            ${usageLoading ? '<span style="font-size:10.5px;color:#92400E"><div class="spinner spinner--sm" style="display:inline-block;vertical-align:middle;margin-right:4px"></div>lade …</span>' : ''}
+            <span style="font-size:10.5px;color:#92400E;margin-left:auto">${usageEvents.length} Events geloggt</span>
+          </div>
+          ${usageError ? `<div style="padding:10px 12px;background:var(--c-red-soft);color:var(--c-red);border-radius:8px;font-size:11.5px">${usageError.replace(/</g,'&lt;')}</div>` : ''}
+          ${!usageLoading && usageEvents.length === 0 && !usageError ? `
+            <div style="padding:16px 12px;background:rgba(255,255,255,.6);border-radius:8px;font-size:11.5px;color:#7C4A06;line-height:1.5;text-align:center">
+              ${svg('info', 12, 2.5)} Noch keine Events vorhanden. Tracking startet ab jetzt — sobald jemand sich einloggt, Fotos sucht oder Anfragen sendet, erscheinen die Daten hier.
+            </div>
+          ` : ''}
+          ${usageEvents.length > 0 ? `
+            <!-- Event-Typ-Übersicht -->
+            <div style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+              ${Object.entries(eventLabel).map(([k, lbl]) => {
+                const n = eventTypes[k] || 0;
+                return `<div style="padding:10px;background:rgba(255,255,255,.7);border-radius:8px">
+                  <div style="font-size:9.5px;font-weight:600;color:#7C4A06;text-transform:uppercase;letter-spacing:.04em">${lbl}</div>
+                  <div style="font-size:20px;font-weight:700;color:${eventColor[k] || '#7C4A06'};letter-spacing:-.01em">${n}</div>
+                  <div style="font-size:9.5px;color:#92400E">letzte 30 Tage</div>
+                </div>`;
+              }).join('')}
+            </div>
+
+            <!-- Events pro Tag (letzte 14 Tage) als Balken -->
+            <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,.7);border-radius:8px">
+              <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7C4A06;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Events pro Tag — letzte 14 Tage</div>
+              <div style="display:flex;align-items:flex-end;gap:4px;height:80px">
+                ${dayKeys.map((k, i) => {
+                  const v = dayVals[i];
+                  const h = Math.max(2, Math.round((v / maxDay) * 100));
+                  const d = new Date(k);
+                  const lbl = d.getDate() + '.' + (d.getMonth() + 1);
+                  return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0">
+                    <div style="font-size:9px;font-weight:700;color:#7C4A06;font-family:var(--f-mono)">${v || ''}</div>
+                    <div style="width:100%;height:${h}%;background:linear-gradient(180deg,#F59E0B 0%,#D97706 100%);border-radius:3px 3px 0 0;min-height:2px"></div>
+                    <div style="font-size:8px;color:#92400E;font-family:var(--f-mono);white-space:nowrap;overflow:hidden;max-width:100%">${i === 0 || i === dayKeys.length - 1 || i % 3 === 0 ? lbl : ''}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+              <div style="font-size:10px;color:#92400E;margin-top:6px;text-align:right">Aktivität: ${last7.length} Events letzte 7 Tage</div>
+            </div>
+
+            ${topUsers.length > 0 ? `
+              <!-- Top User -->
+              <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,.7);border-radius:8px">
+                <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7C4A06;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Top User — letzte 30 Tage</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  ${topUsers.map(([id, u]) => `
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11.5px">
+                      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><strong>${(u.name || '—').replace(/</g,'&lt;')}</strong> <span style="color:#92400E;font-size:10px">· ${u.role}${u.country ? ' · ' + u.country.replace(/</g,'&lt;') : ''}</span></div>
+                      <div style="font-family:var(--f-mono);font-weight:700;color:#7C4A06;min-width:36px;text-align:right">${u.count}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${topItems.length > 0 ? `
+              <!-- Top angesehene Artikel -->
+              <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,.7);border-radius:8px">
+                <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#7C4A06;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Top angesehene Artikel — letzte 30 Tage</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  ${topItems.map(it => `
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11.5px">
+                      <span style="font-family:var(--f-mono);font-size:10px;color:#92400E;min-width:60px">#${it.id}</span>
+                      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(it.title || it.id).replace(/</g,'&lt;')}</div>
+                      <div style="font-family:var(--f-mono);font-weight:700;color:#7C4A06;min-width:36px;text-align:right">${it.count}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          ` : ''}
+        </div>
+      </div>
+      `;
+    })()}
+
     <!-- Letzte Registrierungen -->
     <div style="padding:14px 20px 0">
       <div class="tile" style="padding:16px">
@@ -12170,7 +12425,7 @@ function renderStatistics() {
     <!-- Hinweis -->
     <div style="padding:14px 20px 0">
       <div style="padding:12px 14px;background:var(--c-blue-soft);border:1px solid rgba(36,86,229,.2);border-radius:var(--r-md);font-size:11.5px;color:var(--c-blue-deep);line-height:1.5">
-        ${svg('info', 12, 2.5)} <strong>Hinweis:</strong> Diese Statistik aggregiert aus den User- und Artikel-Stammdaten. Für detailliertes Nutzungs-Tracking (Logins, Anfragen, Foto-Suchen pro User) brauchen wir eine separate Event-Tabelle in Airtable — sag Bescheid wenn du das auch willst.
+        ${svg('info', 12, 2.5)} <strong>Hinweis:</strong> Aggregiert aus Stammdaten <em>plus</em> Echtzeit-UsageEvents-Tabelle in Airtable. Getrackt werden: Logins, Foto-Suchen, Artikel-Aufrufe, Anfragen, WhatsApp-Shares. Pro Event: User, Land, Distributor-Bindung, Sprache, Metadaten.
       </div>
     </div>
     `}
@@ -16091,10 +16346,15 @@ document.addEventListener('click', (e) => {
       if (!isAdmin()) break;
       state.usersLoading = true;
       state.usersError = null;
+      state.usageEventsLoading = true;
+      state.usageEventsError = null;
       render();
       loadUsers()
         .then(list => { state.users = list; state.usersLoading = false; render(); })
         .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+      loadUsageEvents(2000)
+        .then(list => { state.usageEvents = list; state.usageEventsLoading = false; render(); })
+        .catch(err => { state.usageEventsError = err.message || String(err); state.usageEventsLoading = false; render(); });
       break;
     }
     case 'user-edit-from-stats': {
@@ -16691,6 +16951,8 @@ document.addEventListener('click', (e) => {
       const fullText = shareText + '\n\n' + shareUrl;
       // Modal vor Share schließen falls offen
       if (state.shareModalOpen) { state.shareModalOpen = false; render(); }
+      // Usage-Tracking
+      trackEvent('share_app', { lang, hasDist: !!shareLinkExtra().dist });
       // 1. Versuche Web Share API (nativer System-Share-Dialog mit WhatsApp + Stories + …)
       if (navigator.share) {
         navigator.share({ title: shareTitle, text: shareText, url: shareUrl })
@@ -17996,6 +18258,7 @@ document.addEventListener('click', (e) => {
         window.location.href = mailto;
         state.inquirySent = true;
         state.inquirySending = false;
+        trackEvent('inquiry_sent', { itemId: it.id, route: 'distributor-mailto' });
         render();
         break;
       }
@@ -18014,6 +18277,7 @@ document.addEventListener('click', (e) => {
         // Trotzdem als „gesendet" markieren, damit der User Feedback bekommt
         state.inquirySent = true;
         state.inquirySending = false;
+        trackEvent('inquiry_sent', { itemId: it.id, route: 'flp-mailto' });
         render();
         break;
       }
@@ -18066,6 +18330,7 @@ document.addEventListener('click', (e) => {
           }
           state.inquirySent = true;
           state.inquirySending = false;
+          trackEvent('inquiry_sent', { itemId: it.id, route: 'freshdesk-proxy' });
           render();
         } catch (e) {
           state.inquirySending = false;
@@ -18395,6 +18660,8 @@ document.addEventListener('click', (e) => {
         go('detail');
         // Im Hintergrund frisch nachladen — sicher dass Fotos aktuell sind
         refreshItemPhotos(it).catch(() => {});
+        // Usage-Tracking
+        trackEvent('item_view', { itemId: it.id, title: (it.title || '').slice(0, 80), maker: it.maker || '' });
       }
       break;
     }
@@ -19010,6 +19277,8 @@ async function bootData() {
     startSoldPolling();
     // Polling für Neu-Registrierungen starten (Admin: alle Kunden, Distributor: nur Sub-Kunden)
     startNewUserPolling();
+    // Usage-Tracking: Login-Event loggen (einmal pro bootData → einmal pro Session-Start)
+    trackEvent('login', { device: state.deviceMode || 'unknown' });
   } catch (e) {
     state.bootingData = false;
     state.loggedIn = false;
