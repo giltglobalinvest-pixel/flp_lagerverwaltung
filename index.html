@@ -1208,7 +1208,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.28';
+const APP_VERSION = 'v2.29';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -14055,11 +14055,16 @@ function renderLanding() {
           <div class="landing__video-hint">${svg('shield', 11, 2.4)} ${t('landing.video.privacyHint')}</div>
         `;
       }
-      // Thumbnail (maxres → fallback auf hqdefault wenn 404)
-      const thumbUrl = `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg`;
+      // Thumbnail: sddefault (640×480) als Primary — maxresdefault liefert für viele Videos
+      // nur den 1097-Byte Platzhalter (grey YouTube-Logo). sddefault ist 4:3, object-fit:cover
+      // beschneidet im 16:9-Container Ober-/Unterkante minimal — Content liegt aber zentriert.
+      // onload-Handler checkt zusätzlich auf 120×90 (Platzhalter) und fällt auf hqdefault zurück.
+      const thumbUrl = `https://i.ytimg.com/vi/${ytId}/sddefault.jpg`;
       return `
         <div class="landing__video-frame" data-action="play-landing-video" data-vid="${ytId}">
-          <img src="${thumbUrl}" alt="${t('landing.video.title')}" loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'">
+          <img src="${thumbUrl}" alt="${t('landing.video.title')}" loading="lazy"
+            onload="if(this.naturalWidth===120){this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'}"
+            onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'">
           <div class="landing__video-play">
             <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>
