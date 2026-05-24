@@ -1076,7 +1076,11 @@ body.mode-tablet .bottom-bar>*{flex:1}
 /* Kleiner Variant für itemCard-Thumbnails (fixe Pixel-Größe) */
 .cert-overlay--sm{top:3px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
 .cert-overlay--sm.cert-overlay--tuev{left:3px;width:18px;height:18px;aspect-ratio:auto}
-.cert-overlay--sm.cert-overlay--6plus{right:3px;width:15px;height:18px;aspect-ratio:auto}
+.cert-overlay--sm.cert-overlay--6plus{top:auto;bottom:3px;right:3px;width:15px;height:18px;aspect-ratio:auto}
+/* 6+-Logo auf Item-Foto: nach unten rechts statt oben rechts (TÜV bleibt oben links).
+   Override des top:4% aus .cert-overlay über top:auto. Greift NICHT in der Such-Hero-Kachel,
+   weil dort .hero--search__certs .cert-overlay {position:static;...} bereits dominant ist. */
+.hero-image .cert-overlay--6plus{top:auto;bottom:4%}
 
 /* NEU-Badge — wird unten rechts auf dem ersten Bild eingeblendet wenn cond === 'neu'.
    Visuell deutlich abgesetzt vom TÜV/6+-Overlay (gradient, weißer Text, klar lesbar). */
@@ -1224,7 +1228,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.41';
+const APP_VERSION = 'v2.42';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11429,7 +11433,6 @@ function renderHome() {
     <div class="hero hero--search">
       <div class="hero--search__certs" aria-hidden="true">
         <div class="cert-overlay cert-overlay--tuev" title="TÜV SÜD geprüft"></div>
-        <div class="cert-overlay cert-overlay--6plus" title="6+ TÜV-zertifizierte Generalüberholung"></div>
       </div>
       <div class="hero__head">
         <div class="pill pill--ghost">${svg('search', 11, 2.5)} ${t('home.search.pill')}</div>
