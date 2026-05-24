@@ -379,6 +379,16 @@ body.mode-tablet .user-bar__user::after{
 .landing__h2{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;color:var(--c-ink);text-align:center;display:flex;align-items:center;justify-content:center;gap:8px}
 .landing__sub-h2{font-size:13.5px;color:var(--c-ink-mute);line-height:1.5;text-align:center;margin:0 auto 22px;max-width:520px}
 
+/* Image-Video-Sektion auf der Landing — Lazy-Load via Thumbnail bis User Play drückt,
+   dann erst wird das YouTube-iframe geladen (DSGVO + Performance). */
+.landing__video{padding:30px 18px 14px;max-width:760px;margin:0 auto;text-align:center}
+.landing__video-frame{position:relative;aspect-ratio:16/9;width:100%;border-radius:16px;overflow:hidden;box-shadow:0 12px 36px rgba(15,29,55,.22);background:#000;cursor:pointer;margin-top:14px}
+.landing__video-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.landing__video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.landing__video-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(229,72,77,.95);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .15s,background .15s}
+.landing__video-frame:hover .landing__video-play{transform:translate(-50%,-50%) scale(1.08);background:rgba(229,72,77,1)}
+.landing__video-play svg{margin-left:5px}
+.landing__video-hint{font-size:11px;color:var(--c-ink-mute);margin-top:8px;line-height:1.4}
 .landing__steps{padding:36px 18px;background:rgba(255,255,255,0.65)}
 .landing__steps-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px;max-width:520px;margin-left:auto;margin-right:auto}
 .landing__step{padding:18px 18px 20px;background:#fff;border:1px solid var(--c-border);border-radius:18px;box-shadow:var(--elev-1)}
@@ -1198,7 +1208,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.27';
+const APP_VERSION = 'v2.28';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2518,6 +2528,7 @@ const ICONS = {
   pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  'play': '<polygon points="6 3 20 12 6 21 6 3"/>',
   'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',
@@ -3639,6 +3650,10 @@ const I18N = {
     'shareModal.distHint': 'Dein Link enthält die Verknüpfung mit deinem Distributor {name} — neue Registrierungen über deinen Link werden automatisch dort zugeordnet.',
     'shareModal.shareBtn': 'Jetzt per WhatsApp teilen',
     'shareModal.cancel': 'Abbrechen',
+    'landing.video.title': 'Schau dir das Video an',
+    'landing.video.sub': 'In knapp einer Minute zeigen wir dir, wie die App funktioniert.',
+    'landing.video.lazyHint': 'Klick zum Abspielen — YouTube wird erst nach deinem OK geladen (kein Cookie ohne Aktion).',
+    'landing.video.privacyHint': 'Eingebettet via youtube-nocookie.com — datenschutzfreundliche Variante.',
 
     // Foto-Such-Ergebnis-Screen (renderPhotoResults)
     'photoResults.title': 'Foto-Suche',
@@ -3978,6 +3993,10 @@ const I18N = {
     'shareModal.distHint': 'Your link includes the link to your distributor {name} — new registrations via your link are automatically assigned there.',
     'shareModal.shareBtn': 'Share via WhatsApp now',
     'shareModal.cancel': 'Cancel',
+    'landing.video.title': 'Watch the video',
+    'landing.video.sub': 'In just one minute we show you how the app works.',
+    'landing.video.lazyHint': 'Click to play — YouTube only loads after your consent (no cookie without action).',
+    'landing.video.privacyHint': 'Embedded via youtube-nocookie.com — privacy-friendly variant.',
 
     // Photo search results (renderPhotoResults)
     'photoResults.title': 'Photo search',
@@ -4300,6 +4319,10 @@ const I18N = {
     'shareModal.distHint': 'Tu enlace incluye la vinculación con tu distribuidor {name} — los nuevos registros desde tu enlace se asignan automáticamente allí.',
     'shareModal.shareBtn': 'Compartir por WhatsApp ahora',
     'shareModal.cancel': 'Cancelar',
+    'landing.video.title': 'Mira el vídeo',
+    'landing.video.sub': 'En apenas un minuto te mostramos cómo funciona la app.',
+    'landing.video.lazyHint': 'Haz clic para reproducir — YouTube solo se carga tras tu OK (sin cookies sin acción).',
+    'landing.video.privacyHint': 'Insertado vía youtube-nocookie.com — variante respetuosa con la privacidad.',
 
     // Resultados búsqueda por foto (renderPhotoResults)
     'photoResults.title': 'Búsqueda por foto',
@@ -4622,6 +4645,10 @@ const I18N = {
     'shareModal.distHint': 'Je link bevat de koppeling met je distributeur {name} — nieuwe registraties via je link worden daar automatisch toegewezen.',
     'shareModal.shareBtn': 'Nu via WhatsApp delen',
     'shareModal.cancel': 'Annuleren',
+    'landing.video.title': 'Bekijk de video',
+    'landing.video.sub': 'In ongeveer een minuut laten we zien hoe de app werkt.',
+    'landing.video.lazyHint': 'Klik om af te spelen — YouTube wordt pas geladen na jouw toestemming (geen cookie zonder actie).',
+    'landing.video.privacyHint': 'Ingebed via youtube-nocookie.com — privacyvriendelijke variant.',
 
     // Foto-zoek-resultaten (renderPhotoResults)
     'photoResults.title': 'Foto-zoeken',
@@ -4944,6 +4971,10 @@ const I18N = {
     'shareModal.distHint': 'Ton lien contient le lien vers ton distributeur {name} — les nouveaux enregistrements via ton lien sont automatiquement attribués à lui.',
     'shareModal.shareBtn': 'Partager via WhatsApp maintenant',
     'shareModal.cancel': 'Annuler',
+    'landing.video.title': 'Regarde la vidéo',
+    'landing.video.sub': 'En à peine une minute on te montre comment fonctionne l’app.',
+    'landing.video.lazyHint': 'Clique pour lire — YouTube ne se charge qu’après ton OK (pas de cookie sans action).',
+    'landing.video.privacyHint': 'Intégré via youtube-nocookie.com — variante respectueuse de la vie privée.',
 
     // Résultats recherche par photo (renderPhotoResults)
     'photoResults.title': 'Recherche par photo',
@@ -14007,6 +14038,37 @@ function renderLanding() {
     </div>
   </section>
 
+  <!-- Imagevideo (DE → deutscher Clip, alle anderen → englischer Clip).
+       Lazy-Load: nur das Thumbnail wird beim Seitenaufruf geladen, das YouTube-iframe
+       erst nach Klick auf Play (DSGVO + Performance + kein Tracking-Cookie ohne Aktion). -->
+  <section class="landing__video">
+    <h2 class="landing__h2">${svg('play', 18, 2.4)} ${t('landing.video.title')}</h2>
+    <p class="landing__sub-h2">${t('landing.video.sub')}</p>
+    ${(() => {
+      const ytId = state.lang === 'de' ? 'kTGKgeDGApU' : '1Nq_gbVn3vE';
+      // Wenn User schon Play gedrückt hat → iframe rendern, sonst Thumbnail-Cover
+      if (state.landingVideoPlaying === ytId) {
+        return `
+          <div class="landing__video-frame">
+            <iframe src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1" title="${t('landing.video.title')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          </div>
+          <div class="landing__video-hint">${svg('shield', 11, 2.4)} ${t('landing.video.privacyHint')}</div>
+        `;
+      }
+      // Thumbnail (maxres → fallback auf hqdefault wenn 404)
+      const thumbUrl = `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg`;
+      return `
+        <div class="landing__video-frame" data-action="play-landing-video" data-vid="${ytId}">
+          <img src="${thumbUrl}" alt="${t('landing.video.title')}" loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'">
+          <div class="landing__video-play">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+        <div class="landing__video-hint">${svg('info', 11, 2.4)} ${t('landing.video.lazyHint')}</div>
+      `;
+    })()}
+  </section>
+
   <!-- 3-Schritt-Erklärung -->
   <section class="landing__steps">
     <h2 class="landing__h2">${t('landing.steps.title')}</h2>
@@ -15594,6 +15656,14 @@ document.addEventListener('click', (e) => {
     case 'open-share-modal': {
       // In-App: erst Modal mit Erklärung anzeigen (was wird geteilt + Co-Branding-Hinweis)
       state.shareModalOpen = true;
+      render();
+      break;
+    }
+    case 'play-landing-video': {
+      // Lazy-Load YouTube-iframe nur nach explizitem Play-Klick (DSGVO + Performance)
+      const vid = btn.dataset.vid;
+      if (!vid) break;
+      state.landingVideoPlaying = vid;
       render();
       break;
     }
