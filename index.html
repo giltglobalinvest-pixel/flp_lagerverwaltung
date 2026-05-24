@@ -1213,7 +1213,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.38';
+const APP_VERSION = 'v2.39';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -6038,7 +6038,15 @@ async function loadPublicCompanies() {
     );
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.records || []).map(recordToCompany).filter(c => c.id);
+    const list = (data.records || []).map(recordToCompany).filter(c => c.id);
+    // FLP Lift Parts immer zuerst (gleiche Logik wie nach Login)
+    list.sort((a, b) => {
+      const aLift = /\blift\s*parts\b/i.test(a.name || '');
+      const bLift = /\blift\s*parts\b/i.test(b.name || '');
+      if (aLift !== bLift) return aLift ? -1 : 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    return list;
   } catch(e) { return []; }
 }
 /* ============================================================
@@ -6966,6 +6974,15 @@ async function loadAllData() {
       }
     }
   }
+
+  // Firmen-Reihenfolge: FLP Lift Parts immer zuerst, alle anderen alphabetisch.
+  // (Sort-Ranking statt fixe ID-Liste — funktioniert auch nach Umbenennungen oder neuen Firmen.)
+  companies.sort((a, b) => {
+    const aLift = /\blift\s*parts\b/i.test(a.name || '');
+    const bLift = /\blift\s*parts\b/i.test(b.name || '');
+    if (aLift !== bLift) return aLift ? -1 : 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
   state.companies = companies;
   state.activeCompanyId = companies[0]?.id || null;
