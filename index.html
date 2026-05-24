@@ -539,8 +539,19 @@ body.mode-tablet .user-bar__user::after{
 .search-input__icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center}
 
 /* Such-Hero: blaue Kachel mit eingebautem Such-Input */
-.hero--search{cursor:default}
+.hero--search{cursor:default;position:relative;overflow:hidden}
 .hero--search:active{transform:none}
+/* Dezente TÜV+6+ Embleme oben rechts auf der Such-Hero-Kachel — als Vertrauenssignal.
+   Nutzt dieselben cert-overlay-Klassen wie auf den Foto-Hero-Bildern (gleiche base64-Bilder,
+   kein extra HTTP-Request). Override-Position via parent. */
+.hero--search__certs{position:absolute;top:14px;right:14px;display:flex;gap:10px;align-items:center;z-index:1;pointer-events:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+.hero--search__certs .cert-overlay{position:static;width:50px;height:50px;aspect-ratio:auto;top:auto;left:auto;right:auto}
+.hero--search__certs .cert-overlay--6plus{width:42px;height:50px}
+@media (max-width:380px){
+  .hero--search__certs{top:10px;right:10px;gap:6px}
+  .hero--search__certs .cert-overlay{width:40px;height:40px}
+  .hero--search__certs .cert-overlay--6plus{width:34px;height:40px}
+}
 .hero__search{position:relative;margin-top:14px}
 .hero__search-input{width:100%;padding:13px 40px 13px 42px;background:rgba(255,255,255,0.96);border:0;border-radius:14px;box-shadow:0 4px 12px rgba(15,24,48,0.18);font-size:14.5px;font-weight:500;color:var(--c-ink);outline:none}
 .hero__search-input::placeholder{color:var(--c-ink-subtle);font-weight:500}
@@ -1213,7 +1224,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.40';
+const APP_VERSION = 'v2.41';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11416,6 +11427,10 @@ function renderHome() {
   <div class="scroll">
     <!-- Blaue Such-Kachel — enthält das Suchfeld direkt -->
     <div class="hero hero--search">
+      <div class="hero--search__certs" aria-hidden="true">
+        <div class="cert-overlay cert-overlay--tuev" title="TÜV SÜD geprüft"></div>
+        <div class="cert-overlay cert-overlay--6plus" title="6+ TÜV-zertifizierte Generalüberholung"></div>
+      </div>
       <div class="hero__head">
         <div class="pill pill--ghost">${svg('search', 11, 2.5)} ${t('home.search.pill')}</div>
       </div>
