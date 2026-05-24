@@ -1213,7 +1213,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.36';
+const APP_VERSION = 'v2.37';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2534,6 +2534,7 @@ const ICONS = {
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
   'play': '<polygon points="6 3 20 12 6 21 6 3"/>',
+  'eye': '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
   'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',
@@ -3674,6 +3675,8 @@ const I18N = {
     'home.tile.list.n': '{n} Artikel gemerkt',
     'home.tile.dashboard': 'Dashboard',
     'home.tile.dashboard.sub': 'Verkäufe · Eingänge · Filter',
+    'home.tile.stats': 'Statistik',
+    'home.tile.stats.sub': 'User · Land · Distributor',
     'home.tile.users': 'User verwalten',
     'home.tile.users.sub': 'Zugänge · WhatsApp-Einladung',
     'home.tile.integrations': 'Integrationen',
@@ -4055,6 +4058,8 @@ const I18N = {
     'home.tile.list.n': '{n} items saved',
     'home.tile.dashboard': 'Dashboard',
     'home.tile.dashboard.sub': 'Sales · Receipts · Filters',
+    'home.tile.stats': 'Statistics',
+    'home.tile.stats.sub': 'Users · Country · Distributor',
     'home.tile.users': 'Manage users',
     'home.tile.users.sub': 'Access · WhatsApp invite',
     'home.tile.integrations': 'Integrations',
@@ -4419,6 +4424,8 @@ const I18N = {
     'home.tile.list.n': '{n} artículos guardados',
     'home.tile.dashboard': 'Panel',
     'home.tile.dashboard.sub': 'Ventas · Entradas · Filtros',
+    'home.tile.stats': 'Estadísticas',
+    'home.tile.stats.sub': 'Usuarios · País · Distribuidor',
     'home.tile.users': 'Gestionar usuarios',
     'home.tile.users.sub': 'Accesos · Invitación WhatsApp',
     'home.tile.integrations': 'Integraciones',
@@ -4783,6 +4790,8 @@ const I18N = {
     'home.tile.list.n': '{n} artikelen opgeslagen',
     'home.tile.dashboard': 'Dashboard',
     'home.tile.dashboard.sub': 'Verkopen · Inkomend · Filters',
+    'home.tile.stats': 'Statistiek',
+    'home.tile.stats.sub': 'Gebruikers · Land · Distributeur',
     'home.tile.users': 'Gebruikers beheren',
     'home.tile.users.sub': 'Toegang · WhatsApp-uitnodiging',
     'home.tile.integrations': 'Integraties',
@@ -5147,6 +5156,8 @@ const I18N = {
     'home.tile.list.n': '{n} articles enregistrés',
     'home.tile.dashboard': 'Tableau de bord',
     'home.tile.dashboard.sub': 'Ventes · Entrées · Filtres',
+    'home.tile.stats': 'Statistiques',
+    'home.tile.stats.sub': 'Utilisateurs · Pays · Distributeur',
     'home.tile.users': 'Gérer les utilisateurs',
     'home.tile.users.sub': 'Accès · Invitation WhatsApp',
     'home.tile.integrations': 'Intégrations',
@@ -5511,6 +5522,8 @@ const I18N = {
     'home.tile.list.n': '{n} articoli salvati',
     'home.tile.dashboard': 'Dashboard',
     'home.tile.dashboard.sub': 'Vendite · Entrate · Filtri',
+    'home.tile.stats': 'Statistiche',
+    'home.tile.stats.sub': 'Utenti · Paese · Distributore',
     'home.tile.users': 'Gestisci utenti',
     'home.tile.users.sub': 'Accessi · Invito WhatsApp',
     'home.tile.integrations': 'Integrazioni',
@@ -10346,6 +10359,7 @@ function renderHomeSearchArea() {
           return [{ icon: 'list-checks', title: t('home.tile.list'), sub: n === 0 ? t('home.tile.list.empty') : t('home.tile.list.n', { n }), action: 'go-list' }];
         })()),
         ...(isAdmin() ? [{ icon: 'sparkles', title: t('home.tile.dashboard'), sub: t('home.tile.dashboard.sub'), action: 'go-dashboard' }] : []),
+        ...(isAdmin() ? [{ icon: 'eye', title: t('home.tile.stats'), sub: t('home.tile.stats.sub'), action: 'go-statistics' }] : []),
         ...(isAdmin() ? [{ icon: 'user', title: t('home.tile.users'), sub: t('home.tile.users.sub'), action: 'go-users' }] : []),
         ...(isAdmin() ? [{ icon: 'sparkles', title: t('home.tile.integrations'), sub: APP_KEYS.inquiryProxyUrl ? t('home.tile.integrations.ready') : t('home.tile.integrations.setup'), action: 'go-integrations' }] : []),
         ...((() => {
@@ -11789,6 +11803,381 @@ function renderEdit() {
    Übersicht: Bestand, Verkäufe, Eingänge, Filter nach Kategorie/Hersteller.
    Nur für Admins.
    ============================================================ */
+
+// ============================================================
+// STATISTIK — App-Nutzung nach User, Land + Distributor
+// (Phase 1: aggregiert aus bestehenden User-/Item-Daten in Airtable.
+//  Ein echtes Usage-Logging mit Event-Tabelle kann später ergänzt werden.)
+// ============================================================
+function renderStatistics() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">Statistik</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="display:flex;align-items:center;justify-content:center;padding:40px;flex-direction:column;gap:14px;text-align:center">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center">${svg('alert-triangle', 28, 2.2)}</div>
+    <div style="font-size:14px;font-weight:600">Nur für Admins</div>
+  </div>
+</div>`;
+  }
+  const users = state.users || [];
+  const loading = !!state.usersLoading;
+  const error = state.usersError;
+  // Trigger initial load if never loaded
+  if (!Array.isArray(state.users) && !state.usersLoading) {
+    setTimeout(() => {
+      state.usersLoading = true;
+      render();
+      loadUsers()
+        .then(list => { state.users = list; state.usersLoading = false; render(); })
+        .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+    }, 0);
+  }
+
+  // Klassifizierung
+  const userKind = (u) => {
+    if (u.role === 'admin') return 'admin';
+    if (u.role !== 'customer') return 'staff';
+    if (u.isDistributor) return 'distributor';
+    if (u.parentDistributorId) return 'subcustomer';
+    return 'directcustomer';
+  };
+  const distById = new Map();
+  for (const u of users) if (u.isDistributor) distById.set(u._recordId, u);
+
+  // Aggregationen
+  const byKind = { admin: 0, staff: 0, distributor: 0, subcustomer: 0, directcustomer: 0 };
+  const byCountry = {};
+  const subsByDist = {}; // distId → { dist, count, latestSub }
+  const newCustomersByMonth = {}; // 'YYYY-MM' → count
+  const newRegistrationsList = []; // { user, ts } für „neueste Registrierungen"
+  const langDistribution = {};
+  const reviewedSplit = { reviewed: 0, unreviewed: 0 };
+  const activeSplit = { active: 0, inactive: 0 };
+
+  for (const u of users) {
+    const kind = userKind(u);
+    byKind[kind] = (byKind[kind] || 0) + 1;
+    // Land
+    const c = (u.firmCountry || '').trim();
+    const country = c || '— ohne Angabe —';
+    if (u.role === 'customer') {
+      byCountry[country] = (byCountry[country] || 0) + 1;
+    }
+    // Distributor-Zuordnung (nur Sub-Kunden)
+    if (kind === 'subcustomer' && u.parentDistributorId) {
+      const dist = distById.get(u.parentDistributorId);
+      if (!subsByDist[u.parentDistributorId]) {
+        subsByDist[u.parentDistributorId] = { dist, count: 0, latestTs: 0, latestUser: null };
+      }
+      subsByDist[u.parentDistributorId].count++;
+      const ts = Date.parse(u.created || 0) || 0;
+      if (ts > subsByDist[u.parentDistributorId].latestTs) {
+        subsByDist[u.parentDistributorId].latestTs = ts;
+        subsByDist[u.parentDistributorId].latestUser = u;
+      }
+    }
+    // Registrierungen pro Monat
+    if (u.role === 'customer' && u.created) {
+      const d = new Date(u.created);
+      if (!isNaN(d.getTime())) {
+        const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        newCustomersByMonth[m] = (newCustomersByMonth[m] || 0) + 1;
+        newRegistrationsList.push({ user: u, ts: d.getTime() });
+      }
+    }
+    // Sprache
+    const lang = (u.lang || '').trim() || '— nicht gesetzt —';
+    if (u.role === 'customer') {
+      langDistribution[lang] = (langDistribution[lang] || 0) + 1;
+    }
+    // Reviewed-Split (nur Customer)
+    if (u.role === 'customer') {
+      if (u.reviewed) reviewedSplit.reviewed++;
+      else reviewedSplit.unreviewed++;
+    }
+    // Aktiv-Split
+    if ((u.status || 'aktiv').toLowerCase() === 'aktiv') activeSplit.active++;
+    else activeSplit.inactive++;
+  }
+  newRegistrationsList.sort((a, b) => b.ts - a.ts);
+  const totalCustomers = byKind.directcustomer + byKind.subcustomer + byKind.distributor;
+  const totalUsers = users.length;
+
+  // Inventory-Aggregat (über alle Firmen)
+  let allItems = [];
+  for (const co of (state.companies || [])) allItems = allItems.concat(co.inventory || []);
+  const itemsTotal = allItems.length;
+  const itemsSold = allItems.filter(i => i.sold).length;
+  const itemsActive = itemsTotal - itemsSold;
+  const itemsByCondition = {};
+  const itemsByFunc = {};
+  for (const it of allItems) {
+    if (!it.sold) {
+      itemsByCondition[it.cond || 'unknown'] = (itemsByCondition[it.cond || 'unknown'] || 0) + 1;
+      itemsByFunc[it.func || 'unknown'] = (itemsByFunc[it.func || 'unknown'] || 0) + 1;
+    }
+  }
+
+  // Letzte 6 Monate für Timeline-Chart
+  const monthsRange = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    monthsRange.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  const monthLabels = monthsRange.map(m => {
+    const [y, mo] = m.split('-');
+    return new Date(+y, +mo - 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+  });
+  const monthValues = monthsRange.map(m => newCustomersByMonth[m] || 0);
+  const maxMonth = Math.max(1, ...monthValues);
+
+  // Hilfsfunktionen
+  const fmtPct = (n, total) => total ? ((n / total) * 100).toFixed(0) + ' %' : '0 %';
+  const fmtTs = (ts) => {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+    catch (e) { return '—'; }
+  };
+  const bar = (count, max, color = 'var(--c-blue)') => `
+    <div style="flex:1;height:10px;background:var(--c-surface-alt);border-radius:5px;overflow:hidden;min-width:60px">
+      <div style="height:100%;background:${color};width:${max > 0 ? Math.round((count / max) * 100) : 0}%;transition:width .3s"></div>
+    </div>`;
+
+  // KPI-Card
+  const kpi = (label, value, sub, color = 'var(--c-blue)') => `
+    <div class="tile" style="padding:14px 16px;min-width:120px;flex:1">
+      <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em">${label}</div>
+      <div style="font-size:26px;font-weight:700;color:${color};margin-top:4px;letter-spacing:-.02em">${value}</div>
+      ${sub ? `<div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px;line-height:1.4">${sub}</div>` : ''}
+    </div>`;
+
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'),
+    `<div class="pill pill--ink">${svg('sparkles', 11, 2.5)} Statistik</div>`,
+    `<button class="icon-btn" data-action="reload-statistics" title="Neu laden">${svg('rotate-ccw', 15, 2.4)}</button>`)}
+  <div class="scroll" style="padding-bottom:32px">
+    <div style="padding:0 20px 4px">
+      <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">App-Nutzung</h1>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">User · Land · Distributor — aggregiert aus den Stammdaten in Airtable.</p>
+    </div>
+
+    ${loading ? `
+      <div style="padding:14px 20px 0">
+        <div class="tile" style="padding:28px;text-align:center">
+          <div class="spinner" style="margin:0 auto 12px"></div>
+          <div style="font-size:12.5px;color:var(--c-ink-mute)">Daten werden geladen …</div>
+        </div>
+      </div>
+    ` : error ? `
+      <div style="padding:14px 20px 0">
+        <div class="tile" style="padding:20px;text-align:center;border-color:var(--c-red)">
+          <div style="color:var(--c-red);font-size:13px;font-weight:600;margin-bottom:6px">${svg('alert-triangle', 14, 2.4)} Fehler</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-bottom:10px">${String(error).replace(/</g, '&lt;')}</div>
+          <button data-action="reload-statistics" style="padding:7px 14px;background:var(--c-blue);color:#fff;border-radius:var(--r-pill);font-size:11.5px;font-weight:600">Erneut versuchen</button>
+        </div>
+      </div>
+    ` : users.length === 0 ? `
+      <div style="padding:14px 20px 0">
+        <div class="tile" style="padding:28px;text-align:center;font-size:12.5px;color:var(--c-ink-mute)">Keine User-Daten vorhanden</div>
+      </div>
+    ` : `
+
+    <!-- KPI-Zeile: Übersicht -->
+    <div style="padding:14px 20px 0;display:flex;gap:10px;flex-wrap:wrap">
+      ${kpi('Gesamt', totalUsers, 'alle User')}
+      ${kpi('Kunden', totalCustomers, byKind.directcustomer + ' direkt · ' + byKind.subcustomer + ' Sub · ' + byKind.distributor + ' Distrib.', '#0A6B2C')}
+      ${kpi('Aktiv', activeSplit.active, fmtPct(activeSplit.active, totalUsers) + ' der User', '#16A34A')}
+      ${kpi('Neue Reg.', reviewedSplit.unreviewed, 'noch ungeprüft', '#F59E0B')}
+      ${kpi('Artikel', itemsTotal, itemsActive + ' verfügbar · ' + itemsSold + ' verkauft', 'var(--c-ink)')}
+    </div>
+
+    <!-- Registrierungen über Zeit (letzte 6 Monate) -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:var(--c-blue);color:#fff;display:flex;align-items:center;justify-content:center">${svg('sparkles', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Neue Registrierungen — letzte 6 Monate</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:8px 0">
+          ${monthLabels.map((label, i) => {
+            const v = monthValues[i];
+            const h = maxMonth > 0 ? Math.max(2, Math.round((v / maxMonth) * 100)) : 2;
+            return `
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;min-width:0">
+                <div style="font-size:11px;font-weight:700;color:var(--c-ink);font-family:var(--f-mono)">${v}</div>
+                <div style="width:100%;height:${h}%;background:linear-gradient(180deg,var(--c-blue) 0%,var(--c-blue-deep) 100%);border-radius:5px 5px 0 0;min-height:3px"></div>
+                <div style="font-size:9.5px;color:var(--c-ink-mute);font-family:var(--f-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${label}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Pro Distributor -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:#F5C95B;color:#3A2400;display:flex;align-items:center;justify-content:center">${svg('badge-check', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Pro Distributor</div>
+          <span style="font-size:10.5px;color:var(--c-ink-mute);font-weight:500">${byKind.distributor} Distributoren · ${byKind.subcustomer} Sub-Kunden gesamt</span>
+        </div>
+        ${(() => {
+          const arr = Object.entries(subsByDist)
+            .map(([id, v]) => ({ id, ...v }))
+            .sort((a, b) => b.count - a.count);
+          // Auch Distributoren ohne Sub-Kunden zeigen (0 Sub-Kunden)
+          for (const [id, dist] of distById) {
+            if (!subsByDist[id]) arr.push({ id, dist, count: 0, latestTs: 0, latestUser: null });
+          }
+          if (arr.length === 0) return '<div style="padding:14px 0;text-align:center;font-size:12px;color:var(--c-ink-mute)">Noch keine Distributoren angelegt</div>';
+          const maxCount = Math.max(1, ...arr.map(x => x.count));
+          return `
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${arr.map(x => {
+                const name = (x.dist?.companyName || x.dist?.name || x.dist?.email || '— unbekannt —');
+                return `
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--c-bg-soft);border-radius:8px">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12.5px;font-weight:600;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name.replace(/</g,'&lt;')}</div>
+                      <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:1px">${x.count === 0 ? 'Noch keine Sub-Kunden' : (x.latestUser ? 'Letzter Sub-Kunde: ' + ([x.latestUser.firstName, x.latestUser.lastName].filter(Boolean).join(' ') || x.latestUser.email || '—') + ' · ' + fmtTs(x.latestTs) : '')}</div>
+                    </div>
+                    ${bar(x.count, maxCount, '#F5C95B')}
+                    <div style="min-width:36px;text-align:right;font-family:var(--f-mono);font-size:13px;font-weight:700;color:var(--c-ink)">${x.count}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        })()}
+      </div>
+    </div>
+
+    <!-- Pro Land -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:#10B981;color:#fff;display:flex;align-items:center;justify-content:center">${svg('map-pin', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Kunden pro Land</div>
+        </div>
+        ${(() => {
+          const arr = Object.entries(byCountry).sort((a, b) => b[1] - a[1]);
+          if (arr.length === 0) return '<div style="padding:14px 0;text-align:center;font-size:12px;color:var(--c-ink-mute)">Keine Land-Daten vorhanden</div>';
+          const maxCount = Math.max(1, ...arr.map(x => x[1]));
+          return `
+            <div style="display:flex;flex-direction:column;gap:7px">
+              ${arr.map(([country, count]) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--c-bg-soft);border-radius:8px">
+                  <div style="flex:1;min-width:120px;font-size:12.5px;font-weight:600;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${country.replace(/</g,'&lt;')}</div>
+                  ${bar(count, maxCount, '#10B981')}
+                  <div style="min-width:50px;text-align:right;font-family:var(--f-mono);font-size:12px;font-weight:700;color:var(--c-ink)">${count} <span style="color:var(--c-ink-mute);font-size:10px;font-weight:500">(${fmtPct(count, totalCustomers)})</span></div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        })()}
+      </div>
+    </div>
+
+    <!-- Pro Sprache -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:#2456E5;color:#fff;display:flex;align-items:center;justify-content:center">${svg('globe', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Sprach-Verteilung der Kunden</div>
+        </div>
+        ${(() => {
+          const arr = Object.entries(langDistribution).sort((a, b) => b[1] - a[1]);
+          if (arr.length === 0) return '<div style="padding:14px 0;text-align:center;font-size:12px;color:var(--c-ink-mute)">Keine Sprach-Daten</div>';
+          const maxCount = Math.max(1, ...arr.map(x => x[1]));
+          const flagMap = { de: '🇩🇪', en: '🇬🇧', es: '🇪🇸', nl: '🇳🇱', fr: '🇫🇷', it: '🇮🇹' };
+          return `
+            <div style="display:flex;flex-direction:column;gap:7px">
+              ${arr.map(([lang, count]) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--c-bg-soft);border-radius:8px">
+                  <span style="font-size:16px;width:22px;text-align:center">${flagMap[lang] || '🌐'}</span>
+                  <div style="flex:1;min-width:100px;font-size:12.5px;font-weight:600;color:var(--c-ink)">${(lang.length === 2 ? lang.toUpperCase() : lang).replace(/</g,'&lt;')}</div>
+                  ${bar(count, maxCount, '#2456E5')}
+                  <div style="min-width:50px;text-align:right;font-family:var(--f-mono);font-size:12px;font-weight:700;color:var(--c-ink)">${count}</div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        })()}
+      </div>
+    </div>
+
+    <!-- Inventory-Übersicht -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:var(--c-ink);color:#fff;display:flex;align-items:center;justify-content:center">${svg('boxes', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Artikel-Bestand</div>
+          <span style="font-size:10.5px;color:var(--c-ink-mute);font-weight:500">${itemsTotal} gesamt · ${itemsActive} verfügbar · ${itemsSold} verkauft</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div>
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Nach Zustand</div>
+            ${Object.entries(itemsByCondition).sort((a, b) => b[1] - a[1]).map(([k, n]) => {
+              const cfg = CONDITION[k];
+              return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:${cfg?.fg || 'var(--c-ink)'}">${cfg ? `${svg(cfg.icon, 10, 2.5)} ${cfg.label}` : k}</span><span style="font-family:var(--f-mono);font-weight:700">${n}</span></div>`;
+            }).join('')}
+          </div>
+          <div>
+            <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Nach Funktion</div>
+            ${Object.entries(itemsByFunc).sort((a, b) => b[1] - a[1]).map(([k, n]) => {
+              const cfg = FUNCTION_STATUS[k];
+              return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:${cfg?.fg || 'var(--c-ink)'}">${cfg ? `${svg(cfg.icon, 10, 2.5)} ${cfg.short || cfg.label}` : k}</span><span style="font-family:var(--f-mono);font-weight:700">${n}</span></div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Letzte Registrierungen -->
+    <div style="padding:14px 20px 0">
+      <div class="tile" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:24px;height:24px;border-radius:6px;background:#7C3AED;color:#fff;display:flex;align-items:center;justify-content:center">${svg('user', 12, 2.4)}</div>
+          <div style="font-size:14px;font-weight:700">Neueste 10 Registrierungen</div>
+        </div>
+        ${newRegistrationsList.length === 0 ? `
+          <div style="padding:14px 0;text-align:center;font-size:12px;color:var(--c-ink-mute)">Noch keine Kunden registriert</div>
+        ` : `
+          <div style="display:flex;flex-direction:column;gap:5px">
+            ${newRegistrationsList.slice(0, 10).map(({ user: u, ts }) => {
+              const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.name || u.email || '— ohne Namen —';
+              const kind = userKind(u);
+              const distName = u.parentDistributorId ? (distById.get(u.parentDistributorId)?.companyName || distById.get(u.parentDistributorId)?.name || '—') : null;
+              return `
+                <button data-action="user-edit-from-stats" data-rid="${u._recordId}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--c-bg-soft);border-radius:8px;border:0;width:100%;text-align:left;cursor:pointer">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12.5px;font-weight:600;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fullName.replace(/</g,'&lt;')}${!u.reviewed ? ' <span style="background:#F59E0B;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;margin-left:3px;font-weight:700">NEU</span>' : ''}</div>
+                    <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:1px;font-family:var(--f-mono)">${kind === 'distributor' ? 'Distributor' : kind === 'subcustomer' ? 'Sub-Kunde via ' + (distName || '—') : 'Direkt-Kunde'}${u.firmCountry ? ' · ' + u.firmCountry.replace(/</g,'&lt;') : ''}</div>
+                  </div>
+                  <div style="font-family:var(--f-mono);font-size:10.5px;color:var(--c-ink-mute);white-space:nowrap">${fmtTs(ts)}</div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+
+    <!-- Hinweis -->
+    <div style="padding:14px 20px 0">
+      <div style="padding:12px 14px;background:var(--c-blue-soft);border:1px solid rgba(36,86,229,.2);border-radius:var(--r-md);font-size:11.5px;color:var(--c-blue-deep);line-height:1.5">
+        ${svg('info', 12, 2.5)} <strong>Hinweis:</strong> Diese Statistik aggregiert aus den User- und Artikel-Stammdaten. Für detailliertes Nutzungs-Tracking (Logins, Anfragen, Foto-Suchen pro User) brauchen wir eine separate Event-Tabelle in Airtable — sag Bescheid wenn du das auch willst.
+      </div>
+    </div>
+    `}
+  </div>
+</div>`;
+}
+
 function renderDashboard() {
   if (!isAdmin()) {
     return `
@@ -15161,7 +15550,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer, downloadsAdmin: renderDownloadsAdmin };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer, downloadsAdmin: renderDownloadsAdmin, statistics: renderStatistics };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -15681,6 +16070,41 @@ document.addEventListener('click', (e) => {
       clearItemList();
       state.listClearConfirm = false;
       showToast('Liste geleert', 'info', 1800);
+      render();
+      break;
+    }
+    case 'go-statistics': {
+      if (!isAdmin()) { showToast('Nur Admins dürfen die Statistik öffnen', 'info', 2400); break; }
+      go('statistics');
+      // Auto-load users wenn noch nicht da (Statistik basiert auf User-Daten)
+      if (!Array.isArray(state.users) && !state.usersLoading) {
+        state.usersLoading = true;
+        state.usersError = null;
+        render();
+        loadUsers()
+          .then(list => { state.users = list; state.usersLoading = false; render(); })
+          .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+      }
+      break;
+    }
+    case 'reload-statistics': {
+      if (!isAdmin()) break;
+      state.usersLoading = true;
+      state.usersError = null;
+      render();
+      loadUsers()
+        .then(list => { state.users = list; state.usersLoading = false; render(); })
+        .catch(err => { state.usersError = err.message || String(err); state.usersLoading = false; render(); });
+      break;
+    }
+    case 'user-edit-from-stats': {
+      // Aus der Statistik direkt zum User-Editor springen
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const u = (state.users || []).find(x => x._recordId === rid);
+      if (!u) break;
+      go('users');
+      state.userDraft = { ...u };
       render();
       break;
     }
