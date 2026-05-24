@@ -1213,7 +1213,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.33';
+const APP_VERSION = 'v2.34';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -5290,8 +5290,9 @@ function setLang(code) {
   if (!I18N[code]) code = 'en';
   state.lang = code;
   try { localStorage.setItem('flp_lang', code); } catch(e) {}
-  // Falls Customer eingeloggt: in seinem User-Record persistieren
-  if (APP_KEYS.user && isCustomer() && APP_KEYS.user._recordId) {
+  // Egal welche Rolle (Customer, Admin, intern): wenn eingeloggt → im User-Record persistieren,
+  // damit die Wahl beim nächsten Login erhalten bleibt (sonst würde Admin-Default 'de' zurückspringen).
+  if (APP_KEYS.user && APP_KEYS.user._recordId) {
     airUpdate(TBL_USERS, APP_KEYS.user._recordId, { lang: code }).catch(() => {});
     APP_KEYS.user.lang = code;
   }
@@ -9618,6 +9619,16 @@ function renderHome() {
       ${whatsappShareBtn({ size: 30, withConfirm: true })}
       <button class="icon-btn" data-action="go-flyer" title="Kunden-Flyer (PDF, 5 Sprachen) \u00f6ffnen + drucken">${svg('printer', 16, 2.4)}</button>
       <button class="icon-btn" data-action="open-downloads" title="${t('downloads.title')}">${svg('file-text', 16, 2.4)}</button>
+      ${(() => {
+        const cur = state.lang || 'de';
+        const curFlag = (I18N_LANGS.find(L => L.code === cur) || I18N_LANGS[0]).flag;
+        return `<label class="icon-btn" style="position:relative;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px" title="Sprache wechseln (zum Testen der Uebersetzungen)">
+          <span aria-hidden="true">${curFlag}</span>
+          <select data-action="lang-switch" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:0;background:transparent;font-size:16px">
+            ${I18N_LANGS.map(L => `<option value="${L.code}" ${L.code===cur?'selected':''}>${L.flag} ${L.label}</option>`).join('')}
+          </select>
+        </label>`;
+      })()}
       <button class="logout-btn" data-action="logout" title="${(APP_KEYS.user?.name || 'User')} \u2014 Abmelden">${svg('log-out', 16, 2.4)}</button>
     </div>
   </div>
