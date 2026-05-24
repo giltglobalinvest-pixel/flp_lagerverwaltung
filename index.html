@@ -546,7 +546,8 @@ body.mode-tablet .user-bar__user::after{
 .hero__search-input::placeholder{color:var(--c-ink-subtle);font-weight:500}
 .hero__search-input:focus{box-shadow:0 6px 18px rgba(15,24,48,0.28)}
 .hero__search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--c-ink-mute);display:flex;align-items:center;pointer-events:none;z-index:1}
-.hero__search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:flex;align-items:center;justify-content:center;border:0;cursor:pointer;z-index:1}
+.hero__search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--c-surface-alt);color:var(--c-ink-mute);display:none;align-items:center;justify-content:center;border:0;cursor:pointer;z-index:1}
+.hero__search--has-value .hero__search-clear{display:flex}
 .hero__search-clear:active{filter:brightness(.95)}
 
 /* Home-Filter — kompakte Dropdown-Pills statt langer Chip-Reihen */
@@ -1208,7 +1209,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.29';
+const APP_VERSION = 'v2.30';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9623,7 +9624,7 @@ function renderHome() {
         <div class="pill pill--ghost">${svg('search', 11, 2.5)} Suche</div>
       </div>
       <h1 class="hero__title">Was suchst<br>du heute?</h1>
-      <div class="hero__search">
+      <div class="hero__search${q ? ' hero__search--has-value' : ''}">
         <span class="hero__search-icon">${svg('search', 16, 2.4)}</span>
         <input
           type="text"
@@ -9635,10 +9636,45 @@ function renderHome() {
           autocorrect="off"
           autocapitalize="off"
           spellcheck="false">
-        ${q ? `<button class="hero__search-clear" data-action="search-clear" title="Suche leeren">${svg('x', 13, 2.6)}</button>` : ''}
+        <button class="hero__search-clear" data-action="search-clear" title="Suche leeren">${svg('x', 13, 2.6)}</button>
       </div>
     </div>
 
+    <!-- Alles unterhalb des Inputs in eine ID-Wrapper-Div, damit Live-Typing nur diesen
+         Bereich neu rendert (Input bleibt erhalten → iOS-Tastatur switcht nicht). -->
+    <div id="homeSearchArea">${renderHomeSearchArea()}</div>
+  </div>
+  <div class="bottom-bar">
+    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
+    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
+  </div>
+</div>`;
+}
+
+// Live-update-fähiger Teil der Home-Seite — wird sowohl beim ersten Render als auch bei
+// jedem Tastendruck im Suchfeld neu erzeugt. Input liegt OUTSIDE und wird nie angefasst.
+function renderHomeSearchArea() {
+  const q = (state.query || '').trim();
+  const condF = state.homeFilterCond || 'all';
+  const funcF = state.homeFilterFunc || 'all';
+  const hasFilter = condF !== 'all' || funcF !== 'all';
+  const isSearching = q.length > 0 || hasFilter;
+  let liveResults = [];
+  if (isSearching) {
+    liveResults = inventory.filter(it => {
+      if (q) {
+        const hay = `${it.title} ${it.maker} ${it.cat} ${it.description || ''} ${it.id} ${it.loc || ''} ${it.tracker || ''}`;
+        if (!searchMatch(q, hay)) return false;
+      }
+      if (condF !== 'all' && it.cond !== condF) return false;
+      if (funcF !== 'all' && it.func !== funcF) return false;
+      return true;
+    });
+  }
+  const totalLive = liveResults.length;
+  const topLive = liveResults.slice(0, 5);
+  return `
     ${isSearching ? (() => {
       const condCfg = condF !== 'all' ? CONDITION[condF] : null;
       const funcCfg = funcF !== 'all' ? FUNCTION_STATUS[funcF] : null;
@@ -9708,7 +9744,7 @@ function renderHome() {
                 <div class="compact-item__body">
                   <div class="compact-item__id" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">#${it.id}${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}</div>
                   <div class="compact-item__name">${it.title}</div>
-                  <div class="compact-item__meta">${it.maker || '—'} · ${CONDITION[it.cond]?.label || '—'}</div>
+                  <div class="compact-item__meta">${it.maker || '\u2014'} \u00b7 ${CONDITION[it.cond]?.label || '\u2014'}</div>
                 </div>
               </button>
             `).join('')}
@@ -9719,7 +9755,7 @@ function renderHome() {
       <!-- Foto-Suche-Hero (prominent, wenn nicht gerade getippt wird) — auf iPad ausgeblendet, weil Typenschild-Fotos ein Mobile-Workflow sind -->
       <button class="hero hero--ai" data-action="go-photo-search">
         <div class="hero__head">
-          <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} KI · Foto-Suche</div>
+          <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} KI \u00b7 Foto-Suche</div>
           <div class="hero__icon-circle">${svg('camera', 16, 2.4)}</div>
         </div>
         <h1 class="hero__title">Foto vom<br>Typenschild</h1>
@@ -9737,10 +9773,10 @@ function renderHome() {
         { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
         ...((() => {
           const n = (state.itemList || []).filter(id => (inventory || []).some(it => it.id === id)).length;
-          return [{ icon: 'list-checks', title: 'Meine Liste', sub: n === 0 ? 'Leer · Artikel hinzufügen' : `${n} ${n === 1 ? 'Artikel' : 'Artikel'} gemerkt`, action: 'go-list' }];
+          return [{ icon: 'list-checks', title: 'Meine Liste', sub: n === 0 ? 'Leer \u00b7 Artikel hinzufügen' : `${n} ${n === 1 ? 'Artikel' : 'Artikel'} gemerkt`, action: 'go-list' }];
         })()),
-        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe · Eingänge · Filter', action: 'go-dashboard' }] : []),
-        ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge · WhatsApp-Einladung', action: 'go-users' }] : []),
+        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe \u00b7 Eingänge \u00b7 Filter', action: 'go-dashboard' }] : []),
+        ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge \u00b7 WhatsApp-Einladung', action: 'go-users' }] : []),
         ...(isAdmin() ? [{ icon: 'sparkles', title: 'Integrationen', sub: APP_KEYS.inquiryProxyUrl ? 'Freshdesk-Proxy aktiv' : 'Freshdesk einrichten', action: 'go-integrations' }] : []),
         ...((() => {
           const pr = getPendingReturns();
@@ -9785,13 +9821,18 @@ function renderHome() {
           </button>`).join('')}
       </div>
     </div>` : ''}
-  </div>
-  <div class="bottom-bar">
-    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
-    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
-    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
-  </div>
-</div>`;
+  `;
+}
+
+// Partial-Update: nur den Bereich unterhalb des Suchfelds neu rendern,
+// damit der Input nicht zerstört wird und iOS die Tastatur behält.
+function updateHomeSearchArea() {
+  const el = document.getElementById('homeSearchArea');
+  if (!el) { render(); return; }
+  el.innerHTML = renderHomeSearchArea();
+  // CSS-Klasse am Suchfeld toggeln, um Clear-X via CSS zu zeigen/verstecken
+  const search = document.querySelector('.hero__search');
+  if (search) search.classList.toggle('hero__search--has-value', !!(state.query || '').trim());
 }
 
 function renderListen() {
@@ -14996,7 +15037,18 @@ document.addEventListener('click', (e) => {
     case 'go-issues': go('issues'); break;
     case 'go-bestand': go('bestand'); break;
     case 'go-results': if ((state.query || '').trim()) go('results'); break;
-    case 'search-clear': state.query = ''; render(); break;
+    case 'search-clear': {
+      state.query = '';
+      // Auf Home: nur den Input leeren + partial update (Tastatur bleibt erhalten)
+      if (state.view === 'home') {
+        const inp = document.querySelector('.hero__search-input');
+        if (inp) inp.value = '';
+        updateHomeSearchArea();
+      } else {
+        render();
+      }
+      break;
+    }
     case 'home-filter-toggle': {
       const which = btn.dataset.which;
       state.homeFilterOpen = state.homeFilterOpen === which ? null : which;
@@ -17569,8 +17621,11 @@ document.addEventListener('input', (e) => {
   }
   if (a === 'manual-search-input') {
     state.query = t.value;
-    // Live-Re-Render der Home-Treffer (Fokus bleibt durch focus-restore in render() erhalten)
-    if (state.view === 'home') render();
+    // Live-Update der Home-Treffer — KEIN voller render(), sonst wird der Input zerstört
+    // und iOS Safari setzt die Tastatur (123/ABC) bei jedem Tastendruck zurück.
+    // Wir updaten stattdessen nur den Content unterhalb des Input-Feldes per
+    // partial-render-Funktion (siehe updateHomeSearchArea).
+    if (state.view === 'home') updateHomeSearchArea();
   }
   else if (a === 'query-input') state.query = t.value;
   else if (a === 'voice-field') {
