@@ -1209,7 +1209,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.31';
+const APP_VERSION = 'v2.32';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -12475,9 +12475,9 @@ function renderCustomerTable(rows, userKind, distName, isMe) {
                 <td style="padding:10px 12px;vertical-align:top;text-align:right;color:var(--c-ink-subtle);white-space:nowrap">
                   ${kind === 'distributor' ? (() => {
                     const link = appLinkWithLang('', { dist: u._recordId });
-                    return `<button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" title="Distributor-Invite-Link kopieren: ${link.replace(/"/g,'&quot;')}" style="padding:5px 9px;background:#7A5400;color:#FFF8E1;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('share', 10, 2.6)} Link</button>`;
+                    return `<button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" title="Distributor-Invite-Link kopieren: ${link.replace(/"/g,'&quot;')}" style="padding:5px 9px;background:#7A5400;color:#FFF8E1;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('share', 10, 2.6)} Link</button>`;
                   })() : ''}
-                  ${isNew ? `<button data-action="user-mark-reviewed" data-rid="${u._recordId}" onclick="event.stopPropagation()" title="Als geprüft markieren" style="padding:5px 9px;background:#0A6B2C;color:#fff;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('check', 10, 2.7)} Geprüft</button>` : ''}
+                  ${isNew ? `<button data-action="user-mark-reviewed" data-rid="${u._recordId}" title="Als geprüft markieren" style="padding:5px 9px;background:#0A6B2C;color:#fff;border:0;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-right:5px;vertical-align:middle">${svg('check', 10, 2.7)} Geprüft</button>` : ''}
                   ${svg('chevron-right', 13, 2.5)}
                 </td>
               </tr>
