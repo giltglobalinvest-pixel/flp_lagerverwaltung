@@ -1213,7 +1213,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.34';
+const APP_VERSION = 'v2.35';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3659,6 +3659,44 @@ const I18N = {
     'landing.video.sub': 'Wir generalüberholen Frequenzumrichter für Aufzüge — ein kurzer Einblick in unsere Werkstatt.',
     'landing.video.lazyHint': 'Klick zum Abspielen — YouTube wird erst nach deinem OK geladen (kein Cookie ohne Aktion).',
     'landing.video.privacyHint': 'Eingebettet via youtube-nocookie.com — datenschutzfreundliche Variante.',
+    'home.search.pill': 'Suche',
+    'home.search.title': 'Was suchst<br>du heute?',
+    'home.search.placeholder': 'Modell, Hersteller, Tracker, Lagerort …',
+    'home.ai.pill': 'KI · Foto-Suche',
+    'home.ai.title': 'Foto vom<br>Typenschild',
+    'home.tile.newItem': 'Neuer Artikel',
+    'home.tile.newItem.sub': 'Schritt-für-Schritt-Wizard',
+    'home.tile.bestand': 'Bestand',
+    'home.tile.bestand.sub': '{n} Artikel',
+    'home.tile.list': 'Meine Liste',
+    'home.tile.list.empty': 'Leer · Artikel hinzufügen',
+    'home.tile.list.n': '{n} Artikel gemerkt',
+    'home.tile.dashboard': 'Dashboard',
+    'home.tile.dashboard.sub': 'Verkäufe · Eingänge · Filter',
+    'home.tile.users': 'User verwalten',
+    'home.tile.users.sub': 'Zugänge · WhatsApp-Einladung',
+    'home.tile.integrations': 'Integrationen',
+    'home.tile.integrations.ready': 'Freshdesk-Proxy aktiv',
+    'home.tile.integrations.setup': 'Freshdesk einrichten',
+    'home.tile.returns': 'Offene Rücksendungen',
+    'home.tile.returns.sub.one': '{n} Artikel wartet auf Eingang',
+    'home.tile.returns.sub.other': '{n} Artikel warten auf Eingang',
+    'home.recent': 'Zuletzt bearbeitet',
+    'home.recent.empty': 'Noch keine Artikel angelegt',
+    'home.recent.empty.sub': 'Tippe auf „Neuer Artikel" oder „Foto-Suche"',
+    'home.bottom.search': 'Suchen',
+    'home.bottom.new': 'Neu',
+    'home.bottom.bestand': 'Bestand',
+    'home.brand.firms.one': '{n} Firma · Wechseln',
+    'home.brand.firms.other': '{n} Firmen · Wechseln',
+    'home.filter.cond': 'Zustand',
+    'home.filter.func': 'Funktion',
+    'home.filter.all': 'Alle',
+    'home.results.none': 'Keine Treffer',
+    'home.results.one': '1 Treffer',
+    'home.results.n': '{n} Treffer',
+    'home.results.showAll': 'Alle {n} anzeigen',
+    'home.results.noneFor': 'Keine Artikel zu „{q}". Versuche eine andere Schreibweise oder die Foto-Suche.',
 
     // Foto-Such-Ergebnis-Screen (renderPhotoResults)
     'photoResults.title': 'Foto-Suche',
@@ -4002,6 +4040,44 @@ const I18N = {
     'landing.video.sub': 'We refurbish lift frequency inverters — a short look inside our workshop.',
     'landing.video.lazyHint': 'Click to play — YouTube only loads after your consent (no cookie without action).',
     'landing.video.privacyHint': 'Embedded via youtube-nocookie.com — privacy-friendly variant.',
+    'home.search.pill': 'Search',
+    'home.search.title': 'What are you<br>looking for?',
+    'home.search.placeholder': 'Model, brand, tracker, location …',
+    'home.ai.pill': 'AI · Photo search',
+    'home.ai.title': 'Photo of the<br>nameplate',
+    'home.tile.newItem': 'New item',
+    'home.tile.newItem.sub': 'Step-by-step wizard',
+    'home.tile.bestand': 'Stock',
+    'home.tile.bestand.sub': '{n} items',
+    'home.tile.list': 'My list',
+    'home.tile.list.empty': 'Empty · add items',
+    'home.tile.list.n': '{n} items saved',
+    'home.tile.dashboard': 'Dashboard',
+    'home.tile.dashboard.sub': 'Sales · Receipts · Filters',
+    'home.tile.users': 'Manage users',
+    'home.tile.users.sub': 'Access · WhatsApp invite',
+    'home.tile.integrations': 'Integrations',
+    'home.tile.integrations.ready': 'Freshdesk proxy active',
+    'home.tile.integrations.setup': 'Set up Freshdesk',
+    'home.tile.returns': 'Open returns',
+    'home.tile.returns.sub.one': '{n} item waiting to arrive',
+    'home.tile.returns.sub.other': '{n} items waiting to arrive',
+    'home.recent': 'Recently edited',
+    'home.recent.empty': 'No items yet',
+    'home.recent.empty.sub': 'Tap "New item" or "Photo search"',
+    'home.bottom.search': 'Search',
+    'home.bottom.new': 'New',
+    'home.bottom.bestand': 'Stock',
+    'home.brand.firms.one': '{n} company · Switch',
+    'home.brand.firms.other': '{n} companies · Switch',
+    'home.filter.cond': 'Condition',
+    'home.filter.func': 'Function',
+    'home.filter.all': 'All',
+    'home.results.none': 'No matches',
+    'home.results.one': '1 match',
+    'home.results.n': '{n} matches',
+    'home.results.showAll': 'Show all {n}',
+    'home.results.noneFor': 'No items for "{q}". Try a different spelling or the photo search.',
 
     // Photo search results (renderPhotoResults)
     'photoResults.title': 'Photo search',
@@ -4328,6 +4404,44 @@ const I18N = {
     'landing.video.sub': 'Reacondicionamos variadores de frecuencia para ascensores — un vistazo a nuestro taller.',
     'landing.video.lazyHint': 'Haz clic para reproducir — YouTube solo se carga tras tu OK (sin cookies sin acción).',
     'landing.video.privacyHint': 'Insertado vía youtube-nocookie.com — variante respetuosa con la privacidad.',
+    'home.search.pill': 'Buscar',
+    'home.search.title': '¿Qué buscas<br>hoy?',
+    'home.search.placeholder': 'Modelo, fabricante, tracker, ubicación …',
+    'home.ai.pill': 'IA · Búsqueda por foto',
+    'home.ai.title': 'Foto de la<br>placa',
+    'home.tile.newItem': 'Nuevo artículo',
+    'home.tile.newItem.sub': 'Asistente paso a paso',
+    'home.tile.bestand': 'Stock',
+    'home.tile.bestand.sub': '{n} artículos',
+    'home.tile.list': 'Mi lista',
+    'home.tile.list.empty': 'Vacía · añade artículos',
+    'home.tile.list.n': '{n} artículos guardados',
+    'home.tile.dashboard': 'Panel',
+    'home.tile.dashboard.sub': 'Ventas · Entradas · Filtros',
+    'home.tile.users': 'Gestionar usuarios',
+    'home.tile.users.sub': 'Accesos · Invitación WhatsApp',
+    'home.tile.integrations': 'Integraciones',
+    'home.tile.integrations.ready': 'Proxy Freshdesk activo',
+    'home.tile.integrations.setup': 'Configurar Freshdesk',
+    'home.tile.returns': 'Devoluciones pendientes',
+    'home.tile.returns.sub.one': '{n} artículo esperando',
+    'home.tile.returns.sub.other': '{n} artículos esperando',
+    'home.recent': 'Editado recientemente',
+    'home.recent.empty': 'Aún sin artículos',
+    'home.recent.empty.sub': 'Toca «Nuevo artículo» o «Búsqueda por foto»',
+    'home.bottom.search': 'Buscar',
+    'home.bottom.new': 'Nuevo',
+    'home.bottom.bestand': 'Stock',
+    'home.brand.firms.one': '{n} empresa · Cambiar',
+    'home.brand.firms.other': '{n} empresas · Cambiar',
+    'home.filter.cond': 'Estado',
+    'home.filter.func': 'Función',
+    'home.filter.all': 'Todos',
+    'home.results.none': 'Sin resultados',
+    'home.results.one': '1 resultado',
+    'home.results.n': '{n} resultados',
+    'home.results.showAll': 'Ver todos los {n}',
+    'home.results.noneFor': 'Sin artículos para «{q}». Prueba otra ortografía o la búsqueda por foto.',
 
     // Resultados búsqueda por foto (renderPhotoResults)
     'photoResults.title': 'Búsqueda por foto',
@@ -4654,6 +4768,44 @@ const I18N = {
     'landing.video.sub': 'Wij reviseren frequentieregelaars voor liften — een korte kijk in onze werkplaats.',
     'landing.video.lazyHint': 'Klik om af te spelen — YouTube wordt pas geladen na jouw toestemming (geen cookie zonder actie).',
     'landing.video.privacyHint': 'Ingebed via youtube-nocookie.com — privacyvriendelijke variant.',
+    'home.search.pill': 'Zoeken',
+    'home.search.title': 'Wat zoek je<br>vandaag?',
+    'home.search.placeholder': 'Model, merk, tracker, locatie …',
+    'home.ai.pill': 'AI · Foto-zoeken',
+    'home.ai.title': 'Foto van het<br>typeplaatje',
+    'home.tile.newItem': 'Nieuw artikel',
+    'home.tile.newItem.sub': 'Stap-voor-stap wizard',
+    'home.tile.bestand': 'Voorraad',
+    'home.tile.bestand.sub': '{n} artikelen',
+    'home.tile.list': 'Mijn lijst',
+    'home.tile.list.empty': 'Leeg · voeg artikelen toe',
+    'home.tile.list.n': '{n} artikelen opgeslagen',
+    'home.tile.dashboard': 'Dashboard',
+    'home.tile.dashboard.sub': 'Verkopen · Inkomend · Filters',
+    'home.tile.users': 'Gebruikers beheren',
+    'home.tile.users.sub': 'Toegang · WhatsApp-uitnodiging',
+    'home.tile.integrations': 'Integraties',
+    'home.tile.integrations.ready': 'Freshdesk-proxy actief',
+    'home.tile.integrations.setup': 'Freshdesk instellen',
+    'home.tile.returns': 'Openstaande retouren',
+    'home.tile.returns.sub.one': '{n} artikel wacht op binnenkomst',
+    'home.tile.returns.sub.other': '{n} artikelen wachten op binnenkomst',
+    'home.recent': 'Recent bewerkt',
+    'home.recent.empty': 'Nog geen artikelen',
+    'home.recent.empty.sub': 'Tik op „Nieuw artikel" of „Foto-zoeken"',
+    'home.bottom.search': 'Zoeken',
+    'home.bottom.new': 'Nieuw',
+    'home.bottom.bestand': 'Voorraad',
+    'home.brand.firms.one': '{n} bedrijf · Wisselen',
+    'home.brand.firms.other': '{n} bedrijven · Wisselen',
+    'home.filter.cond': 'Staat',
+    'home.filter.func': 'Functie',
+    'home.filter.all': 'Alle',
+    'home.results.none': 'Geen resultaten',
+    'home.results.one': '1 resultaat',
+    'home.results.n': '{n} resultaten',
+    'home.results.showAll': 'Toon alle {n}',
+    'home.results.noneFor': 'Geen artikelen voor „{q}". Probeer een andere spelling of de foto-zoekfunctie.',
 
     // Foto-zoek-resultaten (renderPhotoResults)
     'photoResults.title': 'Foto-zoeken',
@@ -4980,6 +5132,44 @@ const I18N = {
     'landing.video.sub': 'Nous reconditionnons les variateurs de fréquence pour ascenseurs — un aperçu de notre atelier.',
     'landing.video.lazyHint': 'Clique pour lire — YouTube ne se charge qu’après ton OK (pas de cookie sans action).',
     'landing.video.privacyHint': 'Intégré via youtube-nocookie.com — variante respectueuse de la vie privée.',
+    'home.search.pill': 'Recherche',
+    'home.search.title': 'Que cherches-tu<br>aujourd\'hui ?',
+    'home.search.placeholder': 'Modèle, fabricant, tracker, emplacement …',
+    'home.ai.pill': 'IA · Recherche par photo',
+    'home.ai.title': 'Photo de la<br>plaque',
+    'home.tile.newItem': 'Nouvel article',
+    'home.tile.newItem.sub': 'Assistant étape par étape',
+    'home.tile.bestand': 'Stock',
+    'home.tile.bestand.sub': '{n} articles',
+    'home.tile.list': 'Ma liste',
+    'home.tile.list.empty': 'Vide · ajoute des articles',
+    'home.tile.list.n': '{n} articles enregistrés',
+    'home.tile.dashboard': 'Tableau de bord',
+    'home.tile.dashboard.sub': 'Ventes · Entrées · Filtres',
+    'home.tile.users': 'Gérer les utilisateurs',
+    'home.tile.users.sub': 'Accès · Invitation WhatsApp',
+    'home.tile.integrations': 'Intégrations',
+    'home.tile.integrations.ready': 'Proxy Freshdesk actif',
+    'home.tile.integrations.setup': 'Configurer Freshdesk',
+    'home.tile.returns': 'Retours en attente',
+    'home.tile.returns.sub.one': '{n} article attend la réception',
+    'home.tile.returns.sub.other': '{n} articles attendent la réception',
+    'home.recent': 'Modifié récemment',
+    'home.recent.empty': 'Aucun article pour le moment',
+    'home.recent.empty.sub': 'Touche « Nouvel article » ou « Recherche par photo »',
+    'home.bottom.search': 'Rechercher',
+    'home.bottom.new': 'Nouveau',
+    'home.bottom.bestand': 'Stock',
+    'home.brand.firms.one': '{n} entreprise · Changer',
+    'home.brand.firms.other': '{n} entreprises · Changer',
+    'home.filter.cond': 'État',
+    'home.filter.func': 'Fonction',
+    'home.filter.all': 'Tous',
+    'home.results.none': 'Aucun résultat',
+    'home.results.one': '1 résultat',
+    'home.results.n': '{n} résultats',
+    'home.results.showAll': 'Voir tous les {n}',
+    'home.results.noneFor': 'Aucun article pour « {q} ». Essaie une autre orthographe ou la recherche par photo.',
 
     // Résultats recherche par photo (renderPhotoResults)
     'photoResults.title': 'Recherche par photo',
@@ -9612,7 +9802,7 @@ function renderHome() {
       <div class="brand__logo" style="background:${state.company?.color || 'var(--c-ink)'}">${svg('boxes', 18, 2.2)}</div>
       <div>
         <div class="brand__name">${state.company?.name || 'Lager'}</div>
-        <div class="brand__sub" style="display:inline-flex;align-items:center;gap:4px">${state.companies.length} ${state.companies.length === 1 ? 'Firma' : 'Firmen'} \u00b7 Wechseln ${svg('chevron-down', 9, 2.5)}</div>
+        <div class="brand__sub" style="display:inline-flex;align-items:center;gap:4px">${t(state.companies.length === 1 ? 'home.brand.firms.one' : 'home.brand.firms.other', { n: state.companies.length })} ${svg('chevron-down', 9, 2.5)}</div>
       </div>
     </button>
     <div style="display:flex;gap:4px;align-items:center">
@@ -9636,15 +9826,15 @@ function renderHome() {
     <!-- Blaue Such-Kachel — enthält das Suchfeld direkt -->
     <div class="hero hero--search">
       <div class="hero__head">
-        <div class="pill pill--ghost">${svg('search', 11, 2.5)} Suche</div>
+        <div class="pill pill--ghost">${svg('search', 11, 2.5)} ${t('home.search.pill')}</div>
       </div>
-      <h1 class="hero__title">Was suchst<br>du heute?</h1>
+      <h1 class="hero__title">${t('home.search.title')}</h1>
       <div class="hero__search${q ? ' hero__search--has-value' : ''}">
         <span class="hero__search-icon">${svg('search', 16, 2.4)}</span>
         <input
           type="text"
           class="hero__search-input"
-          placeholder="Modell, Hersteller, Tracker, Lagerort …"
+          placeholder="${t('home.search.placeholder').replace(/\"/g, '&quot;')}"
           data-action="manual-search-input"
           value="${q.replace(/"/g, '&quot;')}"
           autocomplete="off"
@@ -9660,9 +9850,9 @@ function renderHome() {
     <div id="homeSearchArea">${renderHomeSearchArea()}</div>
   </div>
   <div class="bottom-bar">
-    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} Suchen</button>
-    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
-    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
+    <button class="bottom-bar__btn bottom-bar__btn--active">${svg('search', 15, 2.4)} ${t('home.bottom.search')}</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} ${t('home.bottom.new')}</button>`}
+    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} ${t('home.bottom.bestand')}</button>
   </div>
 </div>`;
 }
@@ -9697,13 +9887,13 @@ function renderHomeSearchArea() {
       return `
         <div class="home-filterbar">
           <button class="home-filterpill ${condF !== 'all' ? 'home-filterpill--active' : ''} ${open === 'cond' ? 'home-filterpill--open' : ''}" data-action="home-filter-toggle" data-which="cond">
-            <span class="home-filterpill__label">Zustand</span>
-            <span class="home-filterpill__val">${condCfg ? `${svg(condCfg.icon, 10, 2.5)} ${condCfg.label}` : 'Alle'}</span>
+            <span class="home-filterpill__label">${t('home.filter.cond')}</span>
+            <span class="home-filterpill__val">${condCfg ? `${svg(condCfg.icon, 10, 2.5)} ${condCfg.label}` : t('home.filter.all')}</span>
             ${svg(open === 'cond' ? 'chevron-up' : 'chevron-down', 11, 2.5)}
           </button>
           <button class="home-filterpill ${funcF !== 'all' ? 'home-filterpill--active' : ''} ${open === 'func' ? 'home-filterpill--open' : ''}" data-action="home-filter-toggle" data-which="func">
-            <span class="home-filterpill__label">Funktion</span>
-            <span class="home-filterpill__val">${funcCfg ? `${svg(funcCfg.icon, 10, 2.5)} ${funcCfg.short || funcCfg.label}` : 'Alle'}</span>
+            <span class="home-filterpill__label">${t('home.filter.func')}</span>
+            <span class="home-filterpill__val">${funcCfg ? `${svg(funcCfg.icon, 10, 2.5)} ${funcCfg.short || funcCfg.label}` : t('home.filter.all')}</span>
             ${svg(open === 'func' ? 'chevron-up' : 'chevron-down', 11, 2.5)}
           </button>
         </div>
@@ -9740,12 +9930,12 @@ function renderHomeSearchArea() {
       <!-- Live-Suchergebnisse -->
       <div class="home-results">
         <div class="home-results__head">
-          <span class="home-results__count">${totalLive === 0 ? 'Keine Treffer' : totalLive === 1 ? '1 Treffer' : totalLive + ' Treffer'}</span>
-          ${totalLive > topLive.length ? `<button class="home-results__more" data-action="go-results">Alle ${totalLive} anzeigen ${svg('arrow-right', 11, 2.4)}</button>` : ''}
+          <span class="home-results__count">${totalLive === 0 ? t('home.results.none') : totalLive === 1 ? t('home.results.one') : t('home.results.n', { n: totalLive })}</span>
+          ${totalLive > topLive.length ? `<button class="home-results__more" data-action="go-results">${t('home.results.showAll', { n: totalLive })} ${svg('arrow-right', 11, 2.4)}</button>` : ''}
         </div>
         ${topLive.length === 0 ? `
           <div class="tile" style="padding:18px;text-align:center;font-size:12.5px;font-weight:500;color:var(--c-ink-mute)">
-            Keine Artikel zu „${q.replace(/</g, '&lt;')}". Versuche eine andere Schreibweise oder die Foto-Suche.
+            ${t('home.results.noneFor', { q: q.replace(/</g, '&lt;') })}
           </div>
         ` : `
           <div class="compact-list">
@@ -9770,10 +9960,10 @@ function renderHomeSearchArea() {
       <!-- Foto-Suche-Hero (prominent, wenn nicht gerade getippt wird) — auf iPad ausgeblendet, weil Typenschild-Fotos ein Mobile-Workflow sind -->
       <button class="hero hero--ai" data-action="go-photo-search">
         <div class="hero__head">
-          <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} KI \u00b7 Foto-Suche</div>
+          <div class="pill pill--blue-soft">${svg('sparkles', 11, 2.5)} ${t('home.ai.pill')}</div>
           <div class="hero__icon-circle">${svg('camera', 16, 2.4)}</div>
         </div>
-        <h1 class="hero__title">Foto vom<br>Typenschild</h1>
+        <h1 class="hero__title">${t('home.ai.title')}</h1>
         <div class="hero__foot" style="gap:8px">
           <div class="pill pill--blue-soft" style="font-family:var(--f-mono)">${svg('scan-text', 11, 2.5)} OCR</div>
           <div class="pill pill--neutral" style="font-family:var(--f-mono)">${svg('eye', 11, 2.5)} Vision</div>
@@ -9784,22 +9974,22 @@ function renderHomeSearchArea() {
 
     ${!isSearching ? `<div class="action-grid">
       ${[
-        ...(isTabletMode() ? [] : [{ icon: 'plus', title: 'Neuer Artikel', sub: 'Schritt-für-Schritt-Wizard', action: 'wizard-start' }]),
-        { icon: 'boxes', title: 'Bestand', sub: `${inventory.length} Artikel`, action: 'go-bestand' },
+        ...(isTabletMode() ? [] : [{ icon: 'plus', title: t('home.tile.newItem'), sub: t('home.tile.newItem.sub'), action: 'wizard-start' }]),
+        { icon: 'boxes', title: t('home.tile.bestand'), sub: t('home.tile.bestand.sub', { n: inventory.length }), action: 'go-bestand' },
         ...((() => {
           const n = (state.itemList || []).filter(id => (inventory || []).some(it => it.id === id)).length;
-          return [{ icon: 'list-checks', title: 'Meine Liste', sub: n === 0 ? 'Leer \u00b7 Artikel hinzufügen' : `${n} ${n === 1 ? 'Artikel' : 'Artikel'} gemerkt`, action: 'go-list' }];
+          return [{ icon: 'list-checks', title: t('home.tile.list'), sub: n === 0 ? t('home.tile.list.empty') : t('home.tile.list.n', { n }), action: 'go-list' }];
         })()),
-        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Dashboard', sub: 'Verkäufe \u00b7 Eingänge \u00b7 Filter', action: 'go-dashboard' }] : []),
-        ...(isAdmin() ? [{ icon: 'user', title: 'User verwalten', sub: 'Zugänge \u00b7 WhatsApp-Einladung', action: 'go-users' }] : []),
-        ...(isAdmin() ? [{ icon: 'sparkles', title: 'Integrationen', sub: APP_KEYS.inquiryProxyUrl ? 'Freshdesk-Proxy aktiv' : 'Freshdesk einrichten', action: 'go-integrations' }] : []),
+        ...(isAdmin() ? [{ icon: 'sparkles', title: t('home.tile.dashboard'), sub: t('home.tile.dashboard.sub'), action: 'go-dashboard' }] : []),
+        ...(isAdmin() ? [{ icon: 'user', title: t('home.tile.users'), sub: t('home.tile.users.sub'), action: 'go-users' }] : []),
+        ...(isAdmin() ? [{ icon: 'sparkles', title: t('home.tile.integrations'), sub: APP_KEYS.inquiryProxyUrl ? t('home.tile.integrations.ready') : t('home.tile.integrations.setup'), action: 'go-integrations' }] : []),
         ...((() => {
           const pr = getPendingReturns();
           if (pr.length === 0) return [];
           return [{
             icon: 'rotate-ccw',
-            title: 'Offene Rücksendungen',
-            sub: `${pr.length} ${pr.length === 1 ? 'Artikel wartet' : 'Artikel warten'} auf Eingang`,
+            title: t('home.tile.returns'),
+            sub: t(pr.length === 1 ? 'home.tile.returns.sub.one' : 'home.tile.returns.sub.other', { n: pr.length }),
             action: 'go-pending-returns',
             orange: true,
           }];
@@ -9811,12 +10001,12 @@ function renderHomeSearchArea() {
         </button>`).join('')}
     </div>
     <div>
-      <div class="section-head"><h2 class="section-head__title">Zuletzt bearbeitet</h2></div>
+      <div class="section-head"><h2 class="section-head__title">${t('home.recent')}</h2></div>
       <div class="compact-list">
         ${inventory.length === 0 ? `
           <div class="tile" style="padding:24px;text-align:center">
-            <div style="font-size:13px;font-weight:600;color:var(--c-ink-soft)">Noch keine Artikel angelegt</div>
-            <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">Tippe auf \u201eNeuer Artikel\u201c oder \u201eFoto-Suche\u201c</div>
+            <div style="font-size:13px;font-weight:600;color:var(--c-ink-soft)">${t('home.recent.empty')}</div>
+            <div style="font-size:11.5px;font-weight:500;color:var(--c-ink-mute);margin-top:4px">${t('home.recent.empty.sub')}</div>
           </div>` :
         [...inventory].sort((a,b) => Date.parse(b.updated || 0) - Date.parse(a.updated || 0)).slice(0, 3).map(it => `
           <button class="compact-item" data-action="select-item" data-id="${it.id}">
@@ -10227,7 +10417,7 @@ function renderBestand() {
 
   <div class="bottom-bar">
     <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
-    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} ${t('home.bottom.new')}</button>`}
     <button class="bottom-bar__btn bottom-bar__btn--active">${svg('boxes', 15, 2.4)} Bestand</button>
   </div>
 </div>`;
@@ -11748,8 +11938,8 @@ function renderItemList() {
 
   <div class="bottom-bar">
     <button class="bottom-bar__btn" data-action="go-home">${svg('search', 15, 2.4)} Suchen</button>
-    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} Neu</button>`}
-    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} Bestand</button>
+    ${isTabletMode() ? '' : `<button class="bottom-bar__btn" data-action="wizard-start">${svg('plus', 15, 2.4)} ${t('home.bottom.new')}</button>`}
+    <button class="bottom-bar__btn" data-action="go-bestand">${svg('boxes', 15, 2.4)} ${t('home.bottom.bestand')}</button>
   </div>
 
   ${state.listClearConfirm ? `
