@@ -1235,7 +1235,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.43';
+const APP_VERSION = 'v2.44';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2289,13 +2289,15 @@ async function loginWithUserKey(userKey) {
     state.lang = 'de';
     try { localStorage.setItem('flp_lang', 'de'); } catch(e) {}
   }
-  // Wenn dieser User einem Distributor unterstellt ist \u2192 dessen Profil nachladen
-  // (f\u00fcr Marge + Show-Prices-Flag bei der Preis-Anzeige)
+  // Wenn dieser User einem Distributor ODER Partner unterstellt ist \u2192 dessen Profil nachladen.
+  // APP_KEYS.parentDistributor wird auch f\u00fcr Partner als \u201eCo-Brand-Source" verwendet
+  // (gleicher Speicher, gleiche Logo-Anzeige-Logik).
   APP_KEYS.parentDistributor = null;
-  if (APP_KEYS.user.parentDistributorId) {
+  const parentRid = APP_KEYS.user.parentDistributorId || APP_KEYS.user.parentPartnerId;
+  if (parentRid) {
     try {
       const pdRes = await fetch(
-        'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User/' + encodeURIComponent(APP_KEYS.user.parentDistributorId),
+        'https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/User/' + encodeURIComponent(parentRid),
         { headers }
       );
       if (pdRes.ok) {
@@ -2918,7 +2920,11 @@ function isCustomer() { return userRole() === 'customer'; }
 // Distributor-Helfer (Distributor = Customer + Flag is_distributor)
 function isDistributor() { return isCustomer() && !!APP_KEYS.user?.isDistributor; }
 function isUnderDistributor() { return isCustomer() && !!APP_KEYS.user?.parentDistributorId && !!APP_KEYS.parentDistributor; }
-function isRegularCustomer() { return isCustomer() && !isDistributor() && !isUnderDistributor(); }
+// Partner = Customer mit Co-Brand-Logo (eigene Login-Seite), aber OHNE Distributor-Pricing.
+function isPartner() { return isCustomer() && !!APP_KEYS.user?.isPartner; }
+function isUnderPartner() { return isCustomer() && !!APP_KEYS.user?.parentPartnerId && !!APP_KEYS.parentDistributor; }
+// Regulärer Direktkunde: kein Distributor + kein Partner + nicht unter einem dieser
+function isRegularCustomer() { return isCustomer() && !isDistributor() && !isPartner() && !isUnderDistributor() && !isUnderPartner(); }
 // "Neue" User = noch nicht vom Admin/Distributor geprüfte Selbst-Registrierungen.
 // Wird visuell hervorgehoben (NEU-Badge + gelber Rand) bis jemand "Geprüft" klickt.
 function isNewUser(u) {
@@ -3039,9 +3045,15 @@ function whatsappShareBtn(opts = {}) {
 function shareLinkExtra() {
   const u = APP_KEYS.user;
   if (!u) return {};
+  // Distributor / Partner selbst → eigene ID dranhängen (Co-Branding für Empfänger)
   if (isDistributor() && u._recordId) return { dist: u._recordId };
+  if (isPartner() && u._recordId) return { partner: u._recordId };
+  // Sub-Kunden → ID des übergeordneten Distributors/Partners
   if (isUnderDistributor() && APP_KEYS.parentDistributor?._recordId) {
     return { dist: APP_KEYS.parentDistributor._recordId };
+  }
+  if (isUnderPartner() && APP_KEYS.parentDistributor?._recordId) {
+    return { partner: APP_KEYS.parentDistributor._recordId };
   }
   return {};
 }
@@ -3157,8 +3169,15 @@ const USER_FIELDS = [
   { name: 'parent_distributor_id', type: 'singleLineText' },
   // show_prices: '1' = dieser Sub-Customer darf Preise sehen (vom Distributor freigegeben), default leer/aus
   { name: 'show_prices', type: 'singleLineText' },
-  // distributor_logo: Distributor-Logo (Attachment, max. 1 Datei) — wird neben FLP-Logo beim Sub-Customer angezeigt
+  // distributor_logo: Co-Brand-Logo (Attachment, max. 1 Datei) — neben FLP-Logo bei Sub-Customer
+  // Wird AUCH für Partner verwendet (gleicher Speicher-Slot, kein zweites Feld nötig).
   { name: 'distributor_logo', type: 'multipleAttachments' },
+  // ── Partner-Felder ──────────────────────────────────────────
+  // is_partner: '1' = User ist Partner (Kunde mit eigenem Logo + co-brandeter Login-Seite).
+  // Unterschied zu Distributor: KEIN Rabatt, KEINE Marge, KEINE Preis-Verwaltung — nur Co-Branding.
+  { name: 'is_partner', type: 'singleLineText' },
+  // parent_partner_id: recordId des Partners, dem dieser Sub-Customer gehört (analog parent_distributor_id)
+  { name: 'parent_partner_id', type: 'singleLineText' },
   // reviewed: '1' = Admin/Distributor hat die Neu-Registrierung geprüft → kein „NEU"-Marker mehr.
   // Leer = noch nicht geprüft (= frische Registrierung, wird visuell hervorgehoben).
   { name: 'reviewed', type: 'singleLineText' },
@@ -3207,7 +3226,11 @@ function recordToUser(rec) {
     // Pro Sub-Customer: vom Distributor freigegeben? (default false)
     showPrices: String(f.show_prices || '').trim() === '1' || String(f.show_prices || '').toLowerCase() === 'true',
     // distributor_logo: Array von Airtable-Attachments [{ url, thumbnails: { small, large, full } }]
+    // (wird auch für Partner-Co-Branding genutzt)
     distributorLogo: Array.isArray(f.distributor_logo) ? f.distributor_logo : [],
+    // Partner-Felder (Customer mit Co-Brand-Logo, ohne Distributor-Pricing)
+    isPartner: String(f.is_partner || '').trim() === '1' || String(f.is_partner || '').toLowerCase() === 'true',
+    parentPartnerId: f.parent_partner_id || '',
     // reviewed: '1' = Neu-Registrierung wurde vom Admin/Distributor geprüft (kein NEU-Badge mehr)
     reviewed: String(f.reviewed || '').trim() === '1' || String(f.reviewed || '').toLowerCase() === 'true',
     created: f.created || '',
@@ -3546,6 +3569,9 @@ async function persistUser(u) {
   if (u.distributorShowPrices !== undefined) fields.distributor_show_prices = u.distributorShowPrices ? '1' : '';
   if (u.distributorInquiryEmail !== undefined) fields.distributor_inquiry_email = u.distributorInquiryEmail || '';
   if (u.parentDistributorId !== undefined) fields.parent_distributor_id = u.parentDistributorId || '';
+  // Partner-Felder (Customer mit Co-Brand-Logo, ohne Distributor-Pricing)
+  if (u.isPartner !== undefined) fields.is_partner = u.isPartner ? '1' : '';
+  if (u.parentPartnerId !== undefined) fields.parent_partner_id = u.parentPartnerId || '';
   if (u.showPrices !== undefined) fields.show_prices = u.showPrices ? '1' : '';
   if (u.lang !== undefined) fields.lang = u.lang || '';
   if (u.reviewed !== undefined) fields.reviewed = u.reviewed ? '1' : '';
@@ -7769,8 +7795,8 @@ async function fetchSignupDistributor(recordId) {
     if (!r.ok) return;
     const data = await r.json();
     const u = recordToUser(data);
-    // Nur akzeptieren wenn tats\u00e4chlich ein Distributor
-    if (!u.isDistributor) return;
+    // Akzeptieren wenn Distributor ODER Partner \u2014 beide nutzen das gleiche Co-Branding
+    if (!u.isDistributor && !u.isPartner) return;
     state.signupDistributor = u;
     // Re-Render falls auf einer Pre-Login-View
     if (!state.loggedIn) render();
@@ -13097,11 +13123,16 @@ function renderStatistics() {
     if (u.role === 'admin') return 'admin';
     if (u.role !== 'customer') return 'staff';
     if (u.isDistributor) return 'distributor';
+    if (u.isPartner) return 'partner';
     if (u.parentDistributorId) return 'subcustomer';
+    if (u.parentPartnerId) return 'subpartner';
     return 'directcustomer';
   };
   const distById = new Map();
   for (const u of users) if (u.isDistributor) distById.set(u._recordId, u);
+  // Partner-Lookup (analog zu distById) — für „via Partner XY"-Anzeige bei Sub-Kunden
+  const partnerById = new Map();
+  for (const u of users) if (u.isPartner) partnerById.set(u._recordId, u);
 
   // Aggregationen
   const byKind = { admin: 0, staff: 0, distributor: 0, subcustomer: 0, directcustomer: 0 };
@@ -14876,7 +14907,9 @@ function renderUsers() {
     if (u.role === 'admin') return 'admin';
     if (u.role !== 'customer') return 'staff';
     if (u.isDistributor) return 'distributor';
+    if (u.isPartner) return 'partner';
     if (u.parentDistributorId) return 'subcustomer';
+    if (u.parentPartnerId) return 'subpartner';
     return 'directcustomer';
   };
   // Lookup: recordId → distributor user (für „via XYZ"-Label)
@@ -14890,19 +14923,21 @@ function renderUsers() {
   const adminCount   = users.filter(u => userKind(u) === 'admin').length;
   const staffCount   = users.filter(u => userKind(u) === 'staff').length;
   const distCount    = users.filter(u => userKind(u) === 'distributor').length;
-  const subCount     = users.filter(u => userKind(u) === 'subcustomer').length;
-  const customerCount= users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer').length;
+  const partnerCount = users.filter(u => userKind(u) === 'partner').length;
+  const subCount     = users.filter(u => userKind(u) === 'subcustomer' || userKind(u) === 'subpartner').length;
+  const customerCount= users.filter(u => ['directcustomer','subcustomer','distributor','partner','subpartner'].includes(userKind(u))).length;
   const activeCount  = users.filter(u => u.status === 'aktiv').length;
 
-  // Filter-State: 'all' | 'new' | 'staff' | 'customers' | 'distributors' | 'subcustomers'
+  // Filter-State: 'all' | 'new' | 'staff' | 'customers' | 'distributors' | 'partners' | 'subcustomers'
   const filter = state.usersFilter || 'all';
   const newUsersCount = users.filter(isNewUser).length;
   let filtered = users;
   if (filter === 'new')          filtered = users.filter(isNewUser);
   else if (filter === 'staff')        filtered = users.filter(u => userKind(u) === 'admin' || userKind(u) === 'staff');
-  else if (filter === 'customers')   filtered = users.filter(u => userKind(u) === 'directcustomer' || userKind(u) === 'subcustomer' || userKind(u) === 'distributor');
+  else if (filter === 'customers')   filtered = users.filter(u => ['directcustomer','subcustomer','distributor','partner','subpartner'].includes(userKind(u)));
   else if (filter === 'distributors')filtered = users.filter(u => userKind(u) === 'distributor');
-  else if (filter === 'subcustomers')filtered = users.filter(u => userKind(u) === 'subcustomer');
+  else if (filter === 'partners')    filtered = users.filter(u => userKind(u) === 'partner');
+  else if (filter === 'subcustomers')filtered = users.filter(u => userKind(u) === 'subcustomer' || userKind(u) === 'subpartner');
 
   const showTable = (filter === 'customers' || filter === 'subcustomers');
 
@@ -14914,7 +14949,7 @@ function renderUsers() {
   <div class="scroll" style="padding-bottom:24px">
     <div style="padding:0 20px 4px">
       <h1 style="font-size:30px;font-weight:600;line-height:1;letter-spacing:-.025em;margin:0">User</h1>
-      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${users.length} gesamt · ${adminCount + staffCount} intern · ${customerCount} Kunden${distCount ? ' (davon '+distCount+' Distributoren)' : ''} · ${activeCount} aktiv</p>
+      <p style="font-size:12.5px;font-weight:500;color:var(--c-ink-soft);margin:6px 0 0">${users.length} gesamt · ${adminCount + staffCount} intern · ${customerCount} Kunden${distCount ? ' (' + distCount + ' Distrib.' : ''}${partnerCount ? (distCount ? ', ' : ' (') + partnerCount + ' Partner' : ''}${distCount || partnerCount ? ')' : ''} · ${activeCount} aktiv</p>
     </div>
 
     <!-- Filter-Tabs -->
@@ -14925,6 +14960,7 @@ function renderUsers() {
         ['staff',        'Intern',         adminCount + staffCount, null],
         ['customers',    'Kunden',         customerCount,       null],
         ['distributors', 'Distributoren',  distCount,           null],
+        ['partners',     'Partner',        partnerCount,        null],
         ['subcustomers', 'Sub-Kunden',     subCount,            null],
       ].map(([k, label, n, accent]) => {
         const isActive = filter === k;
@@ -15023,16 +15059,18 @@ function renderUsers() {
             const isNew = isNewUser(u);
             const initial = (u.name || u.firstName || '?').trim().charAt(0).toUpperCase();
             // Avatar-Farbe je nach Typ
-            const avBg = kind === 'admin' ? '#FFD45C' : kind === 'distributor' ? '#F5C95B' : kind === 'subcustomer' ? '#DDD6FE' : kind === 'directcustomer' ? '#BFDBFE' : 'var(--c-blue-soft)';
-            const avFg = kind === 'admin' ? '#3A2400' : kind === 'distributor' ? '#3A2400' : kind === 'subcustomer' ? '#5B21B6' : kind === 'directcustomer' ? '#1740B8' : 'var(--c-blue-deep)';
+            const avBg = kind === 'admin' ? '#FFD45C' : kind === 'distributor' ? '#F5C95B' : kind === 'partner' ? '#A7F3D0' : kind === 'subcustomer' ? '#DDD6FE' : kind === 'subpartner' ? '#BBF7D0' : kind === 'directcustomer' ? '#BFDBFE' : 'var(--c-blue-soft)';
+            const avFg = kind === 'admin' ? '#3A2400' : kind === 'distributor' ? '#3A2400' : kind === 'partner' ? '#065F46' : kind === 'subcustomer' ? '#5B21B6' : kind === 'subpartner' ? '#065F46' : kind === 'directcustomer' ? '#1740B8' : 'var(--c-blue-deep)';
             // Links-Rand-Markierung — Neuregistrierungen haben Vorrang (orange glow)
-            const borderLeft = isNew ? 'border-left:4px solid #F59E0B;box-shadow:0 0 0 1px #FCD34D,var(--elev-1);background:#FFFBEB' : (kind === 'subcustomer' ? 'border-left:4px solid #A78BFA' : kind === 'distributor' ? 'border-left:4px solid #F5C95B' : '');
+            const borderLeft = isNew ? 'border-left:4px solid #F59E0B;box-shadow:0 0 0 1px #FCD34D,var(--elev-1);background:#FFFBEB' : (kind === 'subcustomer' ? 'border-left:4px solid #A78BFA' : kind === 'subpartner' ? 'border-left:4px solid #6EE7B7' : kind === 'distributor' ? 'border-left:4px solid #F5C95B' : kind === 'partner' ? 'border-left:4px solid #10B981' : '');
             // Type-Pill
             const typePill = (() => {
               if (kind === 'admin')          return `<span class="pill pill--amber" style="font-size:9px">Admin</span>`;
               if (kind === 'staff')          return `<span class="pill pill--neutral" style="font-size:9px">Intern</span>`;
               if (kind === 'distributor')    return `<span class="pill" style="font-size:9px;background:#FFF8E1;color:#5A3F00;border:1px solid #F5C95B">Distributor</span>`;
+              if (kind === 'partner')        return `<span class="pill" style="font-size:9px;background:#D1FAE5;color:#065F46;border:1px solid #6EE7B7">Partner</span>`;
               if (kind === 'subcustomer')    return `<span class="pill" style="font-size:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #A78BFA">Sub-Kunde</span>`;
+              if (kind === 'subpartner')     return `<span class="pill" style="font-size:9px;background:#D1FAE5;color:#065F46;border:1px solid #6EE7B7">Sub-Partner</span>`;
               return `<span class="pill" style="font-size:9px;background:#DBEAFE;color:#1740B8;border:1px solid #93C5FD">Kunde</span>`;
             })();
             return `
@@ -15050,6 +15088,11 @@ function renderUsers() {
                     ${kind === 'subcustomer' ? `
                       <div style="font-size:10.5px;font-weight:600;color:#5B21B6;margin-top:4px;display:inline-flex;align-items:center;gap:4px">${svg('badge-check', 9, 2.6)} via ${distName(u.parentDistributorId).replace(/</g,'&lt;')}</div>
                     ` : ''}
+                    ${kind === 'subpartner' ? (() => {
+                      const pp = partnerById.get(u.parentPartnerId);
+                      const ppName = pp ? (pp.companyName || pp.name || pp.email || '—') : '— unbekannt —';
+                      return `<div style="font-size:10.5px;font-weight:600;color:#065F46;margin-top:4px;display:inline-flex;align-items:center;gap:4px">${svg('badge-check', 9, 2.6)} via ${ppName.replace(/</g,'&lt;')}</div>`;
+                    })() : ''}
                     ${u.companyName ? `<div style="font-size:11px;color:var(--c-ink-soft);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.companyName.replace(/</g,'&lt;')}</div>` : ''}
                     <div style="font-size:11px;font-weight:500;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.apiKey ? svg('key', 9, 2.5) + ' ' + u.apiKey.slice(0, 14) + (u.apiKey.length > 14 ? '…' : '') : '— kein Schlüssel —'}</div>
                   </div>
@@ -15087,6 +15130,38 @@ function renderUsers() {
                               <span style="font-size:10px;font-weight:700;color:#5A3F00;min-width:22px">${L.code.toUpperCase()}</span>
                               <div style="flex:1;min-width:0;font-size:10px;color:#7A5400;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link.replace(/</g,'&lt;')}</div>
                               <button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:4px 8px;background:#7A5400;color:#FFF8E1;border:0;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px">${svg('copy', 9, 2.5)}</button>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                  `;
+                })() : ''}
+                ${kind === 'partner' ? (() => {
+                  const partnerLink = appLinkWithLang('', { partner: u._recordId });
+                  const isExpanded = state.adminDistLinkOpen === u._recordId;
+                  return `
+                  <div style="padding:10px 12px;background:#ECFDF5;border-top:1px solid #6EE7B7">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <span style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:#065F46;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">${svg('share', 10, 2.5)} Partner-Link (Co-Branding)</span>
+                      <div style="flex:1"></div>
+                      <button data-action="toggle-admin-dist-link" data-rid="${u._recordId}" style="background:transparent;border:0;color:#065F46;padding:2px 6px;cursor:pointer;font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px">${svg('globe', 10, 2.5)} Sprachen ${svg(isExpanded ? 'chevron-up' : 'chevron-down', 10, 2.5)}</button>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:stretch">
+                      <input type="text" readonly value="${partnerLink.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();this.select()" style="flex:1;min-width:0;padding:7px 10px;font-family:var(--f-mono);font-size:11px;background:#fff;border:1px solid rgba(6,95,70,.2);border-radius:6px;color:#065F46;outline:none;overflow:hidden;text-overflow:ellipsis">
+                      <button data-action="copy-lang-link" data-link="${partnerLink.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:7px 11px;background:#065F46;color:#fff;border:0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('copy', 11, 2.5)} Kopieren</button>
+                    </div>
+                    ${isExpanded ? `
+                      <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+                        ${I18N_LANGS.map(L => {
+                          const link = appLinkWithLang(L.code, { partner: u._recordId });
+                          return `
+                            <div style="padding:6px 9px;background:#fff;border:1px solid rgba(6,95,70,.15);border-radius:6px;display:flex;align-items:center;gap:8px">
+                              <span style="font-size:14px;flex-shrink:0">${L.flag}</span>
+                              <span style="font-size:10px;font-weight:700;color:#065F46;min-width:22px">${L.code.toUpperCase()}</span>
+                              <div style="flex:1;min-width:0;font-size:10px;color:#065F46;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link.replace(/</g,'&lt;')}</div>
+                              <button data-action="copy-lang-link" data-link="${link.replace(/"/g,'&quot;')}" style="flex-shrink:0;padding:4px 8px;background:#065F46;color:#fff;border:0;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px">${svg('copy', 9, 2.5)}</button>
                             </div>
                           `;
                         }).join('')}
@@ -15189,6 +15264,42 @@ function renderUsers() {
                         </div>
                       </div>
                       <input type="file" id="adminDistributorLogoInput" accept="image/*" class="photo-input" data-action="admin-distributor-logo-picked">
+                      `;
+                    })()}
+                  </div>
+                ` : ''}
+              </div>
+              <!-- Partner-Block: leichter als Distributor — Customer mit Co-Brand-Logo, ohne Preis-Magie -->
+              <div class="field" style="padding:14px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--r-md);display:flex;flex-direction:column;gap:12px;margin-top:10px">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+                  <input type="checkbox" data-action="user-toggle-partner" ${d.isPartner ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:#065F46">Ist Partner</div>
+                    <div style="font-size:11px;color:var(--c-ink-mute)">Kunde mit eigenem Logo + co-brandeter Login-Seite (FLP-Logo neben Partner-Logo). Keine Distributor-Preise.</div>
+                  </div>
+                </label>
+                ${d.isPartner ? `
+                  <!-- Partner-Logo Upload — reuse distributor_logo slot (gleicher Speicher) -->
+                  <div class="field" style="margin:0">
+                    <label class="field__label">Partner-Logo</label>
+                    ${(() => {
+                      const logoUrl = distributorLogoUrl(d, 'large');
+                      const uploading = !!state.userDraftLogoUploading;
+                      const canUpload = !!d._recordId;
+                      return `
+                      <div style="display:flex;gap:10px;align-items:center">
+                        <div style="width:64px;height:64px;border-radius:10px;background:#fff;border:1px solid #6EE7B7;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+                          ${uploading ? `<div class="spinner spinner--sm"></div>` : (logoUrl ? `<img src="${logoUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">` : `<span style="color:var(--c-ink-subtle)">${svg('image', 24, 1.8)}</span>`)}
+                        </div>
+                        <div style="flex:1;min-width:0">
+                          <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button type="button" data-action="admin-distributor-logo-pick" ${(uploading || !canUpload) ? 'disabled' : ''} style="padding:7px 12px;background:#065F46;color:#fff;border:0;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px${(uploading || !canUpload) ? ';opacity:.5;cursor:default' : ''}">${svg('cloud-upload', 12, 2.5)} ${logoUrl ? 'Ersetzen' : 'Hochladen'}</button>
+                            ${logoUrl ? `<button type="button" data-action="admin-distributor-logo-remove" ${uploading ? 'disabled' : ''} style="padding:7px 12px;background:transparent;color:var(--c-red);border:1px solid rgba(229,72,77,.3);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${svg('trash', 12, 2.4)} Löschen</button>` : ''}
+                          </div>
+                          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px;line-height:1.4">${!canUpload ? 'Zuerst User speichern, dann lässt sich das Logo hochladen.' : 'PNG (Transparenz wird erhalten) oder JPG, max. 512 px längste Kante. Gleicher Logo-Slot wie Distributor — ein User kann nicht beides gleichzeitig sein.'}</div>
+                          ${d._recordId ? `<div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px solid #6EE7B7;border-radius:6px;font-size:10.5px;color:#065F46;line-height:1.4"><strong>Co-Branded Login-Link:</strong><br><span style="font-family:var(--f-mono);font-size:10px;word-break:break-all">${appLinkWithLang('', { partner: d._recordId })}</span></div>` : ''}
+                        </div>
+                      </div>
                       `;
                     })()}
                   </div>
@@ -17794,6 +17905,19 @@ document.addEventListener('click', (e) => {
       if (!state.userDraft) break;
       state.userDraft.isDistributor = !state.userDraft.isDistributor;
       if (!state.userDraft.isDistributor) state.userDraft.distributorDiscount = 0;
+      // Mutually exclusive: Distributor + Partner können nicht gleichzeitig sein
+      if (state.userDraft.isDistributor) state.userDraft.isPartner = false;
+      render();
+      break;
+    }
+    case 'user-toggle-partner': {
+      if (!state.userDraft) break;
+      state.userDraft.isPartner = !state.userDraft.isPartner;
+      // Mutually exclusive: Partner + Distributor schließen sich aus
+      if (state.userDraft.isPartner) {
+        state.userDraft.isDistributor = false;
+        state.userDraft.distributorDiscount = 0;
+      }
       render();
       break;
     }
@@ -18221,11 +18345,14 @@ document.addEventListener('click', (e) => {
           // Sprache mitspeichern, die der Customer beim Registrieren in der App hatte —
           // damit er beim ersten Login direkt in seiner Sprache landet (auch auf anderem Gerät).
           if (state.lang && I18N[state.lang]) newUserFields.lang = state.lang;
-          // Distributor-Verknüpfung: kommt aus ?dist= URL-Param (detectDistributorParam beim Init)
+          // Distributor- ODER Partner-Verknüpfung: kommt aus ?dist= bzw. ?partner= URL-Param.
+          // Je nach Source-User-Flag wird parent_distributor_id ODER parent_partner_id gesetzt.
           if (state.signupDistributorId) {
-            // Nur akzeptieren wenn der Distributor wirklich existiert UND is_distributor ist
-            const pd = existing.find(u => u._recordId === state.signupDistributorId && u.isDistributor);
-            if (pd) newUserFields.parent_distributor_id = pd._recordId;
+            const src = existing.find(u => u._recordId === state.signupDistributorId && (u.isDistributor || u.isPartner));
+            if (src) {
+              if (src.isDistributor) newUserFields.parent_distributor_id = src._recordId;
+              else if (src.isPartner) newUserFields.parent_partner_id = src._recordId;
+            }
           }
 
           // Schritt 4: Mit Customer-Register-Token schreiben
@@ -20500,7 +20627,11 @@ async function init() {
   try { localStorage.removeItem('flp_signup_dist'); } catch(e) {}
   try {
     const url = new URL(location.href);
-    const distParam = url.searchParams.get('dist');
+    // Sowohl ?dist= als auch ?partner= triggern Co-Branding — beide werden mit derselben
+    // Logik verarbeitet (Profil laden, Logo+Name auf Landing/Register zeigen).
+    // Die Unterscheidung „ist Distributor vs. Partner" wird BEIM REGISTRIEREN getroffen
+    // (basiert auf den Flags des Source-Users).
+    const distParam = url.searchParams.get('dist') || url.searchParams.get('partner');
     if (distParam && /^rec[A-Za-z0-9]{14,}$/.test(distParam)) {
       state.signupDistributorId = distParam;
       try { sessionStorage.setItem('flp_signup_dist', distParam); } catch(e) {}
