@@ -1082,6 +1082,13 @@ body.mode-tablet .bottom-bar>*{flex:1}
    weil dort .hero--search__certs .cert-overlay {position:static;...} bereits dominant ist. */
 .hero-image .cert-overlay--6plus{top:auto;bottom:4%}
 
+/* Inline-Cert-Badges für ItemCard-Listenansicht — TÜV + 6+ als kleine Icons
+   rechts in der Status-Pill-Reihe. Wiederverwendet die base64-Bilder aus
+   .cert-overlay--tuev / --6plus (kein Duplikat im CSS). */
+.item-card-certs{display:inline-flex;gap:5px;align-items:center;margin-left:auto;flex-shrink:0}
+.item-card-certs .cert-overlay{position:static;top:auto;left:auto;right:auto;bottom:auto;width:26px;height:26px;aspect-ratio:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.2))}
+.item-card-certs .cert-overlay--6plus{width:22px;height:26px;aspect-ratio:200/242}
+
 /* NEU-Badge — wird unten rechts auf dem ersten Bild eingeblendet wenn cond === 'neu'.
    Visuell deutlich abgesetzt vom TÜV/6+-Overlay (gradient, weißer Text, klar lesbar). */
 .new-overlay{position:absolute;bottom:4%;right:4%;padding:5px 11px;background:linear-gradient(135deg,#10B981 0%,#059669 100%);color:#fff;font-weight:800;font-size:13px;letter-spacing:.08em;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25);pointer-events:none;z-index:3;font-family:var(--f-display);line-height:1;display:inline-flex;align-items:center;gap:5px;text-transform:uppercase;border:1.5px solid rgba(255,255,255,.4)}
@@ -1228,7 +1235,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.42';
+const APP_VERSION = 'v2.43';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -9167,6 +9174,12 @@ const itemCard = (it, opts = {}) => {
   if (!cust && it.vp != null && !it.sold) {
     internalPriceChip = `<span class="pill" style="background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6;font-family:var(--f-mono);font-weight:700" title="Verkaufspreis">${formatVp(it.vp)}</span>`;
   }
+  // Inline-Cert-Badges (TÜV + 6+) für die Status-Pill-Reihe der Listenansicht.
+  // Gleiche Logik wie certOverlay(): nur für Items mit func=ok und cond≠neu sichtbar.
+  let inlineCerts = '';
+  if (it && it.func === 'ok' && it.cond !== 'neu' && !it.sold) {
+    inlineCerts = `<div class="item-card-certs" aria-label="TÜV-SÜD + 6+ zertifiziert"><div class="cert-overlay cert-overlay--tuev" title="TÜV SÜD geprüft"></div><div class="cert-overlay cert-overlay--6plus" title="6+ TÜV-zertifizierte Generalüberholung"></div></div>`;
+  }
   return `
 <button class="item-card ${opts.highlighted ? 'item-card--highlight' : ''}" data-action="select-item" data-id="${it.id}" style="${(owner && !cust) ? 'border-left:3px solid #FB923C' : ''}">
   <div class="item-card__icon" style="${it.photoUrl ? 'background:#0F1830;overflow:hidden;padding:0' : ''}">
@@ -9178,12 +9191,12 @@ const itemCard = (it, opts = {}) => {
     ${cust ? `
       <h3 class="item-card__name" style="margin-top:2px">${it.title}</h3>
       <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
-      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${condP}${funcP}${priceChip}</div>
+      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap;align-items:center">${condP}${funcP}${priceChip}${inlineCerts}</div>
     ` : `
       <div class="item-card__row" style="gap:6px;flex-wrap:wrap"><span class="code-chip">#${it.id}</span>${trackerChip(it, { size: 'sm' })}${shopBadges(it, { size: 'sm' })}${owner ? `<span class="price-chip price-chip--sm" style="background:#FFEDD5;color:#9A3412;border-color:#FDBA74;display:inline-flex;align-items:center;gap:3px" title="Besitzer: ${owner.replace(/"/g, '&quot;')}">${svg('user', 9, 2.6)} ${owner}</span>` : ''}</div>
       <h3 class="item-card__name">${it.title}</h3>
       <div class="item-card__sub">${it.maker || '\u2014'} \u00b7 ${it.cat || '\u2014'}</div>
-      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${condP}${funcP}${internalPriceChip}</div>
+      <div class="item-card__row" style="margin-top:8px;gap:6px;flex-wrap:wrap;align-items:center">${condP}${funcP}${internalPriceChip}${inlineCerts}</div>
       <div class="item-card__divider">
         <span class="item-card__loc">${svg('map-pin', 11, 2.4)} ${it.loc || '\u2014'}</span>
       </div>
