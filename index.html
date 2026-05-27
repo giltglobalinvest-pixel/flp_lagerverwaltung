@@ -540,6 +540,42 @@ body.mode-tablet .user-bar__user::after{
 
 /* Such-Hero: blaue Kachel mit eingebautem Such-Input */
 .hero--search{cursor:default;position:relative;overflow:hidden}
+
+/* Stories-Reel (Instagram-/LinkedIn-Style) zwischen Header und Such-Hero. */
+.stories-row{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:4px 18px 8px;margin:0 -18px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.stories-row::-webkit-scrollbar{display:none}
+.story-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:transparent;border:0;padding:0;width:72px;color:inherit}
+.story-item__ring{width:68px;height:68px;border-radius:50%;padding:2.5px;background:linear-gradient(135deg,#2456E5,#7C3AED,#D97706);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.12);transition:transform .15s}
+.story-item:active .story-item__ring{transform:scale(.94)}
+.story-item__inner{width:100%;height:100%;border-radius:50%;background:#fff;padding:2px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.story-item__img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.story-item__placeholder{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#94A3B8,#64748B);color:#fff;display:flex;align-items:center;justify-content:center}
+.story-item__title{font-size:10.5px;font-weight:600;color:var(--c-ink);max-width:72px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.005em}
+.story-item--seen .story-item__ring{background:#CBD5E1}
+/* "Neu hinzufügen"-Tile für Admin am Anfang */
+.story-item__add{background:var(--c-surface);border:2px dashed var(--c-border)}
+.story-item__add .story-item__inner{background:transparent}
+
+/* Story-Viewer (Vollbild-Modal) */
+.story-viewer{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;animation:storyFadeIn .2s ease-out}
+@keyframes storyFadeIn{from{opacity:0}to{opacity:1}}
+.story-viewer__bar{height:3px;background:rgba(255,255,255,.25);margin:8px 12px 0;border-radius:2px;overflow:hidden;display:flex;gap:4px}
+.story-viewer__bar-seg{flex:1;background:rgba(255,255,255,.25);border-radius:2px;overflow:hidden}
+.story-viewer__bar-seg--active{background:#fff}
+.story-viewer__bar-seg--done{background:#fff}
+.story-viewer__head{display:flex;align-items:center;padding:10px 14px;gap:12px;color:#fff;z-index:2}
+.story-viewer__title{flex:1;min-width:0;font-size:14px;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.story-viewer__close{background:rgba(255,255,255,.18);border:0;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(8px)}
+.story-viewer__body{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.story-viewer__media{width:100%;max-width:520px;aspect-ratio:9/16;max-height:calc(100vh - 120px);background:#000;border-radius:0;overflow:hidden;position:relative}
+@media (min-width:720px){
+  .story-viewer__media{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+}
+.story-viewer__media iframe,.story-viewer__media video{width:100%;height:100%;border:0;display:block}
+.story-viewer__sub{position:absolute;left:0;right:0;bottom:0;padding:14px 18px 18px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent);color:#fff;font-size:12.5px;line-height:1.4;font-weight:500;pointer-events:none}
+.story-viewer__nav{position:absolute;top:0;bottom:0;width:50%;background:transparent;border:0;cursor:pointer;z-index:1}
+.story-viewer__nav--prev{left:0}
+.story-viewer__nav--next{right:0}
 .hero--search:active{transform:none}
 /* Dezente TÜV+6+ Embleme oben rechts auf der Such-Hero-Kachel — als Vertrauenssignal.
    Nutzt dieselben cert-overlay-Klassen wie auf den Foto-Hero-Bildern (gleiche base64-Bilder,
@@ -1235,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.45';
+const APP_VERSION = 'v2.46';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2845,20 +2881,115 @@ const USAGE_FIELDS = [
   { name: 'meta',         type: 'multilineText' },   // JSON-String für Kontext-Daten
 ];
 
+// Stories — Instagram-/LinkedIn-Style Story-Reel im Customer-/Admin-Home.
+// Jede Story = ein kurzes Video (YouTube oder direkter MP4-Link) + Cover-Bild.
+const TBL_STORIES = 'Stories';
+const STORY_FIELDS = [
+  { name: 'title',        type: 'singleLineText' },  // Unterschrift unter dem Kreis
+  { name: 'video_url',    type: 'singleLineText' },  // YouTube-URL/ID, Vimeo, oder direkter MP4-Link
+  { name: 'thumbnail',    type: 'multipleAttachments' }, // Cover-Bild (optional, fallback YT-Thumb)
+  { name: 'subtitle',     type: 'singleLineText' },  // Kurze Beschreibung im Viewer
+  { name: 'target',       type: 'singleLineText' },  // 'all' | 'customer' | 'distributor' | 'partner' | 'admin'
+  { name: 'company',      type: 'singleLineText' },  // company_id-Filter (leer = alle)
+  { name: 'lang',         type: 'singleLineText' },  // de,en,… komma-separiert (leer = alle)
+  { name: 'sort_order',   type: 'singleLineText' },  // Nummer als String
+  { name: 'active',       type: 'singleLineText' },  // '1' = sichtbar
+  { name: 'ring_color',   type: 'singleLineText' },  // optionale Akzentfarbe für den Ring
+  { name: 'created',      type: 'singleLineText' },
+];
+
 async function ensureAllTables() {
   await ensureTable(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureTable(TBL_ITEMS, ITEM_FIELDS);
   await ensureTable(TBL_HALLS, HALL_FIELDS);
   await ensureTable(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
   await ensureTable(TBL_USAGE, USAGE_FIELDS);
+  await ensureTable(TBL_STORIES, STORY_FIELDS);
   // Nachträglich fehlende Felder ergänzen (Migration alter Tabellen)
   await ensureFieldsExist(TBL_COMPANIES, COMPANY_FIELDS);
   await ensureFieldsExist(TBL_ITEMS, ITEM_FIELDS);
   await ensureFieldsExist(TBL_HALLS, HALL_FIELDS);
   await ensureFieldsExist(TBL_DOWNLOADS, DOWNLOAD_FIELDS);
   await ensureFieldsExist(TBL_USAGE, USAGE_FIELDS);
+  await ensureFieldsExist(TBL_STORIES, STORY_FIELDS);
   // User-Tabelle existiert bereits — nur Felder ggf. nachpflegen (für Customer-Registrierung)
   await ensureFieldsExist(TBL_USERS, USER_FIELDS);
+}
+
+// Stories laden + parsen
+function recordToStory(rec) {
+  const f = rec.fields || {};
+  return {
+    _recordId: rec.id,
+    title: f.title || '',
+    videoUrl: (f.video_url || '').trim(),
+    thumbnail: Array.isArray(f.thumbnail) ? f.thumbnail : [],
+    subtitle: f.subtitle || '',
+    target: (f.target || 'all').trim().toLowerCase(),
+    company: f.company || '',
+    lang: (f.lang || '').trim(),
+    sortOrder: Number(f.sort_order || 0) || 0,
+    active: String(f.active || '').trim() === '1',
+    ringColor: (f.ring_color || '').trim(),
+    created: f.created || '',
+  };
+}
+async function loadStories() {
+  if (state.storiesLoading) return state.stories || [];
+  state.storiesLoading = true;
+  try {
+    const headers = { 'Authorization': 'Bearer ' + APP_CONFIG.AIRTABLE_READ_KEY };
+    const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_STORIES + '?pageSize=100', { headers });
+    if (!r.ok) { state.stories = []; state.storiesLoading = false; return []; }
+    const data = await r.json();
+    const list = (data.records || []).map(recordToStory).filter(s => s.active && s.videoUrl)
+      .sort((a, b) => (a.sortOrder - b.sortOrder) || (a.title || '').localeCompare(b.title || ''));
+    state.stories = list;
+    state.storiesLoading = false;
+    return list;
+  } catch(e) {
+    state.storiesLoading = false;
+    state.stories = [];
+    return [];
+  }
+}
+// Parse YouTube video-ID aus URL (kurz/lang/embed/shorts), gibt null zurück wenn kein YT.
+function parseYouTubeId(url) {
+  if (!url) return null;
+  const u = url.trim();
+  // Direkt ID-Form (11 Zeichen)?
+  if (/^[a-zA-Z0-9_-]{11}$/.test(u)) return u;
+  const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+// Filter Stories für aktuellen User basierend auf Rolle, Firma, Sprache.
+function filteredStoriesForUser() {
+  const all = state.stories || [];
+  const role = APP_KEYS.user?.role === 'admin' ? 'admin'
+             : APP_KEYS.user?.isDistributor ? 'distributor'
+             : APP_KEYS.user?.isPartner ? 'partner'
+             : APP_KEYS.user?.role === 'customer' ? 'customer'
+             : 'admin';
+  const userLang = state.lang || 'de';
+  const companyId = state.activeCompanyId;
+  return all.filter(s => {
+    if (s.target && s.target !== 'all' && s.target !== role) return false;
+    if (s.company && companyId && s.company !== companyId) return false;
+    if (s.lang) {
+      const langs = String(s.lang).split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+      if (langs.length && !langs.includes(userLang)) return false;
+    }
+    return true;
+  });
+}
+// Story-Thumbnail-URL — priorisiert Custom-Upload, dann YouTube-Auto-Thumb, dann Placeholder
+function storyThumbnailUrl(s) {
+  if (s.thumbnail && s.thumbnail[0]) {
+    return s.thumbnail[0].thumbnails?.large?.url || s.thumbnail[0].url;
+  }
+  const ytId = parseYouTubeId(s.videoUrl);
+  if (ytId) return `https://i.ytimg.com/vi/${ytId}/sddefault.jpg`;
+  return null;
 }
 
 // ============================================================
@@ -10662,6 +10793,8 @@ function renderCustomerHomeMain() {
   </div>
 
   <div class="scroll" style="padding-bottom:24px">
+    <!-- Stories-Reel (Instagram-Style) auch im Customer-Home -->
+    ${renderStoriesRow()}
     ${!customerHasRecipient() ? `
       <div style="margin:0 0 12px;padding:14px 14px;background:#FEF3C7;color:#854D0E;border:1px solid #FACC15;border-radius:var(--r-md);display:flex;gap:10px;align-items:flex-start">
         <span style="flex-shrink:0;margin-top:1px">${svg('alert-triangle', 16, 2.4)}</span>
@@ -10794,6 +10927,91 @@ function renderCustomerHomeMain() {
 
   ${state.installHelpOpen ? renderInstallHelpSheet() : ''}
 </div>`;
+}
+
+// Story-Reel: Horizontaler Strip mit runden Cover-Thumbnails (Instagram-Style).
+// Lazy-Load: Stories werden beim ersten Render der Home-Seite gefetched.
+function renderStoriesRow() {
+  // Trigger lazy-load
+  if (state.stories === undefined && !state.storiesLoading) {
+    state.stories = null;
+    setTimeout(() => loadStories().then(() => render()), 0);
+  }
+  const items = filteredStoriesForUser();
+  // Wenn keine Stories und kein Admin (kann nicht hinzufügen) → ganzen Bereich ausblenden
+  if (items.length === 0 && !isAdmin()) return '';
+  const seenSet = (() => {
+    try { return new Set(JSON.parse(localStorage.getItem('flp_seen_stories') || '[]')); }
+    catch(e) { return new Set(); }
+  })();
+  return `
+    <div class="stories-row" role="list">
+      ${isAdmin() ? `
+        <button class="story-item" data-action="go-stories-admin" aria-label="Stories verwalten">
+          <div class="story-item__ring story-item__add">
+            <div class="story-item__inner">
+              <span style="color:var(--c-ink-mute);display:flex">${svg('plus', 24, 2.4)}</span>
+            </div>
+          </div>
+          <span class="story-item__title" style="color:var(--c-ink-mute)">Verwalten</span>
+        </button>
+      ` : ''}
+      ${items.map(s => {
+        const thumb = storyThumbnailUrl(s);
+        const seen = seenSet.has(s._recordId);
+        const ringStyle = s.ringColor && !seen ? `background:${s.ringColor}` : '';
+        return `
+          <button class="story-item${seen ? ' story-item--seen' : ''}" data-action="open-story" data-id="${s._recordId}" aria-label="${(s.title || 'Story').replace(/"/g,'&quot;')}">
+            <div class="story-item__ring" ${ringStyle ? `style="${ringStyle}"` : ''}>
+              <div class="story-item__inner">
+                ${thumb
+                  ? `<img class="story-item__img" src="${thumb}" alt="" loading="lazy" decoding="async">`
+                  : `<div class="story-item__placeholder">${svg('play', 20, 0)}</div>`}
+              </div>
+            </div>
+            <span class="story-item__title">${(s.title || '—').replace(/</g,'&lt;')}</span>
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Story-Viewer (Vollbild-Modal mit Video).
+// Klick links/rechts → vorherige/nächste Story. Klick X → schließen.
+function renderStoryViewer() {
+  const list = filteredStoriesForUser();
+  if (list.length === 0) return '';
+  const idx = Math.max(0, Math.min(state.storyIndex || 0, list.length - 1));
+  const s = list[idx];
+  if (!s) return '';
+  // Video-HTML: YouTube → iframe, sonst direktes <video>
+  const ytId = parseYouTubeId(s.videoUrl);
+  let mediaHtml;
+  if (ytId) {
+    mediaHtml = `<iframe src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1" title="${(s.title || '').replace(/"/g,'&quot;')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  } else {
+    mediaHtml = `<video src="${s.videoUrl.replace(/"/g,'&quot;')}" controls autoplay playsinline preload="metadata"></video>`;
+  }
+  return `
+    <div class="story-viewer">
+      <div class="story-viewer__bar">
+        ${list.map((_, i) => `<div class="story-viewer__bar-seg${i < idx ? ' story-viewer__bar-seg--done' : i === idx ? ' story-viewer__bar-seg--active' : ''}"></div>`).join('')}
+      </div>
+      <div class="story-viewer__head">
+        <div class="story-viewer__title">${(s.title || '').replace(/</g,'&lt;')}</div>
+        <button class="story-viewer__close" data-action="close-story" aria-label="Schließen">${svg('x', 18, 2.5)}</button>
+      </div>
+      <div class="story-viewer__body">
+        <div class="story-viewer__media">${mediaHtml}</div>
+        ${list.length > 1 ? `
+          <button class="story-viewer__nav story-viewer__nav--prev" data-action="story-prev" aria-label="Zurück"></button>
+          <button class="story-viewer__nav story-viewer__nav--next" data-action="story-next" aria-label="Weiter"></button>
+        ` : ''}
+        ${s.subtitle ? `<div class="story-viewer__sub">${s.subtitle.replace(/</g,'&lt;')}</div>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 // Downloads-Modal: Prospekte / Empfehlungen / Verkaufshilfen / Zertifikate
@@ -11477,6 +11695,8 @@ function renderHome() {
     </div>
   </div>
   <div class="scroll">
+    <!-- Stories-Reel (Instagram-Style) zwischen Header und Suche -->
+    ${renderStoriesRow()}
     <!-- Blaue Such-Kachel — enthält das Suchfeld direkt -->
     <div class="hero hero--search">
       <div class="hero--search__certs" aria-hidden="true">
@@ -14164,6 +14384,147 @@ function renderItemList() {
 // unabhängig von seiner Admin-UI-Sprache. state.flyerLang überschreibt state.lang
 // nur für die Flyer-Renderung.
 // ============================================================
+// ============================================================
+// STORIES-ADMIN — Verwaltung der Stories (Instagram-Style Reel)
+// ============================================================
+function renderStoriesAdmin() {
+  if (!isAdmin()) {
+    return `
+<div class="screen">
+  ${headerBar(backBtn('go-home'), `<div class="pill pill--ink">Stories</div>`, `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding:40px;text-align:center;font-size:14px;color:var(--c-ink-mute)">Nur für Admins</div>
+</div>`;
+  }
+  // Lazy-load
+  if (state.stories === undefined && !state.storiesLoading) {
+    state.stories = null;
+    setTimeout(() => loadStories().then(() => render()), 0);
+  }
+  const all = state.stories || [];
+  const loading = state.storiesLoading || state.stories == null;
+  const draft = state.storyDraft;
+  return `
+<div class="screen">
+  ${headerBar(backBtn('go-users'),
+    `<div class="pill pill--ink">${svg('play', 11, 2.5)} Stories</div>`,
+    `<div class="header__slot"></div>`)}
+  <div class="scroll" style="padding-bottom:24px">
+    <div style="padding:0 20px 4px">
+      <h1 style="font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0">Stories</h1>
+      <p style="font-size:12.5px;color:var(--c-ink-mute);margin:6px 0 0;line-height:1.5">Kurze Videos im Instagram-/LinkedIn-Style auf der Startseite. Erscheinen als runde Kreise zwischen Header und Suche.</p>
+    </div>
+    <div style="padding:14px 20px 0">
+      <button data-action="story-add" class="action-bar__btn action-bar__btn--primary" style="width:100%;padding:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px">${svg('plus', 14, 2.6)} Neue Story</button>
+    </div>
+    <div style="padding:14px 20px 0">
+      ${loading ? `
+        <div class="tile" style="padding:28px;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div style="font-size:12.5px;color:var(--c-ink-mute)">Wird geladen …</div></div>
+      ` : all.length === 0 ? `
+        <div class="tile" style="padding:28px;text-align:center">
+          <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Noch keine Stories</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Klick „Neue Story" und füge einen YouTube-Link hinzu.</div>
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${all.map(s => {
+            const thumb = storyThumbnailUrl(s);
+            return `
+              <div class="tile" style="padding:0;overflow:hidden;display:flex;align-items:stretch">
+                <div style="width:72px;flex-shrink:0;background:#0F1830;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                  ${thumb ? `<img src="${thumb}" alt="" style="width:100%;height:100%;object-fit:cover">` : `<span style="color:#fff;display:flex">${svg('play', 24, 2.4)}</span>`}
+                </div>
+                <div style="flex:1;min-width:0;padding:10px 12px">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <div style="font-size:13px;font-weight:700;color:var(--c-ink)">${(s.title || '— ohne Titel —').replace(/</g,'&lt;')}</div>
+                    ${!s.active ? `<span class="pill" style="font-size:9px;background:var(--c-surface-alt);color:var(--c-ink-mute)">inaktiv</span>` : ''}
+                    <span class="pill pill--neutral" style="font-size:9px">${s.target || 'all'}</span>
+                  </div>
+                  ${s.subtitle ? `<div style="font-size:11px;color:var(--c-ink-mute);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.subtitle.replace(/</g,'&lt;')}</div>` : ''}
+                  <div style="font-size:10px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(s.videoUrl || '').replace(/</g,'&lt;')}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;justify-content:center;gap:4px;padding:8px">
+                  <button data-action="story-edit" data-rid="${s._recordId}" title="Bearbeiten" style="padding:6px;background:transparent;color:var(--c-ink-mute);border:0;cursor:pointer">${svg('pencil', 13, 2.4)}</button>
+                  <button data-action="story-delete" data-rid="${s._recordId}" title="Löschen" style="padding:6px;background:transparent;color:var(--c-red);border:0;cursor:pointer">${svg('trash', 13, 2.4)}</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  </div>
+
+  ${draft ? renderStoryEditSheet(draft) : ''}
+</div>`;
+}
+
+function renderStoryEditSheet(d) {
+  const isNew = !d._recordId;
+  return `
+    <div class="sheet-backdrop" data-action="story-cancel"></div>
+    <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column;max-width:540px;width:100%">
+      <div class="action-sheet__handle"></div>
+      <div class="action-sheet__title">${isNew ? 'Neue Story' : 'Story bearbeiten'}</div>
+      <div class="js-scroll" style="padding:12px 16px 16px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:12px">
+        <div class="field">
+          <label class="field__label">Titel *</label>
+          <input class="field__input" data-action="story-input" data-key="title" value="${(d.title || '').replace(/"/g,'&quot;')}" placeholder="z.B. Werkstatt-Tour" autocomplete="off">
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Erscheint unter dem Kreis (kurz halten — max ~15 Zeichen)</div>
+        </div>
+        <div class="field">
+          <label class="field__label">Video-URL *</label>
+          <input class="field__input" data-action="story-input" data-key="videoUrl" value="${(d.videoUrl || '').replace(/"/g,'&quot;')}" placeholder="https://youtu.be/... oder https://...mp4" autocomplete="off" style="font-family:var(--f-mono);font-size:12px">
+          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">YouTube-Link (alle Formate) oder direkter MP4-Link. Vorschau-Bild wird automatisch von YouTube gezogen.</div>
+        </div>
+        <div class="field">
+          <label class="field__label">Untertitel <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
+          <textarea class="field__input" data-action="story-input" data-key="subtitle" rows="2" placeholder="Kurze Beschreibung im Viewer" style="resize:vertical;min-height:50px;font-family:var(--f-display)">${(d.subtitle || '').replace(/</g,'&lt;')}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label">Zielgruppe</label>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${[
+              ['all', 'Alle'],
+              ['customer', 'Kunden'],
+              ['distributor', 'Distributoren'],
+              ['partner', 'Partner'],
+              ['admin', 'Admin'],
+            ].map(([k, lbl]) => `
+              <button data-action="story-set-target" data-target="${k}" style="padding:7px 12px;background:${d.target===k?'var(--c-ink)':'var(--c-surface)'};color:${d.target===k?'#fff':'var(--c-ink-soft)'};border:1px solid ${d.target===k?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer">${lbl}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">Firma <span style="color:var(--c-ink-mute);font-weight:500">(optional — leer = alle Firmen)</span></label>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button data-action="story-set-company" data-cid="" style="padding:7px 12px;background:${!d.company?'var(--c-ink)':'var(--c-surface)'};color:${!d.company?'#fff':'var(--c-ink-soft)'};border:1px solid ${!d.company?'var(--c-ink)':'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer">🌐 Alle</button>
+            ${(state.companies || []).map(c => `
+              <button data-action="story-set-company" data-cid="${c.id}" style="padding:7px 12px;background:${d.company===c.id?(c.color||'var(--c-ink)'):'var(--c-surface)'};color:${d.company===c.id?'#fff':'var(--c-ink-soft)'};border:1px solid ${d.company===c.id?(c.color||'var(--c-ink)'):'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:pointer">${(c.name || '').replace(/</g,'&lt;')}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">Sortierung <span style="color:var(--c-ink-mute);font-weight:500">(kleine Zahl = links)</span></label>
+          <input class="field__input" type="number" min="0" max="999" data-action="story-input" data-key="sortOrder" value="${d.sortOrder || 0}" style="font-family:var(--f-mono);max-width:120px">
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" data-action="story-toggle-active" ${d.active ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer">
+            <div>
+              <div style="font-size:13px;font-weight:600">Aktiv (sichtbar im Reel)</div>
+              <div style="font-size:11px;color:var(--c-ink-mute)">Inaktive Stories werden nicht angezeigt — aber bleiben gespeichert.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div style="padding:0 16px 12px;display:flex;gap:8px;flex-shrink:0">
+        <button data-action="story-cancel" class="action-bar__btn" style="flex:1;padding:13px">Abbrechen</button>
+        <button data-action="story-save" class="action-bar__btn action-bar__btn--primary" style="flex:2;padding:13px;background:var(--c-blue);color:#fff;border:0">${svg('check', 14, 2.5)} ${isNew ? 'Speichern' : 'Übernehmen'}</button>
+      </div>
+    </div>
+  `;
+}
+
 // ============================================================
 // DOWNLOADS-ADMIN — Verwaltung der Prospekte/Empfehlungen/Verkaufshilfen/Zertifikate
 // ============================================================
@@ -17074,7 +17435,7 @@ function renderLogin() {
 </div>`;
 }
 
-const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer, downloadsAdmin: renderDownloadsAdmin, statistics: renderStatistics };
+const screens = { home: renderHome, listen: renderListen, results: renderResults, bestand: renderBestand, dashboard: renderDashboard, users: renderUsers, integrations: renderIntegrations, list: renderItemList, detail: renderDetail, edit: renderEdit, issues: renderIssues, testStart: renderTestStart, testResult: renderTestResult, testSaved: renderTestSaved, photoSearch: renderPhotoSearch, aiAnalyze: renderAIAnalyze, photoResults: renderPhotoResults, wizardCat: renderWizardCat, wizardDesc: renderWizardDesc, wizardTracker: renderWizardTracker, wizardTrackerScan: renderWizardTrackerScan, wizardLoc: renderWizardLoc, wizardStock: renderWizardStock, wizardShop: renderWizardShop, wizardSummary: renderWizardSummary, camera: renderCamera, cropper: renderCropper, voice: renderVoiceForm, saved: renderSaved, customerSettings: renderCustomerSettings, flyer: renderFlyer, downloadsAdmin: renderDownloadsAdmin, statistics: renderStatistics, storiesAdmin: renderStoriesAdmin };
 
 let timers = [];
 function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
@@ -17237,7 +17598,10 @@ function render() {
   let _shareModal = '';
   try { _shareModal = state.shareModalOpen ? renderShareModal() : ''; }
   catch (smErr) { console.error('[render] share modal threw:', smErr); _shareModal = ''; }
-  app.innerHTML = _html + _overlay + _downloads + _shareModal;
+  let _storyViewer = '';
+  try { _storyViewer = state.storyViewerOpen ? renderStoryViewer() : ''; }
+  catch (svErr) { console.error('[render] story viewer threw:', svErr); _storyViewer = ''; }
+  app.innerHTML = _html + _overlay + _downloads + _shareModal + _storyViewer;
 
   // Restore scroll positions
   app.querySelectorAll('.scroll').forEach((el, i) => { if (savedScrolls[`scroll:${i}`]) el.scrollTop = savedScrolls[`scroll:${i}`]; });
@@ -18252,6 +18616,158 @@ document.addEventListener('click', (e) => {
       // In-App: erst Modal mit Erklärung anzeigen (was wird geteilt + Co-Branding-Hinweis)
       state.shareModalOpen = true;
       render();
+      break;
+    }
+    case 'open-story': {
+      // Story-Viewer öffnen (Vollbild-Video-Modal). Markiert die Story als „gesehen" im localStorage.
+      const rid = btn.dataset.id;
+      const list = filteredStoriesForUser();
+      const idx = list.findIndex(s => s._recordId === rid);
+      if (idx < 0) break;
+      state.storyIndex = idx;
+      state.storyViewerOpen = true;
+      // Seen-Set persistieren
+      try {
+        const seen = new Set(JSON.parse(localStorage.getItem('flp_seen_stories') || '[]'));
+        seen.add(rid);
+        localStorage.setItem('flp_seen_stories', JSON.stringify(Array.from(seen)));
+      } catch(e) {}
+      trackEvent('story_view', { storyId: rid, title: list[idx].title || '' });
+      render();
+      break;
+    }
+    case 'close-story': {
+      state.storyViewerOpen = false;
+      render();
+      break;
+    }
+    case 'story-prev': {
+      const list = filteredStoriesForUser();
+      if (state.storyIndex > 0) {
+        state.storyIndex--;
+        const s = list[state.storyIndex];
+        if (s) {
+          try {
+            const seen = new Set(JSON.parse(localStorage.getItem('flp_seen_stories') || '[]'));
+            seen.add(s._recordId);
+            localStorage.setItem('flp_seen_stories', JSON.stringify(Array.from(seen)));
+          } catch(e) {}
+        }
+        render();
+      } else {
+        state.storyViewerOpen = false;
+        render();
+      }
+      break;
+    }
+    case 'story-next': {
+      const list = filteredStoriesForUser();
+      if (state.storyIndex < list.length - 1) {
+        state.storyIndex++;
+        const s = list[state.storyIndex];
+        if (s) {
+          try {
+            const seen = new Set(JSON.parse(localStorage.getItem('flp_seen_stories') || '[]'));
+            seen.add(s._recordId);
+            localStorage.setItem('flp_seen_stories', JSON.stringify(Array.from(seen)));
+          } catch(e) {}
+        }
+        render();
+      } else {
+        // Am Ende → Viewer schließen
+        state.storyViewerOpen = false;
+        render();
+      }
+      break;
+    }
+    case 'go-stories-admin': {
+      if (!isAdmin()) break;
+      go('storiesAdmin');
+      break;
+    }
+    case 'story-add': {
+      if (!isAdmin()) break;
+      state.storyDraft = { title: '', videoUrl: '', subtitle: '', target: 'all', company: '', sortOrder: 0, active: true };
+      render();
+      break;
+    }
+    case 'story-edit': {
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const s = (state.stories || []).find(x => x._recordId === rid);
+      if (!s) break;
+      state.storyDraft = { ...s };
+      render();
+      break;
+    }
+    case 'story-cancel': {
+      state.storyDraft = null;
+      render();
+      break;
+    }
+    case 'story-set-target': {
+      if (state.storyDraft) { state.storyDraft.target = btn.dataset.target || 'all'; render(); }
+      break;
+    }
+    case 'story-set-company': {
+      if (state.storyDraft) { state.storyDraft.company = btn.dataset.cid || ''; render(); }
+      break;
+    }
+    case 'story-toggle-active': {
+      if (state.storyDraft) { state.storyDraft.active = !state.storyDraft.active; render(); }
+      break;
+    }
+    case 'story-input': /* input event */ break;
+    case 'story-save': {
+      if (!isAdmin() || !state.storyDraft) break;
+      const d = state.storyDraft;
+      if (!(d.title || '').trim()) { showToast('Titel ist Pflicht', 'error', 2400); break; }
+      if (!(d.videoUrl || '').trim()) { showToast('Video-URL ist Pflicht', 'error', 2400); break; }
+      const fields = {
+        title: (d.title || '').trim(),
+        video_url: (d.videoUrl || '').trim(),
+        subtitle: (d.subtitle || '').trim(),
+        target: d.target || 'all',
+        company: d.company || '',
+        lang: d.lang || '',
+        sort_order: String(d.sortOrder || 0),
+        active: d.active ? '1' : '',
+        ring_color: d.ringColor || '',
+        created: d.created || nowIso(),
+      };
+      setLoading(true, 'Wird gespeichert …');
+      (d._recordId ? airUpdate(TBL_STORIES, d._recordId, fields) : airWrite(TBL_STORIES, fields))
+        .then(rec => {
+          const updated = recordToStory(rec);
+          if (d._recordId) {
+            state.stories = (state.stories || []).map(x => x._recordId === d._recordId ? updated : x);
+          } else {
+            state.stories = [...(state.stories || []), updated];
+          }
+          state.stories.sort((a, b) => (a.sortOrder - b.sortOrder) || (a.title || '').localeCompare(b.title || ''));
+          state.storyDraft = null;
+          showToast(d._recordId ? 'Aktualisiert' : 'Story angelegt', 'success', 2000);
+          render();
+        })
+        .catch(e => showToast('Speichern fehlgeschlagen: ' + (e.message || ''), 'error', 3500))
+        .finally(() => setLoading(false));
+      break;
+    }
+    case 'story-delete': {
+      if (!isAdmin()) break;
+      const rid = btn.dataset.rid;
+      const s = (state.stories || []).find(x => x._recordId === rid);
+      if (!s) break;
+      if (!confirm('Story wirklich löschen?\n\n' + (s.title || ''))) break;
+      setLoading(true, 'Wird gelöscht …');
+      airDelete(TBL_STORIES, rid)
+        .then(() => {
+          state.stories = (state.stories || []).filter(x => x._recordId !== rid);
+          showToast('Gelöscht', 'success', 1800);
+          render();
+        })
+        .catch(e => showToast('Löschen fehlgeschlagen: ' + (e.message || ''), 'error', 3500))
+        .finally(() => setLoading(false));
       break;
     }
     case 'play-landing-video': {
@@ -20342,6 +20858,12 @@ document.addEventListener('input', (e) => {
     const k = t.dataset.key;
     if (!k) return;
     state.downloadDraft[k] = (k === 'sortOrder') ? (Number(t.value) || 0) : t.value;
+  }
+  else if (a === 'story-input') {
+    if (!state.storyDraft) return;
+    const k = t.dataset.key;
+    if (!k) return;
+    state.storyDraft[k] = (k === 'sortOrder') ? (Number(t.value) || 0) : t.value;
   }
   else if (a === 'user-distributor-discount-input') {
     if (state.userDraft) state.userDraft.distributorDiscount = Number(t.value) || 0;
