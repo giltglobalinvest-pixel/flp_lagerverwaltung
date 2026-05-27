@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.46';
+const APP_VERSION = 'v2.47';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2887,6 +2887,7 @@ const TBL_STORIES = 'Stories';
 const STORY_FIELDS = [
   { name: 'title',        type: 'singleLineText' },  // Unterschrift unter dem Kreis
   { name: 'video_url',    type: 'singleLineText' },  // YouTube-URL/ID, Vimeo, oder direkter MP4-Link
+  { name: 'media',        type: 'multipleAttachments' }, // Hochgeladenes Video (MP4) oder Bild (für Image-Stories)
   { name: 'thumbnail',    type: 'multipleAttachments' }, // Cover-Bild (optional, fallback YT-Thumb)
   { name: 'subtitle',     type: 'singleLineText' },  // Kurze Beschreibung im Viewer
   { name: 'target',       type: 'singleLineText' },  // 'all' | 'customer' | 'distributor' | 'partner' | 'admin'
@@ -2923,6 +2924,7 @@ function recordToStory(rec) {
     _recordId: rec.id,
     title: f.title || '',
     videoUrl: (f.video_url || '').trim(),
+    media: Array.isArray(f.media) ? f.media : [],
     thumbnail: Array.isArray(f.thumbnail) ? f.thumbnail : [],
     subtitle: f.subtitle || '',
     target: (f.target || 'all').trim().toLowerCase(),
@@ -2934,6 +2936,28 @@ function recordToStory(rec) {
     created: f.created || '',
   };
 }
+
+// Story-Media-Typ ableiten: 'youtube' | 'video' | 'image' | null
+function getStoryMediaKind(s) {
+  if (!s) return null;
+  // 1. Hochgeladene Datei hat Vorrang (Airtable-Attachment)
+  if (s.media && s.media[0]) {
+    const type = (s.media[0].type || '').toLowerCase();
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    // Fallback per Dateiname
+    const name = (s.media[0].filename || '').toLowerCase();
+    if (/\.(jpe?g|png|gif|webp|heic|avif)$/.test(name)) return 'image';
+    if (/\.(mp4|mov|webm|m4v|ogv)$/.test(name)) return 'video';
+    return 'video';
+  }
+  // 2. Externe URL — YouTube oder direktes Video
+  if (s.videoUrl) {
+    if (parseYouTubeId(s.videoUrl)) return 'youtube';
+    return 'video';
+  }
+  return null;
+}
 async function loadStories() {
   if (state.storiesLoading) return state.stories || [];
   state.storiesLoading = true;
@@ -2942,7 +2966,8 @@ async function loadStories() {
     const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_STORIES + '?pageSize=100', { headers });
     if (!r.ok) { state.stories = []; state.storiesLoading = false; return []; }
     const data = await r.json();
-    const list = (data.records || []).map(recordToStory).filter(s => s.active && s.videoUrl)
+    // Aktiv UND mindestens eine Medien-Quelle (URL ODER hochgeladene Datei)
+    const list = (data.records || []).map(recordToStory).filter(s => s.active && (s.videoUrl || (s.media && s.media[0])))
       .sort((a, b) => (a.sortOrder - b.sortOrder) || (a.title || '').localeCompare(b.title || ''));
     state.stories = list;
     state.storiesLoading = false;
@@ -2982,10 +3007,20 @@ function filteredStoriesForUser() {
     return true;
   });
 }
-// Story-Thumbnail-URL — priorisiert Custom-Upload, dann YouTube-Auto-Thumb, dann Placeholder
+// Story-Thumbnail-URL für den runden Kreis im Reel.
+// Priorität: Custom-Thumbnail → Uploaded-Image (für Image-Stories) → YouTube-Auto-Thumb → null
 function storyThumbnailUrl(s) {
   if (s.thumbnail && s.thumbnail[0]) {
     return s.thumbnail[0].thumbnails?.large?.url || s.thumbnail[0].url;
+  }
+  // Image-Story: nutze direkt das hochgeladene Bild als Thumbnail
+  if (s.media && s.media[0]) {
+    const type = (s.media[0].type || '').toLowerCase();
+    if (type.startsWith('image/')) {
+      return s.media[0].thumbnails?.large?.url || s.media[0].url;
+    }
+    // Video-Datei hat von Airtable evtl. eine large-thumbnail (Frame-Preview)
+    if (s.media[0].thumbnails?.large?.url) return s.media[0].thumbnails.large.url;
   }
   const ytId = parseYouTubeId(s.videoUrl);
   if (ytId) return `https://i.ytimg.com/vi/${ytId}/sddefault.jpg`;
@@ -10929,6 +10964,43 @@ function renderCustomerHomeMain() {
 </div>`;
 }
 
+// Story-Auto-Advance: Image-Stories haben kein natürliches Ende → nach 6 s zur nächsten.
+// Video-Stories laufen, bis sie vom User weitergeklickt werden ODER (TODO: ended-Event).
+const STORY_IMAGE_DURATION_MS = 6000;
+let _storyAdvanceTimer = null;
+function scheduleStoryAutoAdvance(story) {
+  clearStoryAutoAdvance();
+  if (!story) return;
+  const kind = getStoryMediaKind(story);
+  if (kind !== 'image') return; // nur für Bild-Stories
+  _storyAdvanceTimer = setTimeout(() => {
+    // Trigger story-next via Synth-Klick auf vorhandenen Nav-Button (oder direkt state ändern)
+    const list = filteredStoriesForUser();
+    if (state.storyIndex < list.length - 1) {
+      state.storyIndex++;
+      const next = list[state.storyIndex];
+      if (next) {
+        try {
+          const seen = new Set(JSON.parse(localStorage.getItem('flp_seen_stories') || '[]'));
+          seen.add(next._recordId);
+          localStorage.setItem('flp_seen_stories', JSON.stringify(Array.from(seen)));
+        } catch(e) {}
+      }
+      render();
+      scheduleStoryAutoAdvance(next);
+    } else {
+      state.storyViewerOpen = false;
+      render();
+    }
+  }, STORY_IMAGE_DURATION_MS);
+}
+function clearStoryAutoAdvance() {
+  if (_storyAdvanceTimer) {
+    clearTimeout(_storyAdvanceTimer);
+    _storyAdvanceTimer = null;
+  }
+}
+
 // Story-Reel: Horizontaler Strip mit runden Cover-Thumbnails (Instagram-Style).
 // Lazy-Load: Stories werden beim ersten Render der Home-Seite gefetched.
 function renderStoriesRow() {
@@ -10985,13 +11057,22 @@ function renderStoryViewer() {
   const idx = Math.max(0, Math.min(state.storyIndex || 0, list.length - 1));
   const s = list[idx];
   if (!s) return '';
-  // Video-HTML: YouTube → iframe, sonst direktes <video>
-  const ytId = parseYouTubeId(s.videoUrl);
+  // Media-Typ ableiten und passendes HTML rendern
+  const kind = getStoryMediaKind(s);
   let mediaHtml;
-  if (ytId) {
+  if (kind === 'youtube') {
+    const ytId = parseYouTubeId(s.videoUrl);
     mediaHtml = `<iframe src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1" title="${(s.title || '').replace(/"/g,'&quot;')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  } else if (kind === 'image') {
+    // Image-Story: Vollflächiges Bild — Auto-Advance via setTimeout im Action-Handler (siehe open-story)
+    const imgUrl = s.media[0].url;
+    mediaHtml = `<img src="${imgUrl.replace(/"/g,'&quot;')}" alt="${(s.title || '').replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover;background:#000" loading="eager">`;
+  } else if (kind === 'video') {
+    // Video-Story: hochgeladene Datei ODER externer Direct-Link
+    const src = (s.media && s.media[0] && s.media[0].url) || s.videoUrl;
+    mediaHtml = `<video src="${src.replace(/"/g,'&quot;')}" controls autoplay playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;background:#000"></video>`;
   } else {
-    mediaHtml = `<video src="${s.videoUrl.replace(/"/g,'&quot;')}" controls autoplay playsinline preload="metadata"></video>`;
+    mediaHtml = `<div style="display:flex;align-items:center;justify-content:center;color:#fff;height:100%;padding:24px;text-align:center;font-size:13px">Keine Medien-Quelle gesetzt.</div>`;
   }
   return `
     <div class="story-viewer">
@@ -14460,6 +14541,9 @@ function renderStoriesAdmin() {
 
 function renderStoryEditSheet(d) {
   const isNew = !d._recordId;
+  const hasMedia = !!(d.media && d.media[0]);
+  const mediaKind = getStoryMediaKind(d);
+  const uploading = !!state.storyDraftUploading;
   return `
     <div class="sheet-backdrop" data-action="story-cancel"></div>
     <div class="action-sheet" style="max-height:88vh;display:flex;flex-direction:column;max-width:540px;width:100%">
@@ -14471,10 +14555,52 @@ function renderStoryEditSheet(d) {
           <input class="field__input" data-action="story-input" data-key="title" value="${(d.title || '').replace(/"/g,'&quot;')}" placeholder="z.B. Werkstatt-Tour" autocomplete="off">
           <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Erscheint unter dem Kreis (kurz halten — max ~15 Zeichen)</div>
         </div>
-        <div class="field">
-          <label class="field__label">Video-URL *</label>
-          <input class="field__input" data-action="story-input" data-key="videoUrl" value="${(d.videoUrl || '').replace(/"/g,'&quot;')}" placeholder="https://youtu.be/... oder https://...mp4" autocomplete="off" style="font-family:var(--f-mono);font-size:12px">
-          <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">YouTube-Link (alle Formate) oder direkter MP4-Link. Vorschau-Bild wird automatisch von YouTube gezogen.</div>
+
+        <!-- Media-Quelle: 1) YouTube-Link  ODER  2) Eigenes Video/Bild hochladen -->
+        <div class="field" style="padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;flex-direction:column;gap:12px">
+          <div style="font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--c-ink-mute);text-transform:uppercase;letter-spacing:.06em">Medien-Quelle</div>
+
+          <!-- Upload-Variante (Video oder Bild) -->
+          <div>
+            <label class="field__label" style="display:flex;align-items:center;gap:8px">
+              ${svg('cloud-upload', 13, 2.4)} Eigenes Video oder Bild
+              ${hasMedia ? `<span class="pill" style="font-size:9px;background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6">${mediaKind === 'image' ? 'Bild' : 'Video'} geladen</span>` : ''}
+            </label>
+            ${hasMedia ? `
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:#fff;border:1px solid var(--c-border);border-radius:var(--r-md);margin-top:6px">
+                <div style="width:48px;height:48px;border-radius:8px;background:#0F1830;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+                  ${mediaKind === 'image'
+                    ? `<img src="${d.media[0].url}" style="width:100%;height:100%;object-fit:cover" alt="">`
+                    : (d.media[0].thumbnails?.small?.url
+                        ? `<img src="${d.media[0].thumbnails.small.url}" style="width:100%;height:100%;object-fit:cover" alt="">`
+                        : `<span style="color:#fff;display:flex">${svg('play', 18, 2.4)}</span>`)}
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:11.5px;font-weight:600;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--f-mono)">${(d.media[0].filename || '?').replace(/</g,'&lt;')}</div>
+                  <div style="font-size:10px;color:var(--c-ink-mute);margin-top:2px">${(d.media[0].type || '').replace('application/','')} · ${d.media[0].size ? (d.media[0].size > 1024*1024 ? (d.media[0].size/1024/1024).toFixed(1) + ' MB' : Math.round(d.media[0].size/1024) + ' KB') : ''}</div>
+                </div>
+                <button type="button" data-action="story-media-remove" ${uploading ? 'disabled' : ''} title="Entfernen" style="padding:6px;background:transparent;color:var(--c-red);border:0;cursor:pointer">${svg('trash', 13, 2.4)}</button>
+              </div>
+            ` : ''}
+            ${!d._recordId ? `<div style="margin-top:6px;font-size:11px;color:#854D0E;background:#FEF3C7;border:1px solid #FACC15;padding:8px 11px;border-radius:8px;line-height:1.4">${svg('info', 11, 2.5)} Zuerst speichern, danach lässt sich die Datei hochladen.</div>` : `
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+                <button type="button" data-action="story-media-pick" ${uploading ? 'disabled' : ''} style="padding:9px 13px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px${uploading?';opacity:.5':''}">${uploading?'<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lädt …':svg('cloud-upload', 12, 2.5) + ' ' + (hasMedia ? 'Datei ersetzen' : 'Video oder Bild hochladen')}</button>
+              </div>
+              <input type="file" id="storyMediaInput" accept="video/*,image/*" class="photo-input" data-action="story-media-picked">
+              <div style="font-size:10px;color:var(--c-ink-mute);margin-top:6px;line-height:1.4">MP4/MOV/WebM für Video · JPG/PNG für Bild. Max ~50 MB. <strong>Hochkant-Format (9:16) sieht im Reel am besten aus.</strong> Bei Bildern wird nach 6 s automatisch zur nächsten Story gewechselt.</div>
+            `}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;color:var(--c-ink-subtle);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
+            <span style="flex:1;height:1px;background:var(--c-border)"></span><span>oder</span><span style="flex:1;height:1px;background:var(--c-border)"></span>
+          </div>
+
+          <!-- YouTube/URL-Variante -->
+          <div>
+            <label class="field__label" style="display:flex;align-items:center;gap:8px">${svg('link', 13, 2.4)} YouTube-Link oder externe URL</label>
+            <input class="field__input" data-action="story-input" data-key="videoUrl" value="${(d.videoUrl || '').replace(/"/g,'&quot;')}" placeholder="https://youtu.be/... oder https://...mp4" autocomplete="off" style="font-family:var(--f-mono);font-size:12px;margin-top:6px">
+            <div style="font-size:10px;color:var(--c-ink-mute);margin-top:5px">YouTube (alle Formate erkannt) oder direkter Video-Link. Wird ignoriert, wenn oben eine Datei hochgeladen ist.</div>
+          </div>
         </div>
         <div class="field">
           <label class="field__label">Untertitel <span style="color:var(--c-ink-mute);font-weight:500">(optional)</span></label>
@@ -18619,7 +18745,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'open-story': {
-      // Story-Viewer öffnen (Vollbild-Video-Modal). Markiert die Story als „gesehen" im localStorage.
+      // Story-Viewer öffnen (Vollbild-Modal). Markiert die Story als „gesehen" im localStorage.
       const rid = btn.dataset.id;
       const list = filteredStoriesForUser();
       const idx = list.findIndex(s => s._recordId === rid);
@@ -18634,15 +18760,18 @@ document.addEventListener('click', (e) => {
       } catch(e) {}
       trackEvent('story_view', { storyId: rid, title: list[idx].title || '' });
       render();
+      scheduleStoryAutoAdvance(list[idx]);
       break;
     }
     case 'close-story': {
       state.storyViewerOpen = false;
+      clearStoryAutoAdvance();
       render();
       break;
     }
     case 'story-prev': {
       const list = filteredStoriesForUser();
+      clearStoryAutoAdvance();
       if (state.storyIndex > 0) {
         state.storyIndex--;
         const s = list[state.storyIndex];
@@ -18654,6 +18783,7 @@ document.addEventListener('click', (e) => {
           } catch(e) {}
         }
         render();
+        scheduleStoryAutoAdvance(s);
       } else {
         state.storyViewerOpen = false;
         render();
@@ -18662,6 +18792,7 @@ document.addEventListener('click', (e) => {
     }
     case 'story-next': {
       const list = filteredStoriesForUser();
+      clearStoryAutoAdvance();
       if (state.storyIndex < list.length - 1) {
         state.storyIndex++;
         const s = list[state.storyIndex];
@@ -18673,6 +18804,7 @@ document.addEventListener('click', (e) => {
           } catch(e) {}
         }
         render();
+        scheduleStoryAutoAdvance(s);
       } else {
         // Am Ende → Viewer schließen
         state.storyViewerOpen = false;
@@ -18718,11 +18850,63 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'story-input': /* input event */ break;
+    case 'story-media-pick': {
+      if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
+      document.getElementById('storyMediaInput')?.click();
+      break;
+    }
+    case 'story-media-picked': {
+      // Datei vom <input type="file"> hochladen — Video oder Bild
+      if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
+      const fileInput = document.getElementById('storyMediaInput');
+      const file = fileInput?.files?.[0];
+      if (!file) break;
+      state.storyDraftUploading = true;
+      render();
+      (async () => {
+        try {
+          const rec = await uploadRawFileToRecord(TBL_STORIES, state.storyDraft._recordId, 'media', file);
+          const fresh = recordToStory(rec);
+          state.storyDraft = fresh;
+          state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+          showToast('Hochgeladen', 'success', 2000);
+        } catch (e) {
+          showToast('Upload fehlgeschlagen: ' + (e.message || ''), 'error', 4000);
+        } finally {
+          state.storyDraftUploading = false;
+          if (fileInput) fileInput.value = '';
+          render();
+        }
+      })();
+      break;
+    }
+    case 'story-media-remove': {
+      if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
+      if (!confirm('Hochgeladene Datei entfernen?')) break;
+      state.storyDraftUploading = true;
+      render();
+      airUpdate(TBL_STORIES, state.storyDraft._recordId, { media: [] })
+        .then(rec => {
+          const fresh = recordToStory(rec);
+          state.storyDraft = fresh;
+          state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+          showToast('Datei entfernt', 'success', 2000);
+        })
+        .catch(e => showToast('Fehler: ' + (e.message || ''), 'error', 3500))
+        .finally(() => { state.storyDraftUploading = false; render(); });
+      break;
+    }
     case 'story-save': {
       if (!isAdmin() || !state.storyDraft) break;
       const d = state.storyDraft;
       if (!(d.title || '').trim()) { showToast('Titel ist Pflicht', 'error', 2400); break; }
-      if (!(d.videoUrl || '').trim()) { showToast('Video-URL ist Pflicht', 'error', 2400); break; }
+      // Mindestens eine Medien-Quelle muss vorhanden sein (URL ODER hochgeladene Datei)
+      const hasUploadedMedia = !!(d.media && d.media[0]);
+      const hasUrl = !!(d.videoUrl || '').trim();
+      if (!hasUploadedMedia && !hasUrl) {
+        showToast('Bitte entweder eine Datei hochladen oder eine YouTube-URL eintragen', 'error', 4000);
+        break;
+      }
       const fields = {
         title: (d.title || '').trim(),
         video_url: (d.videoUrl || '').trim(),
