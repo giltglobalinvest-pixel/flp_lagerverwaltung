@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.47';
+const APP_VERSION = 'v2.48';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -18900,13 +18900,12 @@ document.addEventListener('click', (e) => {
       if (!isAdmin() || !state.storyDraft) break;
       const d = state.storyDraft;
       if (!(d.title || '').trim()) { showToast('Titel ist Pflicht', 'error', 2400); break; }
-      // Mindestens eine Medien-Quelle muss vorhanden sein (URL ODER hochgeladene Datei)
+      // Medien-Quelle ist beim ersten Speichern OPTIONAL — sonst Chicken-and-Egg
+      // (Upload braucht recordId, Save mit Validation würde blocken).
+      // Story wird erst angezeigt, wenn mindestens eine Quelle gesetzt ist (Filter in loadStories).
       const hasUploadedMedia = !!(d.media && d.media[0]);
       const hasUrl = !!(d.videoUrl || '').trim();
-      if (!hasUploadedMedia && !hasUrl) {
-        showToast('Bitte entweder eine Datei hochladen oder eine YouTube-URL eintragen', 'error', 4000);
-        break;
-      }
+      const isNew = !d._recordId;
       const fields = {
         title: (d.title || '').trim(),
         video_url: (d.videoUrl || '').trim(),
@@ -18929,8 +18928,15 @@ document.addEventListener('click', (e) => {
             state.stories = [...(state.stories || []), updated];
           }
           state.stories.sort((a, b) => (a.sortOrder - b.sortOrder) || (a.title || '').localeCompare(b.title || ''));
-          state.storyDraft = null;
-          showToast(d._recordId ? 'Aktualisiert' : 'Story angelegt', 'success', 2000);
+          // Wenn NEU und noch keine Medien: Sheet offen lassen damit User direkt hochladen kann.
+          // Sheet bekommt jetzt eine recordId → Upload-Button wird klickbar.
+          if (isNew && !hasUploadedMedia && !hasUrl) {
+            state.storyDraft = updated;
+            showToast('Angelegt — jetzt Datei hochladen oder URL eintragen', 'success', 3000);
+          } else {
+            state.storyDraft = null;
+            showToast(d._recordId ? 'Aktualisiert' : 'Story angelegt', 'success', 2000);
+          }
           render();
         })
         .catch(e => showToast('Speichern fehlgeschlagen: ' + (e.message || ''), 'error', 3500))
