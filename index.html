@@ -1235,7 +1235,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.44';
+const APP_VERSION = 'v2.45';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4011,6 +4011,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Kein Angebots-Empfänger eingerichtet',
     'inquiry.noRecipient.sub': 'Bevor du eine Anfrage stellen kannst, musst du in den Einstellungen mindestens einen Mitarbeiter mit Email-Adresse anlegen und als Angebots-Empfänger markieren.',
     'inquiry.noRecipient.goToSettings': 'Zu den Einstellungen',
+    'inquiry.proxyFailedFallback': 'Backend nicht erreichbar — Anfrage wird als Email geöffnet',
     // Settings (Customer)
     'cset.title': 'Einstellungen',
     // Distributor-Settings (für Customer mit is_distributor)
@@ -4384,6 +4385,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'No quote recipient set up',
     'inquiry.noRecipient.sub': 'Before you can send an inquiry, you need to add at least one employee with an email address in Settings and mark them as quote recipient.',
     'inquiry.noRecipient.goToSettings': 'Open settings',
+    'inquiry.proxyFailedFallback': 'Backend unreachable — opening as email instead',
     'cset.title': 'Settings',
     'dist.title': 'Distributor settings',
     'dist.sub': 'You are a sales partner — manage your margin and sub-customers here.',
@@ -4750,6 +4752,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Falta destinatario de presupuestos',
     'inquiry.noRecipient.sub': 'Antes de enviar una consulta tienes que añadir en Ajustes al menos un empleado con email y marcarlo como destinatario de presupuestos.',
     'inquiry.noRecipient.goToSettings': 'Ir a Ajustes',
+    'inquiry.proxyFailedFallback': 'Backend no disponible — abriendo como correo',
     'cset.title': 'Ajustes',
     'dist.title': 'Ajustes de distribuidor',
     'dist.sub': 'Eres socio comercial — gestiona aquí tu margen y subclientes.',
@@ -5116,6 +5119,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Geen offerte-ontvanger ingesteld',
     'inquiry.noRecipient.sub': 'Voor je een aanvraag kunt versturen moet je in Instellingen minstens één medewerker met emailadres toevoegen en als offerte-ontvanger markeren.',
     'inquiry.noRecipient.goToSettings': 'Naar instellingen',
+    'inquiry.proxyFailedFallback': 'Backend niet bereikbaar — wordt als e-mail geopend',
     'cset.title': 'Instellingen',
     'dist.title': 'Distributeur-instellingen',
     'dist.sub': 'Je bent verkooppartner — beheer hier je marge en subklanten.',
@@ -5482,6 +5486,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Pas de destinataire de devis configuré',
     'inquiry.noRecipient.sub': 'Avant d’envoyer une demande, tu dois ajouter dans Paramètres au moins un employé avec adresse email et le marquer comme destinataire des devis.',
     'inquiry.noRecipient.goToSettings': 'Aller aux paramètres',
+    'inquiry.proxyFailedFallback': 'Backend indisponible — ouverture par e-mail',
     'cset.title': 'Paramètres',
     'dist.title': 'Paramètres distributeur',
     'dist.sub': 'Tu es partenaire commercial — gère ta marge et tes sous-clients ici.',
@@ -5848,6 +5853,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Nessun destinatario preventivi configurato',
     'inquiry.noRecipient.sub': 'Prima di inviare una richiesta, aggiungi almeno un collaboratore con un indirizzo email nelle Impostazioni e contrassegnalo come destinatario preventivi.',
     'inquiry.noRecipient.goToSettings': 'Apri impostazioni',
+    'inquiry.proxyFailedFallback': 'Backend non raggiungibile — apertura come e-mail',
     'cset.title': 'Impostazioni',
     'dist.title': 'Impostazioni distributore',
     'dist.sub': 'Sei un partner di vendita — gestisci qui margine e sub-clienti.',
@@ -6214,6 +6220,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Ingen offertmottagare konfigurerad',
     'inquiry.noRecipient.sub': 'Innan du kan skicka en förfrågan måste du lägga till minst en medarbetare med e-postadress i Inställningar och markera som offertmottagare.',
     'inquiry.noRecipient.goToSettings': 'Öppna inställningar',
+    'inquiry.proxyFailedFallback': 'Backend ej tillgänglig — öppnas som e-post',
     'cset.title': 'Inställningar',
     'dist.title': 'Distributörinställningar',
     'dist.sub': 'Du är säljpartner — hantera marginal och underkunder här.',
@@ -6580,6 +6587,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Ingen tilbudsmodtager opsat',
     'inquiry.noRecipient.sub': 'Før du kan sende en forespørgsel, skal du tilføje mindst én medarbejder med e-mailadresse i Indstillinger og markere som tilbudsmodtager.',
     'inquiry.noRecipient.goToSettings': 'Åbn indstillinger',
+    'inquiry.proxyFailedFallback': 'Backend ikke tilgængelig — åbnes som e-mail',
     'cset.title': 'Indstillinger',
     'dist.title': 'Distributørindstillinger',
     'dist.sub': 'Du er salgspartner — administrér margin og underkunder her.',
@@ -6946,6 +6954,7 @@ const I18N = {
     'inquiry.noRecipient.title': 'Ingen tilbudsmottaker satt opp',
     'inquiry.noRecipient.sub': 'Før du kan sende en forespørsel, må du legge til minst én medarbeider med e-postadresse i Innstillinger og merke som tilbudsmottaker.',
     'inquiry.noRecipient.goToSettings': 'Åpne innstillinger',
+    'inquiry.proxyFailedFallback': 'Backend ikke tilgjengelig — åpnes som e-post',
     'cset.title': 'Innstillinger',
     'dist.title': 'Distributørinnstillinger',
     'dist.sub': 'Du er salgspartner — administrer margin og underkunder her.',
@@ -19609,9 +19618,24 @@ document.addEventListener('click', (e) => {
           trackEvent('inquiry_sent', { itemId: it.id, route: 'freshdesk-proxy' });
           render();
         } catch (e) {
+          // Auto-Fallback: Wenn der Proxy nicht erreichbar ist (typisch „Load failed" auf iOS Safari
+          // bei Netzwerk-/CORS-Problemen), öffnen wir direkt mailto, damit der User trotzdem
+          // seine Anfrage senden kann — statt mit einem stummen Fehler zu enden.
           state.inquirySending = false;
-          state.inquiryError = 'Anfrage konnte nicht gesendet werden: ' + (e?.message || 'unbekannter Fehler') + '. Bitte später erneut versuchen oder eine Email an service@flp-shop.com senden.';
-          render();
+          const errMsg = String(e?.message || e || 'unbekannter Fehler');
+          console.error('[send-inquiry] proxy fetch failed:', errMsg);
+          try {
+            const mailto = 'mailto:service@flp-shop.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(description);
+            window.location.href = mailto;
+            state.inquirySent = true;
+            trackEvent('inquiry_sent', { itemId: it.id, route: 'mailto-fallback', proxyError: errMsg.slice(0, 100) });
+            showToast(t('inquiry.proxyFailedFallback') || 'Backend nicht erreichbar — Anfrage wird als Email geöffnet', 'info', 4500);
+            render();
+          } catch (e2) {
+            // Selbst der Fallback hat versagt — jetzt zeigen wir den Fehler
+            state.inquiryError = 'Anfrage konnte nicht gesendet werden: ' + errMsg + '. Bitte später erneut versuchen oder eine Email an service@flp-shop.com senden.';
+            render();
+          }
         }
       })();
       break;
