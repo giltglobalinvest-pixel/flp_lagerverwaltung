@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.51';
+const APP_VERSION = 'v2.52';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -17921,15 +17921,24 @@ function render() {
   }
 
   // Save scroll positions of scrollable containers (.scroll = main screen scroll area, .js-scroll = inner sheet scroll)
+  // Aber nur für Re-Renders DESSELBEN Views — bei Navigation zwischen Views (z.B. home → detail)
+  // soll jeder Screen frisch oben starten. Bug-Fix: vorher hat der Detail-Screen die Scroll-Position
+  // des Home-Screens "geerbt" (querySelectorAll('.scroll')[0] ist in beiden Views derselbe Index).
+  const viewChanged = state._lastRenderedView !== state.view;
+  state._lastRenderedView = state.view;
   const savedScrolls = {};
-  app.querySelectorAll('.scroll').forEach((el, i) => { savedScrolls[`scroll:${i}`] = el.scrollTop; });
-  app.querySelectorAll('.js-scroll').forEach(el => {
-    const k = el.dataset.scrollKey;
-    if (k) savedScrolls[`js:${k}`] = el.scrollTop;
-  });
+  if (!viewChanged) {
+    app.querySelectorAll('.scroll').forEach((el, i) => { savedScrolls[`scroll:${i}`] = el.scrollTop; });
+    app.querySelectorAll('.js-scroll').forEach(el => {
+      const k = el.dataset.scrollKey;
+      if (k) savedScrolls[`js:${k}`] = el.scrollTop;
+    });
+  }
 
   // Save horizontal scroll for chip rows (so management mode in the middle of a long chip row doesn't lose position)
-  app.querySelectorAll('.chip-row').forEach((el, i) => { savedScrolls[`chip:${i}`] = el.scrollLeft; });
+  if (!viewChanged) {
+    app.querySelectorAll('.chip-row').forEach((el, i) => { savedScrolls[`chip:${i}`] = el.scrollLeft; });
+  }
 
   // Save focus state of any active input/textarea so live-typing doesn't lose focus
   const activeEl = document.activeElement;
