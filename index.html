@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.53';
+const APP_VERSION = 'v2.54';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -14933,24 +14933,23 @@ function renderStoryEditSheet(d) {
                 }).join('')}
               </div>
             ` : ''}
-            ${!d._recordId ? `<div style="margin-top:6px;font-size:11px;color:#854D0E;background:#FEF3C7;border:1px solid #FACC15;padding:8px 11px;border-radius:8px;line-height:1.4">${svg('info', 11, 2.5)} Zuerst speichern, danach lassen sich Dateien hochladen.</div>` : `
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-                <button type="button" data-action="story-media-pick" ${uploading ? 'disabled' : ''} style="padding:9px 13px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px${uploading?';opacity:.5':''}">${uploading?'<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lädt …':svg('plus', 12, 2.5) + ' ' + (hasMedia ? 'Datei hinzufügen' : 'Dateien hochladen')}</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button type="button" data-action="story-media-pick" ${uploading ? 'disabled' : ''} style="padding:9px 13px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px${uploading?';opacity:.5':''}">${uploading?'<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lädt …':svg('plus', 12, 2.5) + ' ' + (hasMedia ? 'Datei hinzufügen' : 'Dateien hochladen')}</button>
+            </div>
+            <input type="file" id="storyMediaInput" accept="video/*,image/*" multiple class="photo-input" data-action="story-media-picked">
+            ${uploading && state.storyDraftUploadStatus ? `
+              <div style="margin-top:8px;padding:9px 11px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:11px;color:#1E40AF;display:flex;align-items:center;gap:8px">
+                <div class="spinner spinner--sm" style="border-color:#BFDBFE;border-top-color:#1E40AF;flex-shrink:0"></div>
+                <span id="storyUploadStatusLine" style="font-family:var(--f-mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state.storyDraftUploadStatus}</span>
               </div>
-              <input type="file" id="storyMediaInput" accept="video/*,image/*" multiple class="photo-input" data-action="story-media-picked">
-              ${uploading && state.storyDraftUploadStatus ? `
-                <div style="margin-top:8px;padding:9px 11px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:11px;color:#1E40AF;display:flex;align-items:center;gap:8px">
-                  <div class="spinner spinner--sm" style="border-color:#BFDBFE;border-top-color:#1E40AF;flex-shrink:0"></div>
-                  <span id="storyUploadStatusLine" style="font-family:var(--f-mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state.storyDraftUploadStatus}</span>
-                </div>
-              ` : ''}
-              <div style="font-size:10px;color:var(--c-ink-mute);margin-top:6px;line-height:1.45">
-                Mehrere Dateien gleichzeitig wählbar — jede wird ein Segment.<br>
-                <strong>Video:</strong> MP4/MOV/WebM, max 60 s · wird automatisch auf max. 720 px Hochkant + 1.2 Mbit/s komprimiert.<br>
-                <strong>Bild:</strong> JPG/PNG, wird auf max. 1080 px verkleinert + JPEG-komprimiert.<br>
-                <strong>Hochkant-Format (9:16)</strong> sieht im Reel am besten aus. Bilder werden nach 6 s automatisch weitergeschoben.
-              </div>
-            `}
+            ` : ''}
+            <div style="font-size:10px;color:var(--c-ink-mute);margin-top:6px;line-height:1.45">
+              Mehrere Dateien gleichzeitig wählbar — jede wird ein Segment.<br>
+              <strong>Video:</strong> MP4/MOV/WebM, max 60 s · wird automatisch auf max. 720 px Hochkant + 1.2 Mbit/s komprimiert.<br>
+              <strong>Bild:</strong> JPG/PNG, wird auf max. 1080 px verkleinert + JPEG-komprimiert.<br>
+              <strong>Hochkant-Format (9:16)</strong> sieht im Reel am besten aus. Bilder werden nach 6 s automatisch weitergeschoben.
+              ${!d._recordId ? `<br><span style="color:#1E40AF;font-weight:500">${svg('info', 9, 2.5)} Beim ersten Upload wird die Story automatisch angelegt — kein „Speichern" vorab nötig.</span>` : ''}
+            </div>
           </div>
         </div>
         <div class="field">
@@ -19351,16 +19350,30 @@ document.addEventListener('click', (e) => {
     }
     case 'story-input': /* input event */ break;
     case 'story-media-pick': {
-      if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
+      // Neuer Flow: kein _recordId nötig — vor dem Upload validieren wir nur den Titel.
+      // Auto-Create der Story erfolgt in story-media-picked, sobald File-Picker bestätigt wurde.
+      if (!isAdmin() || !state.storyDraft) break;
+      if (!(state.storyDraft.title || '').trim()) {
+        showToast('Bitte zuerst einen Titel eingeben', 'error', 2800);
+        // Fokus auf Titel-Feld setzen
+        const ti = document.querySelector('[data-action="story-input"][data-key="title"]');
+        if (ti) ti.focus();
+        break;
+      }
       document.getElementById('storyMediaInput')?.click();
       break;
     }
     case 'story-media-picked': {
       // Eine oder mehrere Dateien:
+      //   0) Falls Story noch nicht in Airtable existiert (neuer Draft) → vorher silent anlegen
       //   1) Lokal komprimieren/re-encoden (Bilder → JPEG ≤1080px, Videos → ≤720px @ 1.2 Mbit/s)
       //   2) Re-encoded File hochladen
       // Airtable hängt jeden Upload an die bestehende `media`-Liste an → jedes File wird ein Segment.
-      if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
+      if (!isAdmin() || !state.storyDraft) break;
+      if (!(state.storyDraft.title || '').trim()) {
+        showToast('Bitte zuerst einen Titel eingeben', 'error', 2800);
+        break;
+      }
       const fileInput = document.getElementById('storyMediaInput');
       const files = Array.from(fileInput?.files || []);
       if (!files.length) break;
@@ -19368,6 +19381,40 @@ document.addEventListener('click', (e) => {
       state.storyDraftUploadStatus = `Datei wird vorbereitet …`;
       render();
       (async () => {
+        // Step 0: Story anlegen falls noch nicht in Airtable
+        if (!state.storyDraft._recordId) {
+          try {
+            state.storyDraftUploadStatus = `Story wird angelegt …`;
+            render();
+            const d = state.storyDraft;
+            const createFields = {
+              title: (d.title || '').trim(),
+              video_url: '',
+              subtitle: (d.subtitle || '').trim(),
+              target: d.target || 'all',
+              company: d.company || '',
+              lang: d.lang || '',
+              sort_order: String(d.sortOrder || 0),
+              active: d.active === false ? '' : '1',
+              pinned: d.pinned ? '1' : '',
+              expires_days: String(Number(d.expiresDays || 0) || 0),
+              ring_color: d.ringColor || '',
+              created: nowIso(),
+            };
+            const newRec = await airWrite(TBL_STORIES, createFields);
+            const fresh = recordToStory(newRec);
+            // Felder vom Draft, die der User schon gesetzt hatte, übernehmen
+            state.storyDraft = { ...fresh };
+            state.stories = [...(state.stories || []), fresh];
+          } catch (e) {
+            state.storyDraftUploading = false;
+            state.storyDraftUploadStatus = '';
+            if (fileInput) fileInput.value = '';
+            showToast('Story konnte nicht angelegt werden: ' + (e.message || ''), 'error', 4500);
+            render();
+            return;
+          }
+        }
         let lastRec = null;
         let okCount = 0;
         let idx = 0;
