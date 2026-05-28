@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.52';
+const APP_VERSION = 'v2.53';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -1562,6 +1562,206 @@ async function processLogo(inputFile) {
   if (!blob) return inputFile;
   const baseName = (inputFile.name || 'logo').replace(/\.[^./]+$/, '');
   return new File([blob], baseName + '.png', { type: 'image/png', lastModified: Date.now() });
+}
+
+// ============================================================
+// STORY-MEDIA-VERARBEITUNG — Resize + Re-Encode vor dem Upload
+// ============================================================
+// Konstanten: Stories sind kurze Reels fürs Handy (Hochkant 9:16).
+// Ziel: kompakte Dateigrößen, Mobile-freundlich, nicht-blockierend für Slow-Connections.
+const STORY_IMAGE_MAX_EDGE = 1080;       // Längste Kante in px (FullHD-Höhe)
+const STORY_IMAGE_QUALITY  = 0.80;
+const STORY_VIDEO_MAX_EDGE = 720;        // Längste Kante in px (720x1280 = HD-Hochkant)
+const STORY_VIDEO_BITRATE  = 1_200_000;  // 1.2 Mbit/s — Reel-tauglich
+const STORY_VIDEO_FPS      = 30;
+const STORY_VIDEO_MAX_DURATION_SEC = 60; // Mehr als 60s ist kein Reel
+const STORY_VIDEO_MAX_INPUT_MB = 200;    // Roh-Input darf bis 200 MB sein, nach Re-Encode landet's klein
+
+// Story-Bild verkleinern: kein Crop (Hochkant erhalten), längste Kante auf STORY_IMAGE_MAX_EDGE,
+// JPEG-Recompress. Behebt: Originale aus iPhone-Cam können 4..8 MB sein → nach Resize <300 KB.
+async function processStoryImage(inputFile) {
+  if (!inputFile.type.startsWith('image/')) return inputFile;
+  // SVG/GIF unverändert (animiert)
+  if (inputFile.type === 'image/svg+xml' || inputFile.type === 'image/gif') return inputFile;
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('FileReader-Fehler'));
+    r.readAsDataURL(inputFile);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Bildformat nicht unterstützt (HEIC bitte vorher konvertieren)'));
+    i.src = dataUrl;
+  });
+  const srcW = img.naturalWidth, srcH = img.naturalHeight;
+  if (!srcW || !srcH) throw new Error('Bild hat keine gültige Größe');
+  let outW = srcW, outH = srcH;
+  const longest = Math.max(srcW, srcH);
+  if (longest > STORY_IMAGE_MAX_EDGE) {
+    const scale = STORY_IMAGE_MAX_EDGE / longest;
+    outW = Math.round(srcW * scale);
+    outH = Math.round(srcH * scale);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, outW, outH);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', STORY_IMAGE_QUALITY));
+  if (!blob) return inputFile;
+  const baseName = (inputFile.name || 'photo').replace(/\.[^./]+$/, '');
+  return new File([blob], baseName + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+}
+
+// Story-Video re-encoden via canvas.captureStream() + MediaRecorder.
+// - Skaliert auf max STORY_VIDEO_MAX_EDGE (längste Kante)
+// - Limitiert auf STORY_VIDEO_BITRATE (1.2 Mbit/s)
+// - Audio wird via WebAudio-Pipeline mitgenommen (falls vorhanden)
+// - Fallback bei Browser-Inkompatibilität: Original-Datei wird unverändert hochgeladen
+// - onProgress(0..1) wird während des Encodings periodisch aufgerufen
+async function processStoryVideo(inputFile, onProgress) {
+  if (!inputFile.type.startsWith('video/')) return inputFile;
+  if (inputFile.size > STORY_VIDEO_MAX_INPUT_MB * 1024 * 1024) {
+    throw new Error(`Video zu groß (max. ${STORY_VIDEO_MAX_INPUT_MB} MB Eingang).`);
+  }
+  // Codec-Wahl: MP4/AVC bevorzugt (iOS-kompatibel), sonst WebM/VP9/VP8
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1.42E01E',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  const supportsType = (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function');
+  const chosenMime = supportsType ? (candidates.find(m => MediaRecorder.isTypeSupported(m)) || null) : null;
+  if (!chosenMime || typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+    console.warn('[story] Re-Encoding nicht unterstützt — lade Original hoch');
+    return inputFile;
+  }
+  const objectUrl = URL.createObjectURL(inputFile);
+  const video = document.createElement('video');
+  video.src = objectUrl;
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.crossOrigin = 'anonymous';
+  try {
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('Metadata-Timeout')), 15000);
+      video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
+      video.onerror = () => { clearTimeout(t); reject(new Error('Video kann nicht gelesen werden')); };
+    });
+  } catch (e) {
+    URL.revokeObjectURL(objectUrl);
+    throw e;
+  }
+  const srcW = video.videoWidth, srcH = video.videoHeight, srcDur = video.duration || 0;
+  if (!srcW || !srcH) { URL.revokeObjectURL(objectUrl); return inputFile; }
+  if (srcDur && srcDur > STORY_VIDEO_MAX_DURATION_SEC) {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error(`Video zu lang (${Math.round(srcDur)}s). Max ${STORY_VIDEO_MAX_DURATION_SEC}s für Stories.`);
+  }
+  let outW = srcW, outH = srcH;
+  const longest = Math.max(srcW, srcH);
+  if (longest > STORY_VIDEO_MAX_EDGE) {
+    const scale = STORY_VIDEO_MAX_EDGE / longest;
+    outW = Math.round(srcW * scale);
+    outH = Math.round(srcH * scale);
+  }
+  // Encoder benötigen gerade Pixel
+  outW -= outW % 2;
+  outH -= outH % 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  const stream = canvas.captureStream(STORY_VIDEO_FPS);
+  // Audio mitnehmen (best effort — Browser-Quirks)
+  let audioCtx = null;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(video);
+    const dest = audioCtx.createMediaStreamDestination();
+    source.connect(dest);
+    // WICHTIG: source NICHT an destination connecten — sonst hört der User es laut beim Encoden
+    dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+  } catch (e) {
+    // Video ohne Audio oder Browser blockiert — egal, weiter ohne Ton
+  }
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, {
+      mimeType: chosenMime,
+      videoBitsPerSecond: STORY_VIDEO_BITRATE,
+      audioBitsPerSecond: 96_000,
+    });
+  } catch (e) {
+    URL.revokeObjectURL(objectUrl);
+    if (audioCtx) try { audioCtx.close(); } catch(_) {}
+    console.warn('[story] MediaRecorder Init fehlgeschlagen — lade Original hoch:', e);
+    return inputFile;
+  }
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  return new Promise((resolve, reject) => {
+    let rafId = null;
+    let progressIv = null;
+    const cleanup = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (progressIv) clearInterval(progressIv);
+      try { video.pause(); } catch(_) {}
+      try { URL.revokeObjectURL(objectUrl); } catch(_) {}
+      if (audioCtx) try { audioCtx.close(); } catch(_) {}
+    };
+    recorder.onstop = () => {
+      cleanup();
+      const outType = chosenMime.split(';')[0];
+      const blob = new Blob(chunks, { type: outType });
+      // Wenn das Ergebnis größer als 95% des Originals ist → Original behalten (keine Verbesserung)
+      if (blob.size >= inputFile.size * 0.95) {
+        resolve(inputFile);
+        return;
+      }
+      const ext = outType.includes('mp4') ? 'mp4' : 'webm';
+      const baseName = (inputFile.name || 'video').replace(/\.[^./]+$/, '');
+      resolve(new File([blob], baseName + '.' + ext, { type: outType, lastModified: Date.now() }));
+    };
+    recorder.onerror = ev => { cleanup(); reject(ev.error || new Error('MediaRecorder Fehler')); };
+    const drawFrame = () => {
+      if (video.ended || video.paused) return;
+      ctx.drawImage(video, 0, 0, outW, outH);
+      rafId = requestAnimationFrame(drawFrame);
+    };
+    video.onended = () => {
+      try { recorder.stop(); } catch(_) {}
+    };
+    if (typeof onProgress === 'function' && srcDur > 0) {
+      progressIv = setInterval(() => {
+        const p = Math.min(1, (video.currentTime || 0) / srcDur);
+        try { onProgress(p); } catch(_) {}
+      }, 250);
+    }
+    recorder.start(250);
+    video.play().then(() => drawFrame()).catch(err => {
+      cleanup();
+      try { recorder.stop(); } catch(_) {}
+      reject(new Error('Video-Play blockiert: ' + (err.message || err)));
+    });
+  });
+}
+
+// Komfort-Wrapper: ruft den passenden Story-Processor je nach MIME-Typ.
+// onProgress nur für Video relevant.
+async function processStoryFile(file, onProgress) {
+  if (file.type.startsWith('image/')) return processStoryImage(file);
+  if (file.type.startsWith('video/')) return processStoryVideo(file, onProgress);
+  return file;
 }
 
 // Upload-Variante für Logos: nutzt processLogo statt processImage
@@ -2970,11 +3170,10 @@ function getStorySegments(s) {
       segs.push({ kind, url: att.url, thumbUrl: att.thumbnails?.large?.url || att.url, filename: att.filename || '' });
     }
   }
-  // External URL nur, wenn KEINE hochgeladenen Files (sonst dominiert die Upload-Quelle)
-  if (segs.length === 0 && s.videoUrl) {
-    const ytId = parseYouTubeId(s.videoUrl);
-    if (ytId) segs.push({ kind: 'youtube', url: s.videoUrl, ytId, thumbUrl: `https://i.ytimg.com/vi/${ytId}/sddefault.jpg` });
-    else segs.push({ kind: 'video', url: s.videoUrl, thumbUrl: null });
+  // Legacy: alte Stories hatten externe URLs. YouTube wird nicht mehr unterstützt,
+  // direkte Video-URLs werden als <video>-Segment weiter abgespielt (Backward-Compat).
+  if (segs.length === 0 && s.videoUrl && !parseYouTubeId(s.videoUrl)) {
+    segs.push({ kind: 'video', url: s.videoUrl, thumbUrl: null });
   }
   return segs;
 }
@@ -2989,7 +3188,8 @@ function isStoryExpired(s) {
   return ageDays > s.expiresDays;
 }
 
-// Story-Media-Typ ableiten: 'youtube' | 'video' | 'image' | null
+// Story-Media-Typ ableiten: 'video' | 'image' | null
+// YouTube wird nicht mehr unterstützt — externe YouTube-URLs werden ignoriert.
 function getStoryMediaKind(s) {
   if (!s) return null;
   // 1. Hochgeladene Datei hat Vorrang (Airtable-Attachment)
@@ -3003,11 +3203,8 @@ function getStoryMediaKind(s) {
     if (/\.(mp4|mov|webm|m4v|ogv)$/.test(name)) return 'video';
     return 'video';
   }
-  // 2. Externe URL — YouTube oder direktes Video
-  if (s.videoUrl) {
-    if (parseYouTubeId(s.videoUrl)) return 'youtube';
-    return 'video';
-  }
+  // 2. Legacy: direkte Video-URL (kein YouTube)
+  if (s.videoUrl && !parseYouTubeId(s.videoUrl)) return 'video';
   return null;
 }
 async function loadStories() {
@@ -3018,9 +3215,15 @@ async function loadStories() {
     const r = await fetch('https://api.airtable.com/v0/' + APP_CONFIG.APP_BASE_ID + '/' + TBL_STORIES + '?pageSize=100', { headers });
     if (!r.ok) { state.stories = []; state.storiesLoading = false; return []; }
     const data = await r.json();
-    // Aktiv + nicht abgelaufen + mindestens eine Medien-Quelle (URL ODER hochgeladene Datei)
+    // Aktiv + nicht abgelaufen + mindestens eine Medien-Quelle (hochgeladene Datei ODER Legacy-Direkt-URL).
+    // YouTube-URLs werden nicht mehr unterstützt — sie zählen nicht als Quelle.
     const list = (data.records || []).map(recordToStory)
-      .filter(s => s.active && (s.videoUrl || (s.media && s.media[0])) && !isStoryExpired(s))
+      .filter(s => {
+        if (!s.active || isStoryExpired(s)) return false;
+        if (s.media && s.media[0]) return true;
+        // Legacy direct-URL (kein YouTube)
+        return !!(s.videoUrl && !parseYouTubeId(s.videoUrl));
+      })
       .sort((a, b) => {
         // Pinned-Stories zuerst, dann sort_order, dann Titel
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -11199,8 +11402,6 @@ function renderStoryViewer() {
   let mediaHtml;
   if (!seg) {
     mediaHtml = `<div style="display:flex;align-items:center;justify-content:center;color:#fff;height:100%;padding:24px;text-align:center;font-size:13px">Keine Medien-Quelle gesetzt.</div>`;
-  } else if (seg.kind === 'youtube') {
-    mediaHtml = `<iframe src="https://www.youtube-nocookie.com/embed/${seg.ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1" title="${(s.title || '').replace(/"/g,'&quot;')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   } else if (seg.kind === 'image') {
     mediaHtml = `<img src="${seg.url.replace(/"/g,'&quot;')}" alt="${(s.title || '').replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover;background:#000" loading="eager">`;
   } else if (seg.kind === 'video') {
@@ -14633,7 +14834,7 @@ function renderStoriesAdmin() {
       ` : all.length === 0 ? `
         <div class="tile" style="padding:28px;text-align:center">
           <div style="font-size:13px;color:var(--c-ink-soft);font-weight:600">Noch keine Stories</div>
-          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Klick „Neue Story" und füge einen YouTube-Link hinzu.</div>
+          <div style="font-size:11.5px;color:var(--c-ink-mute);margin-top:4px">Klick „Neue Story" und lade ein Hochkant-Video oder Bild hoch.</div>
         </div>
       ` : `
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -14654,7 +14855,7 @@ function renderStoriesAdmin() {
                     ${s.expiresDays ? `<span class="pill" style="font-size:9px;background:#FEF3C7;color:#854D0E;border:1px solid #FDE68A" title="Auto-Ausblendung">⏱ ${s.expiresDays}d</span>` : `<span class="pill" style="font-size:9px;background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6" title="Dauerhaft">∞</span>`}
                   </div>
                   ${s.subtitle ? `<div style="font-size:11px;color:var(--c-ink-mute);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.subtitle.replace(/</g,'&lt;')}</div>` : ''}
-                  <div style="font-size:10px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(s.videoUrl || '').replace(/</g,'&lt;')}</div>
+                  ${(s.media && s.media[0]) ? `<div style="font-size:10px;color:var(--c-ink-mute);margin-top:3px;font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(s.media[0].filename || '').replace(/</g,'&lt;')}${s.media.length > 1 ? ` +${s.media.length - 1}` : ''}</div>` : `<div style="font-size:10px;color:var(--c-red);margin-top:3px">Keine Datei</div>`}
                 </div>
                 <div style="display:flex;flex-direction:column;justify-content:center;gap:4px;padding:8px">
                   <button data-action="story-edit" data-rid="${s._recordId}" title="Bearbeiten" style="padding:6px;background:transparent;color:var(--c-ink-mute);border:0;cursor:pointer">${svg('pencil', 13, 2.4)}</button>
@@ -14737,19 +14938,19 @@ function renderStoryEditSheet(d) {
                 <button type="button" data-action="story-media-pick" ${uploading ? 'disabled' : ''} style="padding:9px 13px;background:var(--c-blue);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px${uploading?';opacity:.5':''}">${uploading?'<div class="spinner spinner--sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Lädt …':svg('plus', 12, 2.5) + ' ' + (hasMedia ? 'Datei hinzufügen' : 'Dateien hochladen')}</button>
               </div>
               <input type="file" id="storyMediaInput" accept="video/*,image/*" multiple class="photo-input" data-action="story-media-picked">
-              <div style="font-size:10px;color:var(--c-ink-mute);margin-top:6px;line-height:1.4">Du kannst mehrere Dateien gleichzeitig wählen — jede wird ein eigenes Segment innerhalb der Story. MP4/MOV/WebM für Video · JPG/PNG für Bild. Max ~50 MB pro Datei. <strong>Hochkant (9:16) sieht am besten aus.</strong> Bilder werden nach 6 s automatisch weitergeschoben, Videos enden natürlich.</div>
+              ${uploading && state.storyDraftUploadStatus ? `
+                <div style="margin-top:8px;padding:9px 11px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:11px;color:#1E40AF;display:flex;align-items:center;gap:8px">
+                  <div class="spinner spinner--sm" style="border-color:#BFDBFE;border-top-color:#1E40AF;flex-shrink:0"></div>
+                  <span id="storyUploadStatusLine" style="font-family:var(--f-mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state.storyDraftUploadStatus}</span>
+                </div>
+              ` : ''}
+              <div style="font-size:10px;color:var(--c-ink-mute);margin-top:6px;line-height:1.45">
+                Mehrere Dateien gleichzeitig wählbar — jede wird ein Segment.<br>
+                <strong>Video:</strong> MP4/MOV/WebM, max 60 s · wird automatisch auf max. 720 px Hochkant + 1.2 Mbit/s komprimiert.<br>
+                <strong>Bild:</strong> JPG/PNG, wird auf max. 1080 px verkleinert + JPEG-komprimiert.<br>
+                <strong>Hochkant-Format (9:16)</strong> sieht im Reel am besten aus. Bilder werden nach 6 s automatisch weitergeschoben.
+              </div>
             `}
-          </div>
-
-          <div style="display:flex;align-items:center;gap:8px;color:var(--c-ink-subtle);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
-            <span style="flex:1;height:1px;background:var(--c-border)"></span><span>oder</span><span style="flex:1;height:1px;background:var(--c-border)"></span>
-          </div>
-
-          <!-- YouTube/URL-Variante -->
-          <div>
-            <label class="field__label" style="display:flex;align-items:center;gap:8px">${svg('link', 13, 2.4)} YouTube-Link oder externe URL</label>
-            <input class="field__input" data-action="story-input" data-key="videoUrl" value="${(d.videoUrl || '').replace(/"/g,'&quot;')}" placeholder="https://youtu.be/... oder https://...mp4" autocomplete="off" style="font-family:var(--f-mono);font-size:12px;margin-top:6px">
-            <div style="font-size:10px;color:var(--c-ink-mute);margin-top:5px">YouTube (alle Formate erkannt) oder direkter Video-Link. Wird ignoriert, wenn oben eine Datei hochgeladen ist.</div>
           </div>
         </div>
         <div class="field">
@@ -19092,7 +19293,7 @@ document.addEventListener('click', (e) => {
     }
     case 'story-add': {
       if (!isAdmin()) break;
-      state.storyDraft = { title: '', videoUrl: '', subtitle: '', target: 'all', company: '', sortOrder: 0, active: true, pinned: false, expiresDays: 0, media: [] };
+      state.storyDraft = { title: '', subtitle: '', target: 'all', company: '', sortOrder: 0, active: true, pinned: false, expiresDays: 0, media: [] };
       render();
       break;
     }
@@ -19155,23 +19356,47 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'story-media-picked': {
-      // Eine oder mehrere Dateien vom <input type="file"> nacheinander hochladen.
+      // Eine oder mehrere Dateien:
+      //   1) Lokal komprimieren/re-encoden (Bilder → JPEG ≤1080px, Videos → ≤720px @ 1.2 Mbit/s)
+      //   2) Re-encoded File hochladen
       // Airtable hängt jeden Upload an die bestehende `media`-Liste an → jedes File wird ein Segment.
       if (!isAdmin() || !state.storyDraft || !state.storyDraft._recordId) break;
       const fileInput = document.getElementById('storyMediaInput');
       const files = Array.from(fileInput?.files || []);
       if (!files.length) break;
       state.storyDraftUploading = true;
+      state.storyDraftUploadStatus = `Datei wird vorbereitet …`;
       render();
       (async () => {
         let lastRec = null;
         let okCount = 0;
+        let idx = 0;
         for (const file of files) {
+          idx++;
+          const isVideo = (file.type || '').startsWith('video/');
+          const baseLabel = `${idx}/${files.length} · ${(file.name || '').slice(0, 40)}`;
           try {
-            lastRec = await uploadRawFileToRecord(TBL_STORIES, state.storyDraft._recordId, 'media', file);
+            // 1) Komprimieren — Progress-Updates fürs Video, Bilder sind nahezu sofort fertig
+            state.storyDraftUploadStatus = `${baseLabel} · ${isVideo ? 'Video wird komprimiert …' : 'Bild wird optimiert …'}`;
+            render();
+            const processed = await processStoryFile(file, (p) => {
+              const pct = Math.round(p * 100);
+              state.storyDraftUploadStatus = `${baseLabel} · Video wird komprimiert … ${pct}%`;
+              // Throttled render via requestAnimationFrame ist Overkill — direkt re-rendern, ist nur Sheet-Text
+              const el = document.getElementById('storyUploadStatusLine');
+              if (el) el.textContent = state.storyDraftUploadStatus;
+            });
+            const sizeBefore = file.size;
+            const sizeAfter = processed.size;
+            const ratio = sizeBefore > 0 ? Math.round((1 - sizeAfter / sizeBefore) * 100) : 0;
+            console.log(`[story-upload] ${file.name}: ${(sizeBefore/1024/1024).toFixed(2)} MB → ${(sizeAfter/1024/1024).toFixed(2)} MB (-${ratio}%)`);
+            // 2) Upload
+            state.storyDraftUploadStatus = `${baseLabel} · Hochladen …`;
+            render();
+            lastRec = await uploadRawFileToRecord(TBL_STORIES, state.storyDraft._recordId, 'media', processed);
             okCount++;
           } catch (e) {
-            showToast('Upload fehlgeschlagen (' + (file.name || '?') + '): ' + (e.message || ''), 'error', 4000);
+            showToast('Fehlgeschlagen (' + (file.name || '?') + '): ' + (e.message || ''), 'error', 4500);
           }
         }
         if (lastRec) {
@@ -19181,6 +19406,7 @@ document.addEventListener('click', (e) => {
         }
         if (okCount > 0) showToast(okCount === 1 ? 'Hochgeladen' : `${okCount} Dateien hochgeladen`, 'success', 2000);
         state.storyDraftUploading = false;
+        state.storyDraftUploadStatus = '';
         if (fileInput) fileInput.value = '';
         render();
       })();
@@ -19210,11 +19436,11 @@ document.addEventListener('click', (e) => {
       // (Upload braucht recordId, Save mit Validation würde blocken).
       // Story wird erst angezeigt, wenn mindestens eine Quelle gesetzt ist (Filter in loadStories).
       const hasUploadedMedia = !!(d.media && d.media[0]);
-      const hasUrl = !!(d.videoUrl || '').trim();
       const isNew = !d._recordId;
       const fields = {
         title: (d.title || '').trim(),
-        video_url: (d.videoUrl || '').trim(),
+        // video_url leeren: YouTube/URL wird nicht mehr unterstützt, nur noch lokale Uploads
+        video_url: '',
         subtitle: (d.subtitle || '').trim(),
         target: d.target || 'all',
         company: d.company || '',
@@ -19238,9 +19464,9 @@ document.addEventListener('click', (e) => {
           state.stories.sort((a, b) => (a.sortOrder - b.sortOrder) || (a.title || '').localeCompare(b.title || ''));
           // Wenn NEU und noch keine Medien: Sheet offen lassen damit User direkt hochladen kann.
           // Sheet bekommt jetzt eine recordId → Upload-Button wird klickbar.
-          if (isNew && !hasUploadedMedia && !hasUrl) {
+          if (isNew && !hasUploadedMedia) {
             state.storyDraft = updated;
-            showToast('Angelegt — jetzt Datei hochladen oder URL eintragen', 'success', 3000);
+            showToast('Angelegt — jetzt Video oder Bild hochladen', 'success', 3000);
           } else {
             state.storyDraft = null;
             showToast(d._recordId ? 'Aktualisiert' : 'Story angelegt', 'success', 2000);
