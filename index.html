@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.49';
+const APP_VERSION = 'v2.50';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2808,9 +2808,20 @@ const COMPANY_FIELDS = [
   { name: 'owners', type: 'multilineText' },                       // Liste der externen Besitzer (JSON-Array von Namen)
   { name: 'freshdesk_group_id', type: 'singleLineText' },          // Pro Firma: Freshdesk-Gruppe für Customer-Anfragen
   { name: 'freshdesk_ticket_type', type: 'singleLineText' },       // Pro Firma: Default-Tickettyp
+  { name: 'visible_roles', type: 'singleLineText' },               // Komma-separierte Rollen-Whitelist (leer = alle); zulässige Werte: admin,user,distributor,partner,customer
   { name: 'created', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
+
+// Rollen-Schlüssel für die Firmen-Sichtbarkeit. Reihenfolge = UI-Reihenfolge im Editor.
+const COMPANY_ROLE_KEYS = ['admin', 'user', 'distributor', 'partner', 'customer'];
+const COMPANY_ROLE_LABELS = {
+  admin: 'Admin',
+  user: 'Mitarbeiter (intern)',
+  distributor: 'Distributor',
+  partner: 'Partner',
+  customer: 'Kunde (Direkt)',
+};
 
 const ITEM_FIELDS = [
   { name: 'item_id', type: 'singleLineText' },
@@ -3137,6 +3148,32 @@ function isPartner() { return isCustomer() && !!APP_KEYS.user?.isPartner; }
 function isUnderPartner() { return isCustomer() && !!APP_KEYS.user?.parentPartnerId && !!APP_KEYS.parentDistributor; }
 // Regulärer Direktkunde: kein Distributor + kein Partner + nicht unter einem dieser
 function isRegularCustomer() { return isCustomer() && !isDistributor() && !isPartner() && !isUnderDistributor() && !isUnderPartner(); }
+
+// Effektive Rolle aus Sicht der Firmen-Sichtbarkeit (mapped auf COMPANY_ROLE_KEYS).
+// Admin und 'user' (interne Mitarbeiter) sehen immer alles, unabhängig vom Filter.
+function effectiveRoleForCompanyVisibility() {
+  if (isAdmin()) return 'admin';
+  if (isDistributor() || isUnderDistributor()) return 'distributor';
+  if (isPartner() || isUnderPartner()) return 'partner';
+  if (isCustomer()) return 'customer';
+  // Default: intern eingeloggter Mitarbeiter (kein Customer)
+  return 'user';
+}
+// Prüft, ob die aktuelle User-Rolle die Firma sehen darf.
+// Admin + interne User (Rolle 'user') sehen IMMER alles (kein Filter wird erzwungen).
+// Leere visibleRoles-Liste = alle Rollen dürfen sehen (Default offen).
+function companyVisibleForCurrentUser(c) {
+  if (!c) return false;
+  const role = effectiveRoleForCompanyVisibility();
+  if (role === 'admin' || role === 'user') return true; // intern darf alles sehen
+  const list = Array.isArray(c.visibleRoles) ? c.visibleRoles : [];
+  if (list.length === 0) return true; // Default offen
+  return list.includes(role);
+}
+// Gefilterte Liste aller Firmen, die der aktuelle User sehen darf.
+function visibleCompaniesForUser() {
+  return (state.companies || []).filter(companyVisibleForCurrentUser);
+}
 // "Neue" User = noch nicht vom Admin/Distributor geprüfte Selbst-Registrierungen.
 // Wird visuell hervorgehoben (NEU-Badge + gelber Rand) bis jemand "Geprüft" klickt.
 function isNewUser(u) {
@@ -8057,6 +8094,11 @@ function recordToCompany(rec) {
   try { if (f.shelves) shelves = JSON.parse(f.shelves); } catch(e) {}
   try { if (f.categories) categories = JSON.parse(f.categories); } catch(e) {}
   try { if (f.owners) owners = JSON.parse(f.owners); } catch(e) {}
+  // visible_roles: Komma-separiert. Leer/undefined = alle Rollen sehen die Firma.
+  const visibleRoles = String(f.visible_roles || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
   return {
     id: f.company_id,
     _recordId: rec.id,
@@ -8066,6 +8108,8 @@ function recordToCompany(rec) {
     // Freshdesk pro Firma
     freshdeskGroupId: f.freshdesk_group_id || '',
     freshdeskTicketType: f.freshdesk_ticket_type || '',
+    // Rollen-Whitelist: leeres Array = "alle sehen alles" (Default offen)
+    visibleRoles,
     inventory: [],
   };
 }
@@ -8153,6 +8197,8 @@ function companyToFields(c, apiKey) {
     owners: JSON.stringify(c.owners || []),
     freshdesk_group_id: c.freshdeskGroupId || '',
     freshdesk_ticket_type: c.freshdeskTicketType || '',
+    // Rollen-Whitelist als komma-separierter String (leer = alle dürfen sehen)
+    visible_roles: Array.isArray(c.visibleRoles) ? c.visibleRoles.join(',') : '',
     created: c._created || nowIso(),
     api_key: apiKey,
   };
@@ -8355,7 +8401,9 @@ async function loadAllData() {
   });
 
   state.companies = companies;
-  state.activeCompanyId = companies[0]?.id || null;
+  // Default-aktive Firma: erste sichtbare für Customer/Distributor/Partner, sonst erste überhaupt
+  const visibleForUser = companies.filter(companyVisibleForCurrentUser);
+  state.activeCompanyId = (visibleForUser[0] || companies[0])?.id || null;
 }
 
 function persistItemPatch(it, patch) {
@@ -10842,8 +10890,9 @@ function renderOnboardChooseLager(first) {
 function renderCustomerHomeMain() {
   const u = APP_KEYS.user || {};
   const first = u.firstName || (u.name || '').split(' ')[0] || '';
-  const activeCo = state.company || state.companies?.find(c => c.id === state.activeCompanyId) || state.companies?.[0];
-  const companies = state.companies || [];
+  // Customer/Distributor/Partner sehen nur Firmen, die für ihre Rolle freigegeben sind
+  const companies = visibleCompaniesForUser();
+  const activeCo = companies.find(c => c.id === state.activeCompanyId) || companies[0];
   const coCount = companies.length;
   const standalone = isStandalone();
   const showInstall = !standalone && !isInstallBannerDismissed();
@@ -17002,16 +17051,18 @@ function renderCompanyOverlay() {
 }
 
 function renderCompanySwitcher() {
-  const total = state.companies.length;
   // Customer dürfen Firmen nur auswählen, nicht editieren oder anlegen
   const canManageCompanies = !isCustomer();
+  // Admin/intern sehen alle Firmen — Customer/Distributor/Partner nur die mit passenden visibleRoles
+  const visibleList = canManageCompanies ? (state.companies || []) : visibleCompaniesForUser();
+  const total = visibleList.length;
   return `
     <div class="sheet-backdrop" data-action="close-company-switcher"></div>
     <div class="action-sheet" style="max-height:80vh;display:flex;flex-direction:column">
       <div class="action-sheet__handle"></div>
       <div class="action-sheet__title">${isCustomer() ? 'Bestand auswählen' : 'Firma wechseln'} · ${total}</div>
       <div class="js-scroll" data-scroll-key="company-switcher" style="padding:10px 14px 8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;min-height:0">
-        ${state.companies.map(c => {
+        ${visibleList.map(c => {
           const active = c.id === state.activeCompanyId;
           const itemCount = (c.inventory || []).length;
           return `
@@ -17079,6 +17130,39 @@ function renderCompanyEditor() {
             <div style="font-size:12px;font-weight:500;line-height:1.4">Neue Firmen starten mit leerem Bestand. Hallen, Regale und Artikel werden firmenspezifisch verwaltet.</div>
           </div>
         ` : ''}
+        ${(() => {
+          // Sichtbarkeits-Editor: leeres Array = alle Rollen sehen (Default offen).
+          const sel = Array.isArray(e.visibleRoles) ? e.visibleRoles : [];
+          const isOpen = sel.length === 0;
+          return `
+            <div style="padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div>
+                  <div style="font-size:12.5px;font-weight:700;color:var(--c-ink);display:flex;align-items:center;gap:6px">${svg('shield', 12, 2.5)} Sichtbarkeit (Usergruppen)</div>
+                  <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;line-height:1.45">Wer darf diese Firma im Wechsler &amp; im Kunden-Home sehen? Admin und interne Mitarbeiter sehen sie immer.</div>
+                </div>
+                ${!isOpen ? `<button type="button" data-action="company-roles-reset" style="padding:6px 10px;background:transparent;color:var(--c-ink-mute);border:1px solid var(--c-border);border-radius:var(--r-pill);font-size:10.5px;font-weight:600;cursor:pointer">Alle sichtbar</button>` : ''}
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${COMPANY_ROLE_KEYS.map(k => {
+                  const lbl = COMPANY_ROLE_LABELS[k] || k;
+                  const checked = isOpen || sel.includes(k);
+                  // Admin/User sind "immer sichtbar" — als disabled angedeutet anzeigen, aber im Filter ignoriert
+                  const alwaysOn = (k === 'admin' || k === 'user');
+                  return `
+                    <button type="button" data-action="company-toggle-role" data-role="${k}" ${alwaysOn ? 'disabled' : ''} style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:${checked ? 'var(--c-ink)' : 'var(--c-surface)'};color:${checked ? '#fff' : 'var(--c-ink-soft)'};border:1px solid ${checked ? 'var(--c-ink)' : 'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:${alwaysOn ? 'not-allowed' : 'pointer'};opacity:${alwaysOn ? '.6' : '1'}">
+                      ${checked ? svg('check', 11, 3) : ''} ${lbl}${alwaysOn ? ' ★' : ''}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+              <div style="font-size:10px;color:var(--c-ink-mute);line-height:1.45">
+                <strong>${isOpen ? '🌐 Alle Rollen' : sel.map(r => COMPANY_ROLE_LABELS[r] || r).join(', ')}</strong> ${isOpen ? 'sehen diese Firma.' : 'sehen diese Firma; andere Rollen nicht.'}
+                <span style="display:block;margin-top:3px;opacity:.8">★ = sehen immer alles, unabhängig vom Filter.</span>
+              </div>
+            </div>
+          `;
+        })()}
         ${canDelete ? `
           <div style="margin-top:8px;padding-top:14px;border-top:1px solid var(--c-divider)">
             <button data-action="delete-company" style="width:100%;padding:12px;background:transparent;border:1px solid var(--c-red);color:var(--c-red);border-radius:var(--r-md);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer">
@@ -18035,6 +18119,12 @@ document.addEventListener('click', (e) => {
       break;
     case 'select-company': {
       const id = btn.dataset.id;
+      // Sichtbarkeits-Check für Customer/Distributor/Partner — verhindert URL-Manipulation
+      const co = state.companies.find(x => x.id === id);
+      if (co && !companyVisibleForCurrentUser(co)) {
+        showToast('Diese Firma ist für deine Rolle nicht freigegeben', 'error', 2400);
+        break;
+      }
       if (state.activeCompanyId !== id) {
         state.activeCompanyId = id;
         // Reset state that's tied to the previous company's data
@@ -18055,14 +18145,19 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'add-company':
-      state.editingCompany = { id: null, name: '', color: COMPANY_COLORS[state.companies.length % COMPANY_COLORS.length] };
+      state.editingCompany = { id: null, name: '', color: COMPANY_COLORS[state.companies.length % COMPANY_COLORS.length], visibleRoles: [] };
       state.companySwitcherOpen = false;
       render();
       break;
     case 'edit-company': {
       const c = state.companies.find(x => x.id === btn.dataset.id);
       if (c) {
-        state.editingCompany = { id: c.id, name: c.name, color: c.color };
+        state.editingCompany = {
+          id: c.id,
+          name: c.name,
+          color: c.color,
+          visibleRoles: Array.isArray(c.visibleRoles) ? c.visibleRoles.slice() : [],
+        };
         state.companySwitcherOpen = false;
         render();
       }
@@ -18071,6 +18166,26 @@ document.addEventListener('click', (e) => {
     case 'company-color':
       if (state.editingCompany) { state.editingCompany.color = btn.dataset.col; render(); }
       break;
+    case 'company-toggle-role': {
+      // Rolle in der visibleRoles-Whitelist togglen. Leeres Array = alle Rollen sehen.
+      if (!state.editingCompany) break;
+      const role = (btn.dataset.role || '').toLowerCase();
+      if (!COMPANY_ROLE_KEYS.includes(role)) break;
+      const arr = Array.isArray(state.editingCompany.visibleRoles) ? state.editingCompany.visibleRoles : [];
+      const i = arr.indexOf(role);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(role);
+      state.editingCompany.visibleRoles = arr;
+      render();
+      break;
+    }
+    case 'company-roles-reset': {
+      // Schnell zurück auf "alle Rollen sehen" setzen (leeres Array)
+      if (!state.editingCompany) break;
+      state.editingCompany.visibleRoles = [];
+      render();
+      break;
+    }
     case 'cancel-company-edit':
       state.editingCompany = null;
       render();
@@ -18082,11 +18197,16 @@ document.addEventListener('click', (e) => {
       let c;
       if (eC.id) {
         c = state.companies.find(x => x.id === eC.id);
-        if (c) { c.name = eC.name.trim(); c.color = eC.color; }
+        if (c) {
+          c.name = eC.name.trim();
+          c.color = eC.color;
+          c.visibleRoles = Array.isArray(eC.visibleRoles) ? eC.visibleRoles : [];
+        }
       } else {
         c = makeCompany({ name: eC.name.trim(), color: eC.color });
         c.id = 'co_' + shortId();
         c._created = nowIso();
+        c.visibleRoles = Array.isArray(eC.visibleRoles) ? eC.visibleRoles : [];
         state.companies.push(c);
         state.activeCompanyId = c.id;
         state.item = null;
