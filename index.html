@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.50';
+const APP_VERSION = 'v2.51';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -2808,7 +2808,8 @@ const COMPANY_FIELDS = [
   { name: 'owners', type: 'multilineText' },                       // Liste der externen Besitzer (JSON-Array von Namen)
   { name: 'freshdesk_group_id', type: 'singleLineText' },          // Pro Firma: Freshdesk-Gruppe für Customer-Anfragen
   { name: 'freshdesk_ticket_type', type: 'singleLineText' },       // Pro Firma: Default-Tickettyp
-  { name: 'visible_roles', type: 'singleLineText' },               // Komma-separierte Rollen-Whitelist (leer = alle); zulässige Werte: admin,user,distributor,partner,customer
+  { name: 'visible_roles', type: 'singleLineText' },               // Komma-separierte Rollen-Whitelist (nur wirksam wenn visibility_restricted='1')
+  { name: 'visibility_restricted', type: 'singleLineText' },       // '1' = Whitelist aktiv (nur Rollen in visible_roles sehen die Firma); leer = offen für alle
   { name: 'created', type: 'singleLineText' },
   { name: 'api_key', type: 'singleLineText' },
 ];
@@ -3161,13 +3162,14 @@ function effectiveRoleForCompanyVisibility() {
 }
 // Prüft, ob die aktuelle User-Rolle die Firma sehen darf.
 // Admin + interne User (Rolle 'user') sehen IMMER alles (kein Filter wird erzwungen).
-// Leere visibleRoles-Liste = alle Rollen dürfen sehen (Default offen).
+// visibilityRestricted=false → alle sehen (Default offen).
+// visibilityRestricted=true → nur Rollen aus der visibleRoles-Whitelist (kann auch leer sein → nur intern).
 function companyVisibleForCurrentUser(c) {
   if (!c) return false;
   const role = effectiveRoleForCompanyVisibility();
   if (role === 'admin' || role === 'user') return true; // intern darf alles sehen
+  if (!c.visibilityRestricted) return true; // Offener Modus
   const list = Array.isArray(c.visibleRoles) ? c.visibleRoles : [];
-  if (list.length === 0) return true; // Default offen
   return list.includes(role);
 }
 // Gefilterte Liste aller Firmen, die der aktuelle User sehen darf.
@@ -8094,11 +8096,12 @@ function recordToCompany(rec) {
   try { if (f.shelves) shelves = JSON.parse(f.shelves); } catch(e) {}
   try { if (f.categories) categories = JSON.parse(f.categories); } catch(e) {}
   try { if (f.owners) owners = JSON.parse(f.owners); } catch(e) {}
-  // visible_roles: Komma-separiert. Leer/undefined = alle Rollen sehen die Firma.
+  // visible_roles: Komma-separiert. Wirkt nur, wenn visibilityRestricted = true.
   const visibleRoles = String(f.visible_roles || '')
     .split(',')
     .map(s => s.trim().toLowerCase())
     .filter(Boolean);
+  const visibilityRestricted = String(f.visibility_restricted || '').trim() === '1';
   return {
     id: f.company_id,
     _recordId: rec.id,
@@ -8108,7 +8111,8 @@ function recordToCompany(rec) {
     // Freshdesk pro Firma
     freshdeskGroupId: f.freshdesk_group_id || '',
     freshdeskTicketType: f.freshdesk_ticket_type || '',
-    // Rollen-Whitelist: leeres Array = "alle sehen alles" (Default offen)
+    // Rollen-Whitelist + Aktivierungsschalter (Default offen = visibilityRestricted=false)
+    visibilityRestricted,
     visibleRoles,
     inventory: [],
   };
@@ -8197,8 +8201,9 @@ function companyToFields(c, apiKey) {
     owners: JSON.stringify(c.owners || []),
     freshdesk_group_id: c.freshdeskGroupId || '',
     freshdesk_ticket_type: c.freshdeskTicketType || '',
-    // Rollen-Whitelist als komma-separierter String (leer = alle dürfen sehen)
+    // Rollen-Whitelist + Aktivierungs-Flag
     visible_roles: Array.isArray(c.visibleRoles) ? c.visibleRoles.join(',') : '',
+    visibility_restricted: c.visibilityRestricted ? '1' : '',
     created: c._created || nowIso(),
     api_key: apiKey,
   };
@@ -17131,33 +17136,65 @@ function renderCompanyEditor() {
           </div>
         ` : ''}
         ${(() => {
-          // Sichtbarkeits-Editor: leeres Array = alle Rollen sehen (Default offen).
+          // Sichtbarkeits-Editor — zwei Modi (über expliziten Schalter, nicht über leere Liste):
+          //   1) Offen: alle Rollen sehen die Firma (Default).
+          //   2) Eingeschränkt: nur die in visibleRoles angekreuzten Rollen sehen sie.
+          //      Leere Whitelist im eingeschränkten Modus = nur Admin/Mitarbeiter (intern) sehen sie.
+          const restricted = !!e.visibilityRestricted;
           const sel = Array.isArray(e.visibleRoles) ? e.visibleRoles : [];
-          const isOpen = sel.length === 0;
+          const togglableKeys = COMPANY_ROLE_KEYS.filter(k => k !== 'admin' && k !== 'user');
           return `
-            <div style="padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;flex-direction:column;gap:10px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                <div>
-                  <div style="font-size:12.5px;font-weight:700;color:var(--c-ink);display:flex;align-items:center;gap:6px">${svg('shield', 12, 2.5)} Sichtbarkeit (Usergruppen)</div>
-                  <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;line-height:1.45">Wer darf diese Firma im Wechsler &amp; im Kunden-Home sehen? Admin und interne Mitarbeiter sehen sie immer.</div>
+            <div style="padding:14px;background:var(--c-bg-soft);border:1px solid var(--c-border);border-radius:var(--r-md);display:flex;flex-direction:column;gap:12px">
+              <div>
+                <div style="font-size:12.5px;font-weight:700;color:var(--c-ink);display:flex;align-items:center;gap:6px">${svg('shield', 12, 2.5)} Sichtbarkeit (Usergruppen)</div>
+                <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:3px;line-height:1.45">Wer darf diese Firma im Wechsler &amp; im Kunden-Home sehen? Admin und interne Mitarbeiter sehen sie immer.</div>
+              </div>
+
+              <!-- Modus-Schalter: offen ↔ eingeschränkt -->
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:#fff;border:1px solid var(--c-border);border-radius:var(--r-md)">
+                <input type="checkbox" data-action="company-toggle-restricted" ${restricted ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12.5px;font-weight:600;color:var(--c-ink)">Auf bestimmte Rollen beschränken</div>
+                  <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:2px">${restricted ? 'Aktiv — nur ausgewählte Rollen sehen die Firma.' : 'Aus — alle Rollen sehen die Firma (Default).'}</div>
                 </div>
-                ${!isOpen ? `<button type="button" data-action="company-roles-reset" style="padding:6px 10px;background:transparent;color:var(--c-ink-mute);border:1px solid var(--c-border);border-radius:var(--r-pill);font-size:10.5px;font-weight:600;cursor:pointer">Alle sichtbar</button>` : ''}
+              </label>
+
+              <!-- Intern (immer sichtbar) -->
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                <span style="font-size:10px;color:var(--c-ink-mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-right:4px">Immer sichtbar:</span>
+                ${['admin', 'user'].map(k => `
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:6px 11px;background:#E6F4EA;color:#0A6B2C;border:1px solid #8FD4A6;border-radius:var(--r-pill);font-size:11px;font-weight:600">
+                    ${svg('check', 10, 3)} ${COMPANY_ROLE_LABELS[k]} ★
+                  </span>
+                `).join('')}
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${COMPANY_ROLE_KEYS.map(k => {
-                  const lbl = COMPANY_ROLE_LABELS[k] || k;
-                  const checked = isOpen || sel.includes(k);
-                  // Admin/User sind "immer sichtbar" — als disabled angedeutet anzeigen, aber im Filter ignoriert
-                  const alwaysOn = (k === 'admin' || k === 'user');
-                  return `
-                    <button type="button" data-action="company-toggle-role" data-role="${k}" ${alwaysOn ? 'disabled' : ''} style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:${checked ? 'var(--c-ink)' : 'var(--c-surface)'};color:${checked ? '#fff' : 'var(--c-ink-soft)'};border:1px solid ${checked ? 'var(--c-ink)' : 'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:${alwaysOn ? 'not-allowed' : 'pointer'};opacity:${alwaysOn ? '.6' : '1'}">
-                      ${checked ? svg('check', 11, 3) : ''} ${lbl}${alwaysOn ? ' ★' : ''}
-                    </button>
-                  `;
-                }).join('')}
+
+              <!-- Auswählbare Rollen — nur klickbar im restricted-Modus -->
+              <div>
+                <div style="font-size:10px;color:var(--c-ink-mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Weitere Rollen ${restricted ? '— bitte ankreuzen' : '— im Offen-Modus alle sichtbar'}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  ${togglableKeys.map(k => {
+                    const lbl = COMPANY_ROLE_LABELS[k] || k;
+                    // Im Offen-Modus: optisch alle aktiv, aber Klicks gesperrt.
+                    // Im Restricted-Modus: nur ankreuzte Rollen aktiv.
+                    const checked = restricted ? sel.includes(k) : true;
+                    const disabled = !restricted;
+                    return `
+                      <button type="button" data-action="company-toggle-role" data-role="${k}" ${disabled ? 'disabled' : ''} style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:${checked ? 'var(--c-ink)' : 'var(--c-surface)'};color:${checked ? '#fff' : 'var(--c-ink-soft)'};border:1px solid ${checked ? 'var(--c-ink)' : 'var(--c-border)'};border-radius:var(--r-pill);font-size:11.5px;font-weight:600;cursor:${disabled ? 'not-allowed' : 'pointer'};opacity:${disabled ? '.55' : '1'}">
+                        ${checked ? svg('check', 11, 3) : ''} ${lbl}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
               </div>
-              <div style="font-size:10px;color:var(--c-ink-mute);line-height:1.45">
-                <strong>${isOpen ? '🌐 Alle Rollen' : sel.map(r => COMPANY_ROLE_LABELS[r] || r).join(', ')}</strong> ${isOpen ? 'sehen diese Firma.' : 'sehen diese Firma; andere Rollen nicht.'}
+
+              <!-- Status-Zeile -->
+              <div style="font-size:10.5px;color:var(--c-ink-mute);line-height:1.45;padding:8px 11px;background:#fff;border-radius:8px;border:1px dashed var(--c-border)">
+                ${!restricted
+                  ? `<strong>🌐 Offen</strong> — alle Rollen (Admin, Mitarbeiter, Distributor, Partner, Kunde) sehen diese Firma.`
+                  : (sel.length === 0
+                      ? `<strong style="color:var(--c-red)">🔒 Nur intern</strong> — nur Admin &amp; Mitarbeiter sehen diese Firma. Keine externe Rolle freigegeben.`
+                      : `<strong>🔒 Eingeschränkt</strong> — sichtbar für: Admin ★, Mitarbeiter ★, ${sel.map(r => COMPANY_ROLE_LABELS[r] || r).join(', ')}.`)}
                 <span style="display:block;margin-top:3px;opacity:.8">★ = sehen immer alles, unabhängig vom Filter.</span>
               </div>
             </div>
@@ -18145,7 +18182,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'add-company':
-      state.editingCompany = { id: null, name: '', color: COMPANY_COLORS[state.companies.length % COMPANY_COLORS.length], visibleRoles: [] };
+      state.editingCompany = { id: null, name: '', color: COMPANY_COLORS[state.companies.length % COMPANY_COLORS.length], visibilityRestricted: false, visibleRoles: [] };
       state.companySwitcherOpen = false;
       render();
       break;
@@ -18156,6 +18193,7 @@ document.addEventListener('click', (e) => {
           id: c.id,
           name: c.name,
           color: c.color,
+          visibilityRestricted: !!c.visibilityRestricted,
           visibleRoles: Array.isArray(c.visibleRoles) ? c.visibleRoles.slice() : [],
         };
         state.companySwitcherOpen = false;
@@ -18167,10 +18205,12 @@ document.addEventListener('click', (e) => {
       if (state.editingCompany) { state.editingCompany.color = btn.dataset.col; render(); }
       break;
     case 'company-toggle-role': {
-      // Rolle in der visibleRoles-Whitelist togglen. Leeres Array = alle Rollen sehen.
+      // Rolle in der visibleRoles-Whitelist togglen. Wirkt nur im restricted-Modus.
       if (!state.editingCompany) break;
+      if (!state.editingCompany.visibilityRestricted) break; // im Offen-Modus disabled
       const role = (btn.dataset.role || '').toLowerCase();
       if (!COMPANY_ROLE_KEYS.includes(role)) break;
+      if (role === 'admin' || role === 'user') break; // intern immer sichtbar — nicht togglebar
       const arr = Array.isArray(state.editingCompany.visibleRoles) ? state.editingCompany.visibleRoles : [];
       const i = arr.indexOf(role);
       if (i >= 0) arr.splice(i, 1);
@@ -18179,10 +18219,10 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
-    case 'company-roles-reset': {
-      // Schnell zurück auf "alle Rollen sehen" setzen (leeres Array)
+    case 'company-toggle-restricted': {
+      // Aktivierungs-Schalter: aus = alle sehen, an = nur Whitelist
       if (!state.editingCompany) break;
-      state.editingCompany.visibleRoles = [];
+      state.editingCompany.visibilityRestricted = !state.editingCompany.visibilityRestricted;
       render();
       break;
     }
@@ -18200,12 +18240,14 @@ document.addEventListener('click', (e) => {
         if (c) {
           c.name = eC.name.trim();
           c.color = eC.color;
+          c.visibilityRestricted = !!eC.visibilityRestricted;
           c.visibleRoles = Array.isArray(eC.visibleRoles) ? eC.visibleRoles : [];
         }
       } else {
         c = makeCompany({ name: eC.name.trim(), color: eC.color });
         c.id = 'co_' + shortId();
         c._created = nowIso();
+        c.visibilityRestricted = !!eC.visibilityRestricted;
         c.visibleRoles = Array.isArray(eC.visibleRoles) ? eC.visibleRoles : [];
         state.companies.push(c);
         state.activeCompanyId = c.id;
