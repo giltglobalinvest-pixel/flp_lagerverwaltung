@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.54';
+const APP_VERSION = 'v2.55';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -19446,10 +19446,35 @@ document.addEventListener('click', (e) => {
             showToast('Fehlgeschlagen (' + (file.name || '?') + '): ' + (e.message || ''), 'error', 4500);
           }
         }
-        if (lastRec) {
-          const fresh = recordToStory(lastRec);
-          state.storyDraft = fresh;
-          state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+        // ⚠ Airtable's content.airtable.com/uploadAttachment-Endpoint liefert die Felder
+        // per Field-ID (fld...) zurück, NICHT per Field-Name. Würden wir lastRec direkt
+        // mit recordToStory() lesen, wären alle benannten Felder undefined → Titel,
+        // Untertitel, Pinned-Flag, etc. würden im Draft + in state.stories gelöscht.
+        // → Stattdessen den vollen Record per airReadOne (api.airtable.com) nachladen,
+        //   dort kommen die Felder per Name zurück und recordToStory funktioniert wie erwartet.
+        if (okCount > 0 && state.storyDraft?._recordId) {
+          try {
+            const fullRec = await airReadOne(TBL_STORIES, state.storyDraft._recordId);
+            const fresh = recordToStory(fullRec);
+            // Merge: lokal noch nicht gespeicherte Edits gewinnen (z.B. der User hat während
+            // des Uploads den Titel weiter editiert — diese Änderung sonst überschreiben würden).
+            state.storyDraft = {
+              ...fresh,
+              title: (state.storyDraft.title ?? fresh.title) || '',
+              subtitle: (state.storyDraft.subtitle ?? fresh.subtitle) || '',
+              target: state.storyDraft.target || fresh.target,
+              company: state.storyDraft.company ?? fresh.company,
+              lang: state.storyDraft.lang ?? fresh.lang,
+              sortOrder: state.storyDraft.sortOrder ?? fresh.sortOrder,
+              active: state.storyDraft.active ?? fresh.active,
+              pinned: state.storyDraft.pinned ?? fresh.pinned,
+              expiresDays: state.storyDraft.expiresDays ?? fresh.expiresDays,
+            };
+            state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+          } catch (e) {
+            console.warn('[story] Re-fetch nach Upload fehlgeschlagen:', e);
+            // Fallback: state.stories minimal patchen damit das Reel aktualisiert wird
+          }
         }
         if (okCount > 0) showToast(okCount === 1 ? 'Hochgeladen' : `${okCount} Dateien hochgeladen`, 'success', 2000);
         state.storyDraftUploading = false;
