@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.55';
+const APP_VERSION = 'v2.56';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -19415,6 +19415,9 @@ document.addEventListener('click', (e) => {
             return;
           }
         }
+        // Existierende Media-Count merken, damit wir nach dem Upload erkennen können
+        // ob Airtable's Read-Replica schon die neuen Attachments enthält
+        const existingMediaCount = Array.isArray(state.storyDraft.media) ? state.storyDraft.media.length : 0;
         let lastRec = null;
         let okCount = 0;
         let idx = 0;
@@ -19450,12 +19453,32 @@ document.addEventListener('click', (e) => {
         // per Field-ID (fld...) zurück, NICHT per Field-Name. Würden wir lastRec direkt
         // mit recordToStory() lesen, wären alle benannten Felder undefined → Titel,
         // Untertitel, Pinned-Flag, etc. würden im Draft + in state.stories gelöscht.
-        // → Stattdessen den vollen Record per airReadOne (api.airtable.com) nachladen,
-        //   dort kommen die Felder per Name zurück und recordToStory funktioniert wie erwartet.
+        // → Stattdessen den vollen Record per airReadOne (api.airtable.com) nachladen.
+        // ⚠⚠ Zusätzlich verarbeitet Airtable Attachments async — die Read-Replica enthält
+        // die neuen URLs evtl. erst 1–3 s nach dem Upload. Daher pollen wir bis die
+        // erwartete Anzahl Files sichtbar ist (oder bis Timeout).
         if (okCount > 0 && state.storyDraft?._recordId) {
-          try {
-            const fullRec = await airReadOne(TBL_STORIES, state.storyDraft._recordId);
-            const fresh = recordToStory(fullRec);
+          const expectedCount = existingMediaCount + okCount;
+          const recId = state.storyDraft._recordId;
+          let fresh = null;
+          let pollAttempts = 0;
+          const maxAttempts = 8; // 400+600+800+...+2000ms ≈ 10s Total
+          state.storyDraftUploadStatus = `Server-Sync läuft …`;
+          render();
+          while (pollAttempts < maxAttempts) {
+            await new Promise(r => setTimeout(r, 400 + pollAttempts * 200));
+            try {
+              const fullRec = await airReadOne(TBL_STORIES, recId);
+              fresh = recordToStory(fullRec);
+              const currentCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
+              console.log(`[story-sync] Poll #${pollAttempts + 1}: media=${currentCount}/${expectedCount}`);
+              if (currentCount >= expectedCount) break;
+            } catch (e) {
+              console.warn(`[story-sync] Poll #${pollAttempts + 1} failed:`, e);
+            }
+            pollAttempts++;
+          }
+          if (fresh) {
             // Merge: lokal noch nicht gespeicherte Edits gewinnen (z.B. der User hat während
             // des Uploads den Titel weiter editiert — diese Änderung sonst überschreiben würden).
             state.storyDraft = {
@@ -19471,8 +19494,13 @@ document.addEventListener('click', (e) => {
               expiresDays: state.storyDraft.expiresDays ?? fresh.expiresDays,
             };
             state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
-          } catch (e) {
-            console.warn('[story] Re-fetch nach Upload fehlgeschlagen:', e);
+            const finalCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
+            if (finalCount < expectedCount) {
+              console.warn(`[story-sync] Timeout: nur ${finalCount}/${expectedCount} Files sichtbar`);
+              showToast(`Sync läuft noch — ${finalCount}/${expectedCount} Files sichtbar. Bei Bedarf neu laden.`, 'info', 4000);
+            }
+          } else {
+            console.warn('[story-sync] Kein Record nach Polling erhalten');
             // Fallback: state.stories minimal patchen damit das Reel aktualisiert wird
           }
         }
