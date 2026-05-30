@@ -1271,7 +1271,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.56';
+const APP_VERSION = 'v2.57';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -3207,6 +3207,143 @@ function getStoryMediaKind(s) {
   if (s.videoUrl && !parseYouTubeId(s.videoUrl)) return 'video';
   return null;
 }
+// Story-Upload-Pipeline:
+//   0) Falls Story noch nicht in Airtable existiert (neuer Draft) → silent anlegen
+//   1) Jede File lokal komprimieren (Bilder → JPEG ≤1080 px, Videos → ≤720 px @ 1.2 Mbit/s)
+//   2) Komprimiertes File via uploadAttachment hochladen
+//   3) Per Polling auf api.airtable.com warten bis die Read-Replica die neuen Files sieht
+//      (uploadAttachment-Response liefert Felder per Field-ID statt Name → unbrauchbar
+//       für recordToStory; ausserdem braucht Airtable 1–3 s bis attachments sichtbar sind)
+async function handleStoryMediaUpload() {
+  if (!isAdmin() || !state.storyDraft) return;
+  if (!(state.storyDraft.title || '').trim()) {
+    showToast('Bitte zuerst einen Titel eingeben', 'error', 2800);
+    const ti = document.querySelector('[data-action="story-input"][data-key="title"]');
+    if (ti) ti.focus();
+    return;
+  }
+  const fileInput = document.getElementById('storyMediaInput');
+  const files = Array.from(fileInput?.files || []);
+  if (!files.length) return;
+  state.storyDraftUploading = true;
+  state.storyDraftUploadStatus = `Datei wird vorbereitet …`;
+  render();
+  try {
+    // Step 0: Story anlegen falls noch nicht in Airtable
+    if (!state.storyDraft._recordId) {
+      try {
+        state.storyDraftUploadStatus = `Story wird angelegt …`;
+        render();
+        const d = state.storyDraft;
+        const createFields = {
+          title: (d.title || '').trim(),
+          video_url: '',
+          subtitle: (d.subtitle || '').trim(),
+          target: d.target || 'all',
+          company: d.company || '',
+          lang: d.lang || '',
+          sort_order: String(d.sortOrder || 0),
+          active: d.active === false ? '' : '1',
+          pinned: d.pinned ? '1' : '',
+          expires_days: String(Number(d.expiresDays || 0) || 0),
+          ring_color: d.ringColor || '',
+          created: nowIso(),
+        };
+        const newRec = await airWrite(TBL_STORIES, createFields);
+        const fresh = recordToStory(newRec);
+        state.storyDraft = { ...fresh };
+        state.stories = [...(state.stories || []), fresh];
+      } catch (e) {
+        state.storyDraftUploading = false;
+        state.storyDraftUploadStatus = '';
+        if (fileInput) fileInput.value = '';
+        showToast('Story konnte nicht angelegt werden: ' + (e.message || ''), 'error', 4500);
+        render();
+        return;
+      }
+    }
+    // Existierende Media-Count merken für Polling-Vergleich
+    const existingMediaCount = Array.isArray(state.storyDraft.media) ? state.storyDraft.media.length : 0;
+    let okCount = 0;
+    let idx = 0;
+    for (const file of files) {
+      idx++;
+      const isVideo = (file.type || '').startsWith('video/');
+      const baseLabel = `${idx}/${files.length} · ${(file.name || '').slice(0, 40)}`;
+      try {
+        state.storyDraftUploadStatus = `${baseLabel} · ${isVideo ? 'Video wird komprimiert …' : 'Bild wird optimiert …'}`;
+        render();
+        const processed = await processStoryFile(file, (p) => {
+          const pct = Math.round(p * 100);
+          state.storyDraftUploadStatus = `${baseLabel} · Video wird komprimiert … ${pct}%`;
+          const el = document.getElementById('storyUploadStatusLine');
+          if (el) el.textContent = state.storyDraftUploadStatus;
+        });
+        const sizeBefore = file.size;
+        const sizeAfter = processed.size;
+        const ratio = sizeBefore > 0 ? Math.round((1 - sizeAfter / sizeBefore) * 100) : 0;
+        console.log(`[story-upload] ${file.name}: ${(sizeBefore/1024/1024).toFixed(2)} MB → ${(sizeAfter/1024/1024).toFixed(2)} MB (-${ratio}%)`);
+        state.storyDraftUploadStatus = `${baseLabel} · Hochladen …`;
+        render();
+        await uploadRawFileToRecord(TBL_STORIES, state.storyDraft._recordId, 'media', processed);
+        okCount++;
+      } catch (e) {
+        showToast('Fehlgeschlagen (' + (file.name || '?') + '): ' + (e.message || ''), 'error', 4500);
+      }
+    }
+    if (okCount > 0 && state.storyDraft?._recordId) {
+      const expectedCount = existingMediaCount + okCount;
+      const recId = state.storyDraft._recordId;
+      let fresh = null;
+      let pollAttempts = 0;
+      const maxAttempts = 8;
+      state.storyDraftUploadStatus = `Server-Sync läuft …`;
+      render();
+      while (pollAttempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 400 + pollAttempts * 200));
+        try {
+          const fullRec = await airReadOne(TBL_STORIES, recId);
+          fresh = recordToStory(fullRec);
+          const currentCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
+          console.log(`[story-sync] Poll #${pollAttempts + 1}: media=${currentCount}/${expectedCount}`);
+          if (currentCount >= expectedCount) break;
+        } catch (e) {
+          console.warn(`[story-sync] Poll #${pollAttempts + 1} failed:`, e);
+        }
+        pollAttempts++;
+      }
+      if (fresh) {
+        state.storyDraft = {
+          ...fresh,
+          title: (state.storyDraft.title ?? fresh.title) || '',
+          subtitle: (state.storyDraft.subtitle ?? fresh.subtitle) || '',
+          target: state.storyDraft.target || fresh.target,
+          company: state.storyDraft.company ?? fresh.company,
+          lang: state.storyDraft.lang ?? fresh.lang,
+          sortOrder: state.storyDraft.sortOrder ?? fresh.sortOrder,
+          active: state.storyDraft.active ?? fresh.active,
+          pinned: state.storyDraft.pinned ?? fresh.pinned,
+          expiresDays: state.storyDraft.expiresDays ?? fresh.expiresDays,
+        };
+        state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
+        const finalCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
+        if (finalCount < expectedCount) {
+          console.warn(`[story-sync] Timeout: nur ${finalCount}/${expectedCount} Files sichtbar`);
+          showToast(`Sync läuft noch — ${finalCount}/${expectedCount} Files sichtbar. Bei Bedarf neu laden.`, 'info', 4000);
+        }
+      } else {
+        console.warn('[story-sync] Kein Record nach Polling erhalten');
+      }
+    }
+    if (okCount > 0) showToast(okCount === 1 ? 'Hochgeladen' : `${okCount} Dateien hochgeladen`, 'success', 2000);
+  } finally {
+    state.storyDraftUploading = false;
+    state.storyDraftUploadStatus = '';
+    if (fileInput) fileInput.value = '';
+    render();
+  }
+}
+
 async function loadStories() {
   if (state.storiesLoading) return state.stories || [];
   state.storiesLoading = true;
@@ -19364,152 +19501,10 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'story-media-picked': {
-      // Eine oder mehrere Dateien:
-      //   0) Falls Story noch nicht in Airtable existiert (neuer Draft) → vorher silent anlegen
-      //   1) Lokal komprimieren/re-encoden (Bilder → JPEG ≤1080px, Videos → ≤720px @ 1.2 Mbit/s)
-      //   2) Re-encoded File hochladen
-      // Airtable hängt jeden Upload an die bestehende `media`-Liste an → jedes File wird ein Segment.
-      if (!isAdmin() || !state.storyDraft) break;
-      if (!(state.storyDraft.title || '').trim()) {
-        showToast('Bitte zuerst einen Titel eingeben', 'error', 2800);
-        break;
-      }
-      const fileInput = document.getElementById('storyMediaInput');
-      const files = Array.from(fileInput?.files || []);
-      if (!files.length) break;
-      state.storyDraftUploading = true;
-      state.storyDraftUploadStatus = `Datei wird vorbereitet …`;
-      render();
-      (async () => {
-        // Step 0: Story anlegen falls noch nicht in Airtable
-        if (!state.storyDraft._recordId) {
-          try {
-            state.storyDraftUploadStatus = `Story wird angelegt …`;
-            render();
-            const d = state.storyDraft;
-            const createFields = {
-              title: (d.title || '').trim(),
-              video_url: '',
-              subtitle: (d.subtitle || '').trim(),
-              target: d.target || 'all',
-              company: d.company || '',
-              lang: d.lang || '',
-              sort_order: String(d.sortOrder || 0),
-              active: d.active === false ? '' : '1',
-              pinned: d.pinned ? '1' : '',
-              expires_days: String(Number(d.expiresDays || 0) || 0),
-              ring_color: d.ringColor || '',
-              created: nowIso(),
-            };
-            const newRec = await airWrite(TBL_STORIES, createFields);
-            const fresh = recordToStory(newRec);
-            // Felder vom Draft, die der User schon gesetzt hatte, übernehmen
-            state.storyDraft = { ...fresh };
-            state.stories = [...(state.stories || []), fresh];
-          } catch (e) {
-            state.storyDraftUploading = false;
-            state.storyDraftUploadStatus = '';
-            if (fileInput) fileInput.value = '';
-            showToast('Story konnte nicht angelegt werden: ' + (e.message || ''), 'error', 4500);
-            render();
-            return;
-          }
-        }
-        // Existierende Media-Count merken, damit wir nach dem Upload erkennen können
-        // ob Airtable's Read-Replica schon die neuen Attachments enthält
-        const existingMediaCount = Array.isArray(state.storyDraft.media) ? state.storyDraft.media.length : 0;
-        let lastRec = null;
-        let okCount = 0;
-        let idx = 0;
-        for (const file of files) {
-          idx++;
-          const isVideo = (file.type || '').startsWith('video/');
-          const baseLabel = `${idx}/${files.length} · ${(file.name || '').slice(0, 40)}`;
-          try {
-            // 1) Komprimieren — Progress-Updates fürs Video, Bilder sind nahezu sofort fertig
-            state.storyDraftUploadStatus = `${baseLabel} · ${isVideo ? 'Video wird komprimiert …' : 'Bild wird optimiert …'}`;
-            render();
-            const processed = await processStoryFile(file, (p) => {
-              const pct = Math.round(p * 100);
-              state.storyDraftUploadStatus = `${baseLabel} · Video wird komprimiert … ${pct}%`;
-              // Throttled render via requestAnimationFrame ist Overkill — direkt re-rendern, ist nur Sheet-Text
-              const el = document.getElementById('storyUploadStatusLine');
-              if (el) el.textContent = state.storyDraftUploadStatus;
-            });
-            const sizeBefore = file.size;
-            const sizeAfter = processed.size;
-            const ratio = sizeBefore > 0 ? Math.round((1 - sizeAfter / sizeBefore) * 100) : 0;
-            console.log(`[story-upload] ${file.name}: ${(sizeBefore/1024/1024).toFixed(2)} MB → ${(sizeAfter/1024/1024).toFixed(2)} MB (-${ratio}%)`);
-            // 2) Upload
-            state.storyDraftUploadStatus = `${baseLabel} · Hochladen …`;
-            render();
-            lastRec = await uploadRawFileToRecord(TBL_STORIES, state.storyDraft._recordId, 'media', processed);
-            okCount++;
-          } catch (e) {
-            showToast('Fehlgeschlagen (' + (file.name || '?') + '): ' + (e.message || ''), 'error', 4500);
-          }
-        }
-        // ⚠ Airtable's content.airtable.com/uploadAttachment-Endpoint liefert die Felder
-        // per Field-ID (fld...) zurück, NICHT per Field-Name. Würden wir lastRec direkt
-        // mit recordToStory() lesen, wären alle benannten Felder undefined → Titel,
-        // Untertitel, Pinned-Flag, etc. würden im Draft + in state.stories gelöscht.
-        // → Stattdessen den vollen Record per airReadOne (api.airtable.com) nachladen.
-        // ⚠⚠ Zusätzlich verarbeitet Airtable Attachments async — die Read-Replica enthält
-        // die neuen URLs evtl. erst 1–3 s nach dem Upload. Daher pollen wir bis die
-        // erwartete Anzahl Files sichtbar ist (oder bis Timeout).
-        if (okCount > 0 && state.storyDraft?._recordId) {
-          const expectedCount = existingMediaCount + okCount;
-          const recId = state.storyDraft._recordId;
-          let fresh = null;
-          let pollAttempts = 0;
-          const maxAttempts = 8; // 400+600+800+...+2000ms ≈ 10s Total
-          state.storyDraftUploadStatus = `Server-Sync läuft …`;
-          render();
-          while (pollAttempts < maxAttempts) {
-            await new Promise(r => setTimeout(r, 400 + pollAttempts * 200));
-            try {
-              const fullRec = await airReadOne(TBL_STORIES, recId);
-              fresh = recordToStory(fullRec);
-              const currentCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
-              console.log(`[story-sync] Poll #${pollAttempts + 1}: media=${currentCount}/${expectedCount}`);
-              if (currentCount >= expectedCount) break;
-            } catch (e) {
-              console.warn(`[story-sync] Poll #${pollAttempts + 1} failed:`, e);
-            }
-            pollAttempts++;
-          }
-          if (fresh) {
-            // Merge: lokal noch nicht gespeicherte Edits gewinnen (z.B. der User hat während
-            // des Uploads den Titel weiter editiert — diese Änderung sonst überschreiben würden).
-            state.storyDraft = {
-              ...fresh,
-              title: (state.storyDraft.title ?? fresh.title) || '',
-              subtitle: (state.storyDraft.subtitle ?? fresh.subtitle) || '',
-              target: state.storyDraft.target || fresh.target,
-              company: state.storyDraft.company ?? fresh.company,
-              lang: state.storyDraft.lang ?? fresh.lang,
-              sortOrder: state.storyDraft.sortOrder ?? fresh.sortOrder,
-              active: state.storyDraft.active ?? fresh.active,
-              pinned: state.storyDraft.pinned ?? fresh.pinned,
-              expiresDays: state.storyDraft.expiresDays ?? fresh.expiresDays,
-            };
-            state.stories = (state.stories || []).map(x => x._recordId === fresh._recordId ? fresh : x);
-            const finalCount = Array.isArray(fresh.media) ? fresh.media.length : 0;
-            if (finalCount < expectedCount) {
-              console.warn(`[story-sync] Timeout: nur ${finalCount}/${expectedCount} Files sichtbar`);
-              showToast(`Sync läuft noch — ${finalCount}/${expectedCount} Files sichtbar. Bei Bedarf neu laden.`, 'info', 4000);
-            }
-          } else {
-            console.warn('[story-sync] Kein Record nach Polling erhalten');
-            // Fallback: state.stories minimal patchen damit das Reel aktualisiert wird
-          }
-        }
-        if (okCount > 0) showToast(okCount === 1 ? 'Hochgeladen' : `${okCount} Dateien hochgeladen`, 'success', 2000);
-        state.storyDraftUploading = false;
-        state.storyDraftUploadStatus = '';
-        if (fileInput) fileInput.value = '';
-        render();
-      })();
+      // File-Input feuert `change`, NICHT `click`. Diese Case wird hier nie erreicht über
+      // einen echten User-Klick — sie bleibt nur als Fallback falls jemand sie programmatisch
+      // dispatched. Die echte Verdrahtung steht im globalen `change`-Handler.
+      handleStoryMediaUpload();
       break;
     }
     case 'story-media-remove': {
@@ -21805,6 +21800,10 @@ document.addEventListener('change', (e) => {
   } else if (a === 'admin-distributor-logo-picked') {
     t.value = '';
     uploadAdminDistributorLogo(file);
+  } else if (a === 'story-media-picked') {
+    // File-Input für Stories — feuert `change` (nicht `click`), daher hier dispatched.
+    // Upload-Logik liegt in handleStoryMediaUpload() weiter unten.
+    handleStoryMediaUpload();
   } else if (a === 'dl-file-picked') {
     t.value = '';
     if (!state.downloadDraft || !state.downloadDraft._recordId) {
