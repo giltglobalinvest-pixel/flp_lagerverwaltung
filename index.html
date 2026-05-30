@@ -559,10 +559,20 @@ body.mode-tablet .user-bar__user::after{
 /* Story-Viewer (Vollbild-Modal) */
 .story-viewer{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;animation:storyFadeIn .2s ease-out}
 @keyframes storyFadeIn{from{opacity:0}to{opacity:1}}
-.story-viewer__bar{height:3px;background:rgba(255,255,255,.25);margin:8px 12px 0;border-radius:2px;overflow:hidden;display:flex;gap:4px}
-.story-viewer__bar-seg{flex:1;background:rgba(255,255,255,.25);border-radius:2px;overflow:hidden}
-.story-viewer__bar-seg--active{background:#fff}
-.story-viewer__bar-seg--done{background:#fff}
+/* DAZN-/Instagram-Style Progress-Bars für den Story-Viewer.
+   Jedes Segment = ein eigener Balken. Der aktive Balken füllt sich live von links nach rechts:
+   - Bilder: CSS-Keyframe-Animation über STORY_IMAGE_DURATION_MS (linear)
+   - Videos: JS setzt --story-fill auf currentTime/duration (in triggerEffects via rAF) */
+.story-viewer__bar{height:3px;margin:8px 12px 0;border-radius:2px;display:flex;gap:4px}
+.story-viewer__bar-seg{flex:1;height:3px;background:rgba(255,255,255,.28);border-radius:2px;overflow:hidden;position:relative}
+.story-viewer__bar-seg::after{content:"";position:absolute;left:0;top:0;bottom:0;width:0%;background:#fff;border-radius:2px;will-change:width}
+.story-viewer__bar-seg--done::after{width:100%}
+.story-viewer__bar-seg--active::after{width:var(--story-fill,0%);transition:width .12s linear}
+.story-viewer__bar-seg--active.is-image-anim::after{
+  animation:storyBarFill var(--story-image-ms,6000ms) linear forwards;
+  transition:none;
+}
+@keyframes storyBarFill{from{width:0%}to{width:100%}}
 .story-viewer__head{display:flex;align-items:center;padding:10px 14px;gap:12px;color:#fff;z-index:2}
 .story-viewer__title{flex:1;min-width:0;font-size:14px;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .story-viewer__close{background:rgba(255,255,255,.18);border:0;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(8px)}
@@ -1271,7 +1281,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.57';
+const APP_VERSION = 'v2.58';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11547,7 +11557,21 @@ function renderStoryViewer() {
   return `
     <div class="story-viewer">
       <div class="story-viewer__bar">
-        ${Array.from({length: segCount}).map((_, i) => `<div class="story-viewer__bar-seg${i < segIdx ? ' story-viewer__bar-seg--done' : i === segIdx ? ' story-viewer__bar-seg--active' : ''}"></div>`).join('')}
+        ${Array.from({length: segCount}).map((_, i) => {
+          // Active bar: nutzt CSS-Animation für Bilder, JS-Update für Videos (in triggerEffects)
+          const isActive = i === segIdx;
+          const isDone = i < segIdx;
+          const isImgAnim = isActive && seg && seg.kind === 'image';
+          const cls = 'story-viewer__bar-seg'
+            + (isDone ? ' story-viewer__bar-seg--done' : '')
+            + (isActive ? ' story-viewer__bar-seg--active' : '')
+            + (isImgAnim ? ' is-image-anim' : '');
+          // CSS-Var auf den Bild-Bar setzen damit Dauer aus JS-Konstante kommt
+          const style = isImgAnim ? ` style="--story-image-ms:${STORY_IMAGE_DURATION_MS}ms"` : '';
+          // Data-Attribut für JS-Update bei Video-Segmenten
+          const dataAttr = (isActive && seg && seg.kind === 'video') ? ' data-story-bar-active="video"' : '';
+          return `<div class="${cls}"${style}${dataAttr}></div>`;
+        }).join('')}
       </div>
       <div class="story-viewer__head">
         <div class="story-viewer__title">${(s.title || '').replace(/</g,'&lt;')}${s.pinned ? ` <span style="font-size:10px;opacity:.7;margin-left:6px">📌</span>` : ''}${segCount > 1 ? `<span style="font-size:10px;opacity:.6;margin-left:6px;font-family:var(--f-mono)">${segIdx+1}/${segCount}</span>` : ''}</div>
@@ -18391,18 +18415,39 @@ function triggerEffects() {
 
   // aiAnalyze wird jetzt von runPhotoSearch() gesteuert (echte AI), keine Mock-Animation mehr
 
-  // Story-Viewer: <video>-ended-Event an Auto-Advance koppeln (jeweils nach Render neu)
+  // Story-Viewer: <video>-ended-Event an Auto-Advance koppeln + Progress-Bar live syncen
+  // (jeweils nach Render neu, weil innerHTML alles ersetzt)
+  // Bilder werden via CSS-Animation gefüllt (siehe .is-image-anim) — Videos via rAF hier.
+  if (_storyBarRaf) { cancelAnimationFrame(_storyBarRaf); _storyBarRaf = null; }
   if (state.storyViewerOpen) {
     const v = document.getElementById('storyVideoEl');
-    if (v && !v._endedBound) {
-      v._endedBound = true;
-      v.addEventListener('ended', () => {
-        clearStoryAutoAdvance();
-        advanceStorySegment(+1);
-      });
+    if (v) {
+      if (!v._endedBound) {
+        v._endedBound = true;
+        v.addEventListener('ended', () => {
+          clearStoryAutoAdvance();
+          advanceStorySegment(+1);
+        });
+      }
+      // Live-Progress des Video-Segments auf den aktiven Bar mappen
+      const bar = document.querySelector('.story-viewer__bar-seg[data-story-bar-active="video"]');
+      if (bar) {
+        const tick = () => {
+          if (!state.storyViewerOpen) { _storyBarRaf = null; return; }
+          const dur = v.duration;
+          if (dur && isFinite(dur) && dur > 0) {
+            const pct = Math.min(100, Math.max(0, (v.currentTime / dur) * 100));
+            bar.style.setProperty('--story-fill', pct + '%');
+          }
+          _storyBarRaf = requestAnimationFrame(tick);
+        };
+        _storyBarRaf = requestAnimationFrame(tick);
+      }
     }
   }
 }
+// rAF-Handle für die Live-Progress-Animation des Video-Story-Bars (siehe triggerEffects)
+let _storyBarRaf = null;
 
 function go(view, opts = {}) {
   // Navigations-Historie für Swipe-Back: aktueller View wird gepusht bevor wir wechseln,
