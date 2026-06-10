@@ -1281,7 +1281,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.58';
+const APP_VERSION = 'v2.59';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -11907,7 +11907,7 @@ function renderCustomerSettings() {
         <div class="field" style="margin-top:12px">
           <label class="field__label" style="color:#5A3F00">${t('dist.margin')}</label>
           <div style="display:flex;align-items:center;gap:8px">
-            <input class="field__input" type="number" min="0" max="500" step="0.5" data-action="distributor-margin-input" value="${marg}" placeholder="0" style="flex:1;font-family:var(--f-mono);text-align:right;background:#FFFCEF;border-color:rgba(122,84,0,.2)">
+            <input class="field__input" type="text" inputmode="decimal" data-action="distributor-margin-input" value="${String(marg).replace('.', ',')}" placeholder="0" autocomplete="off" style="flex:1;font-family:var(--f-mono);text-align:right;background:#FFFCEF;border-color:rgba(122,84,0,.2)">
             <span style="font-size:14px;font-weight:700;color:#5A3F00">%</span>
           </div>
           <div style="font-size:10.5px;color:#7A5400;margin-top:5px;line-height:1.4">${t('dist.margin.sub')}</div>
@@ -16263,7 +16263,7 @@ function renderUsers() {
                   <div class="field" style="margin:0">
                     <label class="field__label">Distributor-Rabatt auf FLP-Preis</label>
                     <div style="display:flex;align-items:center;gap:8px">
-                      <input class="field__input" type="number" min="0" max="100" step="0.5" data-action="user-distributor-discount-input" value="${Number(d.distributorDiscount || 0)}" placeholder="0" style="flex:1;font-family:var(--f-mono);text-align:right">
+                      <input class="field__input" type="text" inputmode="decimal" data-action="user-distributor-discount-input" value="${String(Number(d.distributorDiscount || 0)).replace('.', ',')}" placeholder="0" autocomplete="off" style="flex:1;font-family:var(--f-mono);text-align:right">
                       <span style="font-size:14px;font-weight:700;color:var(--c-ink-soft)">%</span>
                     </div>
                     <div style="font-size:10.5px;color:var(--c-ink-mute);margin-top:5px">Der Distributor sieht Preise als VP × (1 − Rabatt). Beispiel: VP 100 €, Rabatt 30 % → 70 € EK</div>
@@ -18342,14 +18342,16 @@ function render() {
   });
   app.querySelectorAll('.chip-row').forEach((el, i) => { if (savedScrolls[`chip:${i}`]) el.scrollLeft = savedScrolls[`chip:${i}`]; });
 
-  // Restore focus
+  // Restore focus — preventScroll verhindert dass iOS zur Seite springt wenn die
+  // Tastatur unten den Viewport eingerollt hatte. setSelectionRange-throw auf
+  // type=number wird gefangen (number-Inputs erlauben keine Selection).
   if (savedFocus) {
     let selector = `[data-action="${savedFocus.action}"]`;
     if (savedFocus.key) selector += `[data-key="${savedFocus.key}"]`;
     if (savedFocus.target) selector += `[data-target="${savedFocus.target}"]`;
     const newEl = app.querySelector(selector);
     if (newEl && (newEl.tagName === 'INPUT' || newEl.tagName === 'TEXTAREA')) {
-      newEl.focus();
+      try { newEl.focus({ preventScroll: true }); } catch(_) { newEl.focus(); }
       try { if (savedFocus.pos != null) newEl.setSelectionRange(savedFocus.pos, savedFocus.pos); } catch(e) {}
     }
   }
@@ -21631,13 +21633,14 @@ document.addEventListener('input', (e) => {
   else if (a === 'distributor-margin-input') {
     const u = APP_KEYS.user;
     if (!u || !isDistributor()) return;
-    u.distributorMargin = Number(t.value) || 0;
+    // Komma ODER Punkt als Dezimaltrenner akzeptieren (deutsche User tippen ",")
+    u.distributorMargin = Number(String(t.value || '').replace(',', '.')) || 0;
     if (window.__cMarginTimer) clearTimeout(window.__cMarginTimer);
     window.__cMarginTimer = setTimeout(() => {
-      persistUser(u).then(() => {
-        // Beispiel-Vorschau live updaten ohne kompletten Re-Render? Einfach: full render
-        render();
-      }).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
+      // KEIN render() nach Persist — würde innerHTML wegblasen + Fokus auf Mobile verlieren.
+      // Die Beispiel-Vorschau (FLP-VP × Marge) bleibt bis zum nächsten echten Re-Render stale —
+      // akzeptabel, weil sie unter dem Eingabefeld liegt und der User gerade tippt.
+      persistUser(u).catch(e => { state.cSetError = 'Speichern fehlgeschlagen: ' + (e?.message || ''); render(); });
     }, 600);
   }
   else if (a === 'distributor-inquiry-email-input') {
@@ -21730,7 +21733,8 @@ document.addEventListener('input', (e) => {
     state.storyDraft[k] = (k === 'sortOrder' || k === 'expiresDays') ? (Number(t.value) || 0) : t.value;
   }
   else if (a === 'user-distributor-discount-input') {
-    if (state.userDraft) state.userDraft.distributorDiscount = Number(t.value) || 0;
+    // Komma ODER Punkt als Dezimaltrenner akzeptieren
+    if (state.userDraft) state.userDraft.distributorDiscount = Number(String(t.value || '').replace(',', '.')) || 0;
   }
   else if (a === 'edit-field' && state.editForm) state.editForm[t.dataset.key] = t.value;
   else if (a === 'edit-spec-cell' && state.editForm) {
