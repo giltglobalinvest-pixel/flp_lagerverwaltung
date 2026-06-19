@@ -1282,7 +1282,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.63';
+const APP_VERSION = 'v2.64';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -16617,6 +16617,7 @@ function renderUsers() {
                           ${d._recordId ? `<div style="margin-top:8px;padding:8px 10px;background:#fff;border:1px solid #6EE7B7;border-radius:6px;font-size:10.5px;color:#065F46;line-height:1.4"><strong>Co-Branded Login-Link:</strong><br><span style="font-family:var(--f-mono);font-size:10px;word-break:break-all">${appLinkWithLang('', { partner: d._recordId })}</span></div>` : ''}
                         </div>
                       </div>
+                      ${!d.isDistributor ? `<input type="file" id="adminDistributorLogoInput" accept="image/*" class="photo-input" data-action="admin-distributor-logo-picked">` : ''}
                       `;
                     })()}
                   </div>
