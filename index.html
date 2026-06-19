@@ -185,6 +185,7 @@ body.mode-tablet .user-bar__user::after{
 .user-bar__role--admin{background:#FFD45C;color:#3A2400}
 .user-bar__role--customer{background:#A78BFA;color:#1A0B47}
 .user-bar__role--distributor{background:#F5C95B;color:#3A2400}
+.user-bar__role--partner{background:#6EE7B7;color:#065F46}
 .user-bar__perm{padding:1px 6px;border-radius:var(--r-pill);background:rgba(255,255,255,0.12);font-size:9px;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0;line-height:1.4;display:inline-flex;align-items:center;gap:3px}
 .user-bar__perm--on{background:rgba(46,170,93,.85);color:#fff}
 .user-bar__perm--off{background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.65)}
@@ -1281,7 +1282,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.62';
+const APP_VERSION = 'v2.63';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -4591,8 +4592,12 @@ const I18N = {
     // User-Bar (Statusleiste oben)
     'userbar.role.admin': 'Admin',
     'userbar.role.distributor': 'Distributor',
+    'userbar.role.partner': 'Partner',
     'userbar.role.customer': 'Kunde',
     'userbar.role.user': 'User',
+    'userbar.perm.partner': 'Partner-Zugang',
+    'userbar.perm.partner.tip': 'Du bist FLP-Partner — eigenes Co-Branding + eigene Sub-Kunden',
+    'userbar.perm.viaPartner.tip': 'Du bist Sub-Kunde dieses Partners',
     'userbar.perm.fullAccess': 'Voller Zugriff',
     'userbar.perm.fullAccess.tip': 'Voller Schreibzugriff auf alle Daten',
     'userbar.perm.distEk': 'EK −{n}%',
@@ -4967,8 +4972,12 @@ const I18N = {
     'nav.logout': 'Sign out',
     'userbar.role.admin': 'Admin',
     'userbar.role.distributor': 'Distributor',
+    'userbar.role.partner': 'Partner',
     'userbar.role.customer': 'Customer',
     'userbar.role.user': 'User',
+    'userbar.perm.partner': 'Partner access',
+    'userbar.perm.partner.tip': 'You are an FLP partner — own co-branding + your own sub-customers',
+    'userbar.perm.viaPartner.tip': 'You are a sub-customer of this partner',
     'userbar.perm.fullAccess': 'Full access',
     'userbar.perm.fullAccess.tip': 'Full write access to all data',
     'userbar.perm.distEk': 'EK −{n}%',
@@ -18461,14 +18470,17 @@ function updateUserBar() {
   const admin = isAdmin();
   const customer = isCustomer();
   const dist = isDistributor();
+  const partner = isPartner();
   const sub  = isUnderDistributor();
+  const subPartner = isUnderPartner();
   const pd   = APP_KEYS.parentDistributor;
   // Rolle (Haupt-Pill)
   let roleLabel, roleClass;
-  if (admin)       { roleLabel = t('userbar.role.admin');       roleClass = 'user-bar__role--admin'; }
-  else if (dist)   { roleLabel = t('userbar.role.distributor'); roleClass = 'user-bar__role--distributor'; }
-  else if (customer){ roleLabel = t('userbar.role.customer');   roleClass = 'user-bar__role--customer'; }
-  else             { roleLabel = t('userbar.role.user');        roleClass = ''; }
+  if (admin)        { roleLabel = t('userbar.role.admin');       roleClass = 'user-bar__role--admin'; }
+  else if (dist)    { roleLabel = t('userbar.role.distributor'); roleClass = 'user-bar__role--distributor'; }
+  else if (partner) { roleLabel = t('userbar.role.partner');     roleClass = 'user-bar__role--partner'; }
+  else if (customer){ roleLabel = t('userbar.role.customer');    roleClass = 'user-bar__role--customer'; }
+  else              { roleLabel = t('userbar.role.user');        roleClass = ''; }
 
   // Berechtigungs-/Kontext-Pills (kompakt, max. 2-3 Stück)
   const perms = [];
@@ -18483,6 +18495,13 @@ function updateUserBar() {
     } else {
       perms.push(`<span class="user-bar__perm user-bar__perm--off" title="${t('userbar.perm.priceLocked.tip')}">${svg('eye', 9, 2.6)} ${t('userbar.perm.priceLocked')}</span>`);
     }
+  } else if (partner) {
+    // Partner: Co-Brand-Kunde mit eigenen Sub-Kunden, ohne Distributor-Pricing
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.partner.tip')}">${svg('badge-check', 9, 2.6)} ${t('userbar.perm.partner')}</span>`);
+  } else if (subPartner) {
+    // Sub-Kunde unter Partner
+    const ppName = pd ? (pd.companyName || pd.name || '—') : '—';
+    perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.viaPartner.tip')}">${svg('badge-check', 9, 2.6)} ${t('userbar.perm.via', { name: String(ppName).replace(/</g,'&lt;').slice(0, 20) })}</span>`);
   } else if (sub) {
     const distName = pd ? (pd.companyName || pd.name || '—') : '—';
     perms.push(`<span class="user-bar__perm user-bar__perm--info" title="${t('userbar.perm.via.tip')}">${svg('badge-check', 9, 2.6)} ${t('userbar.perm.via', { name: String(distName).replace(/</g,'&lt;').slice(0, 20) })}</span>`);
