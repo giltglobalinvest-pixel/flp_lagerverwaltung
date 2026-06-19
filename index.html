@@ -1281,7 +1281,7 @@ body.is-flyer-view .version-badge{display:none !important}
 /* ============================================================
    APP CONFIG + AIRTABLE LAYER
    ============================================================ */
-const APP_VERSION = 'v2.60';
+const APP_VERSION = 'v2.61';
 // Read-Token wird zur Laufzeit zusammengesetzt, damit GitHub Push Protection
 // das Muster nicht als Secret erkennt. Token ist read-only und bewusst \u00f6ffentlich.
 const _TKP1 = 'patu8KWM8aWByxCGL';
@@ -15944,6 +15944,10 @@ function renderUsers() {
     const d = distMap.get(rid);
     return d ? (d.companyName || d.name || d.email || '—') : '— unbekannt —';
   };
+  // Analog für Partner (für Sub-Partner-„via XYZ"-Label).
+  // Wird unten beim Rendern als partnerById.get(u.parentPartnerId) referenziert.
+  const partnerById = new Map();
+  for (const u of users) if (u.isPartner) partnerById.set(u._recordId, u);
 
   const adminCount   = users.filter(u => userKind(u) === 'admin').length;
   const staffCount   = users.filter(u => userKind(u) === 'staff').length;
